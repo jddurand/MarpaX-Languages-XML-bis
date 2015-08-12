@@ -1,0 +1,84 @@
+#!perl
+use strict;
+use warnings FATAL => 'all';
+use diagnostics;
+
+use Getopt::Long;
+use Log::Any qw/$log/;
+use Log::Any::Adapter;
+use Log::Log4perl qw/:easy/;
+use MarpaX::Languages::XML;
+use POSIX qw/EXIT_FAILURE EXIT_SUCCESS/;
+use Try::Tiny;
+
+# ABSTRACT: XML AST
+
+# VERSION
+
+# PODNAME: xml2ast
+
+my $help = 0;
+my $loglevel = 'WARN';
+my $logstderr = 0;
+my $grammar = undef;
+my $block_size = 0;
+my $encoding = '';
+
+our @GRAMMAR_VALUES = qw/1.0 1.1/;
+GetOptions ('help!' => \$help,
+            'loglevel=s' => \$loglevel,
+            'debug' => sub { $loglevel = 'DEBUG' },
+            'info' => sub { $loglevel = 'INFO' },
+            'warn' => sub { $loglevel = 'WARN' },
+            'error' => sub { $loglevel = 'ERROR' },
+            'fatal' => sub { $loglevel = 'FATAL' },
+            'trace' => sub { $loglevel = 'TRACE' },
+            'block_size=i' => \$block_size,
+            'encoding=s' => \$encoding,
+            'grammar' => sub {
+              my ($name, $value) = @_;
+              if (! grep {$_ eq $value} @GRAMMAR_VALUES) {
+                die 'grammar option value must be one of ', join(', ', @GRAMMAR_VALUES) . "\n";
+              }
+              $grammar = $value;
+            },
+            'logstderr!' => \$logstderr);
+
+__PACKAGE__->_init($loglevel, $logstderr);
+
+my $o = MarpaX::Languages::XML->new();
+
+foreach (@ARGV) {
+  my $source = $_;
+  try {
+    $o->ast({source     => $source,
+             grammar    => $grammar,
+             block_size => $block_size,
+             encoding   => $encoding,
+             parse_opts => {
+                            trace_terminals => $log->is_trace
+                           }
+             });
+  } catch {
+    $log->errorf('%s', "$_");
+    return;
+  };
+}
+
+exit(EXIT_SUCCESS);
+
+##################################################"
+
+sub _init {
+  my ($class, $loglevel, $logstderr) = @_;
+
+  my $defaultLog4perlConf = <<DEFAULT_LOG4PERL_CONF;
+log4perl.rootLogger              = $loglevel, Screen
+log4perl.appender.Screen         = Log::Log4perl::Appender::Screen
+log4perl.appender.Screen.stderr  = $logstderr
+log4perl.appender.Screen.layout  = PatternLayout
+log4perl.appender.Screen.layout.ConversionPattern = %d %-5p %6P %m{chomp}%n
+DEFAULT_LOG4PERL_CONF
+   Log::Log4perl::init(\$defaultLog4perlConf);
+   Log::Any::Adapter->set('Log4perl');
+}
