@@ -95,10 +95,6 @@ sub _bytes_to_BOM {
     $bom = 'UTF-32LE';
     $bom_size = 4;
   }
-  elsif ($bytes =~ m/^\x{FF}\x{FE}\x{00}\x{00}/s) {
-    $bom = 'UTF-32LE';
-    $bom_size = 4;
-  }
   elsif ($bytes =~ m/^\x{DD}\x{73}\x{66}\x{73}/s) {
     $bom = 'UTF-EBCDIC';
     $bom_size = 4;
@@ -163,25 +159,34 @@ sub _guess_encoding {
   elsif ($bytes =~ /[\x80-\xFF]{4}/) {
     push(@suspect_list, qw/euc-cn big5-eten euc-jp cp932 euc-kr cp949/);
   } else {
-    push(@suspect_list, qw/latin1/);
+    push(@suspect_list, qw/utf-8/);
   }
 
   my $name = '';
+  local $Encode::Guess::NoUTFAutoGuess = 0;
   try {
     my $enc = guess_encoding($bytes, @suspect_list);
     if (! defined($enc) || ! ref($enc)) {
       die $enc || 'unknown encoding';
     }
-    $name = $enc->name || '';
+    $name = uc($enc->name || '');
   } catch {
     $self->_logger->debugf('%s', $_);
   };
 
   if (length($name) > 0) {
-    $self->_logger->debugf('data says %s', $name);
+    if ($name eq 'ASCII') {
+      #
+      # Ok, ascii is UTF-8 compatible. Let's say UTF-8.
+      #
+      $self->_logger->debugf('data says %s, revisited as UTF-8', $name);
+      $name = 'UTF-8';
+    } else {
+      $self->_logger->debugf('data says %s', $name);
+    }
   }
 
-  return $name;
+  return uc($name);
 }
 
 sub _set_position {
@@ -202,8 +207,7 @@ sub _set_position {
       $pos_ok = 1;
     }
   } catch {
-    $self->_logger->warnf('%s', $_);
-    return;
+    MarpaX::Languages::XML::Exception->throw("$_");
   };
   if (! $pos_ok) {
     #
@@ -224,9 +228,7 @@ sub _set_position {
       #
       # Really I do not know what else to do
       #
-      $self->_logger->errorf('Re-opening failed to position source at byte %d', $position);
-      $self->_logger->debugf('Closing %s', $source);
-      $io = undef;
+      MarpaX::Languages::XML::Exception->throw("Re-opening failed to position source at byte $position");
     } else {
       $self->_logger->debugf('Setting io internal buffer to %d', $1024);
       $io->block_size(1024);
@@ -239,7 +241,7 @@ sub _set_position {
 }
 
 sub _open {
-  my ($self, $source, $encoding) = @_;
+  my ($self, $source) = @_;
   #
   # Read the first five bytes if any. Supported encodings at those
   # mentionned at https://en.wikipedia.org/wiki/Byte_order_mark
@@ -258,40 +260,31 @@ sub _open {
   }
   my $buffer = ${$io->buffer};
 
-  my $ok_encoding;
-  my $ok_byte_start;
+  my $bom_encoding = '';
+  my $guess_encoding = '';
+
   my ($found_encoding, $byte_start) = $self->_bytes_to_BOM($buffer);
   if (length($found_encoding) <= 0) {
     $found_encoding = $self->_guess_encoding($buffer);
     if (length($found_encoding) <= 0) {
       $self->_logger->debugf('Assuming relaxed (perl) utf8 encoding');
-      $found_encoding = 'utf8';
+      $found_encoding = 'UTF8';  # == utf8 == perl relaxed unicode
     } else {
-      ($ok_encoding, $ok_byte_start) = ($found_encoding, 0);
+      $guess_encoding = uc($found_encoding);
     }
     $byte_start = 0;
   } else {
-    ($ok_encoding, $ok_byte_start) = ($found_encoding, $byte_start);
+    $bom_encoding = uc($found_encoding);
   }
 
-  #
-  # Per def encoding is always writen in Latin1 characters, so lc() is ok
-  if ($encoding && (lc($encoding) ne lc($found_encoding))) {
-    $self->_logger->debugf('Giving priority to user input that says encoding is %s while we found %s', $encoding, $found_encoding);
-  } else {
-    $encoding = $found_encoding;
-  }
-  $self->_logger->debugf('Setting encoding to %s', $encoding);
-  $io->encoding($encoding);
+  $self->_logger->debugf('Setting encoding to %s', $found_encoding);
+  $io->encoding($found_encoding);
 
   #
   # Make sure we are positionned at the beginning of the buffer. This is inefficient
   # for everything that is not seekable.
   #
   $io = $self->_set_position($source, $io, $byte_start);
-  if (! defined($io)) {
-    return;
-  }
 
   #
   # The stream is supposed to be opened with the correct encoding, if any
@@ -302,7 +295,10 @@ sub _open {
   # If the encoding is setted to something else but what the BOM eventually says
   # this will be handled by a callback from the grammar.
   #
-  return ($io, $encoding);
+  # An XML processor SHOULD work with case-insensitive encoding name. So we uc()
+  # (note: per def an encoding name contains only Latin1 character, i.e. uc() is ok)
+  #
+  return ($io, $bom_encoding, $guess_encoding, $found_encoding, $byte_start);
 }
 
 sub parse {
@@ -321,17 +317,12 @@ sub parse {
     MarpaX::Languages::XML::Exception->throw('Hash\'s source must be a SCALAR');
   }
 
-  my $encoding = $hash_ref->{encoding} || '';
-  if ((reftype($encoding) || '') ne '') {
-    MarpaX::Languages::XML::Exception->throw('Hash\'s encoding must be a SCALAR');
-  }
-
   my $block_size = $hash_ref->{block_size} || 1048576;
   if ((reftype($block_size) || '') ne '') {
     MarpaX::Languages::XML::Exception->throw('Hash\'s block_size must be a SCALAR');
   }
 
-  my $grammar    = $hash_ref->{grammar} || MarpaX::Languages::XML::Impl::Grammar->xml10;
+  my $grammar    = $hash_ref->{grammar} || MarpaX::Languages::XML::Impl::Grammar->new->get('1.0', 'document');
   if ((blessed($grammar) || '') ne 'Marpa::R2::Scanless::G') {
     MarpaX::Languages::XML::Exception->throw('Hash\'s grammar must be an Marpa::R2::Scanless::G instance');
   }
@@ -345,10 +336,25 @@ sub parse {
     #
     # Guess the encoding
     #
-    my ($io, $encoding) = $self->_open($source, $encoding);
+    my ($io, $bom_encoding, $guess_encoding, $orig_encoding, $byte_start) = $self->_open($source);
+    #
+    # This variable will hold the encname as per the XML itself
+    #
+    my $xml_encoding = '';
+    my $nb_first_read = 0;
+    my $have_xmldecl = 0;
+    #
+    # Disable non-needed events
+    #
+  redo_first_read:
     if (defined($io)) {
-      $self->_logger->debugf('Setting io internal buffer to %d', $block_size);
-      $io->block_size($block_size);
+      if ($nb_first_read == 0) {
+        #
+        # Very initial block size
+        #
+        $self->_logger->debugf('Setting io internal buffer to %d', $block_size);
+        $io->block_size($block_size);
+      }
       $self->_logger->debugf('Clearing io internal buffer');
       $io->clear;
       #
@@ -360,7 +366,6 @@ sub parse {
       # The parse will be over if Marpa says it is exhausted.
       # The parse will stop if we reach eof or parse is exhausted.
       #
-    retry_initial_read:
       $self->_logger->debugf('Trying to read %d characters', $block_size);
       my $length = $io->read;
       $self->_logger->debugf('Got %d characters', $length);
@@ -371,19 +376,18 @@ sub parse {
         my $buffer = '';
         my $pos;
         my $first_read_ok = 0;
-        my @events;
         do {
           $buffer .= ${$io->buffer};
           $self->_logger->debugf('Appended %d characters to initial buffer', $length);
-          try {
-            $self->_logger->debugf('Instanciating a recognizer');
-            $r = Marpa::R2::Scanless::R->new({%{$parse_opts},
-                                              grammar => $grammar,
-                                              trace_file_handle => $MARPA_TRACE_FILE_HANDLE,
-                                             });
-            $pos = $r->read(\$buffer);
-          };
-          @events = map { $_->[0] } @{$r->events()};
+          $self->_logger->debugf('Instanciating a recognizer');
+          $r = Marpa::R2::Scanless::R->new({%{$parse_opts},
+                                            grammar => $grammar,
+                                            trace_file_handle => $MARPA_TRACE_FILE_HANDLE,
+                                           });
+          $self->_logger->debugf('Disabling \'%s\' event', 'XMLDecl$');
+          $r->activate('XMLDecl$', 0);
+          $pos = $r->read(\$buffer);
+          my @events = map { $_->[0] } @{$r->events()};
           if (! @events) {
             #
             # Try to read more in the initial buffer. We want to catch 'EncName$' eventually.
@@ -399,11 +403,135 @@ sub parse {
               $self->_logger->debugf('EOF');
               last;
             }
+          } else {
+            foreach (@events) {
+              $self->_logger->debugf('Got parse event \'%s\'', $_);
+              if ($_ eq 'EncName$') {
+                #
+                # Remember encoding as given in the XML
+                #
+                my ($start, $span_length) = $r->last_completed_span('EncName');
+                $xml_encoding = uc($r->literal($start, $span_length));
+                $self->_logger->debugf('Got encoding name \'%s\'', $xml_encoding);
+                #
+                # Say that we will have to wait for XMLDecl completiong before
+                # looping on element rule
+                #
+                $have_xmldecl = 1;
+              }
+            }
+            #
+            # At this point we will have either: EncName$ or tagStart$.
+            # In any case, the first read is ok.
+            #
+            $first_read_ok = 1;
           }
-        } while (! @events);
-        foreach (@events) {
-          $self->_logger->debugf('Got parse event \'%s\'', $_);
+        } while (! $first_read_ok);
+        if (! $first_read_ok) {
+          MarpaX::Languages::XML::Exception->throw('Cannot find either encoding or a start tag: aborting');
         }
+        #
+        # Check eventual encoding v.s. endianness. Algorithm vaguely taken from
+        # https://blogs.oracle.com/tucu/entry/detecting_xml_charset_encoding_again
+        #
+        $self->_logger->debugf('BOM encoding says \'%s\', guess encoding says \'%s\', XML encoding says \'%s\'', $bom_encoding, $guess_encoding, $xml_encoding);
+        my $final_encoding;
+        if (! $bom_encoding) {
+          if (! $guess_encoding || ! $xml_encoding) {
+            $final_encoding = 'UTF-8';
+          } else {
+            #
+            # General handling of 'LE' and 'BE' extensions
+            #
+            if (($guess_encoding eq "${xml_encoding}BE") || ($guess_encoding eq "${xml_encoding}LE")) {
+              $final_encoding = $guess_encoding;
+            } else {
+              $final_encoding = $xml_encoding;
+            }
+          }
+        } else {
+          if ($bom_encoding eq 'UTF-8') {
+            #
+            # The guess in our case can have returned ISO-xxx, or ascii. Why trusting a guess
+            # when it is only a guess.
+            #
+            # if (($guess_encoding ne '') && ($guess_encoding ne 'UTF-8')) {
+            #   $self->_logger->errorf('BOM encoding \'%s\' disagree with guessed encoding \'%s\'', $bom_encoding, $xml_encoding);
+            # }
+            if (($xml_encoding ne '') && ($xml_encoding ne 'UTF-8')) {
+              MarpaX::Languages::XML::Exception->throw("BOM encoding '$bom_encoding' disagree with XML encoding '$xml_encoding");
+            }
+          } else {
+            if ($bom_encoding =~ /^(.*)[LB]E$/) {
+              my $without_le_or_be = ($+[1] > $-[1]) ? substr($bom_encoding, $-[1], $+[1] - $-[1]) : '';
+              if (($xml_encoding ne '') && ($xml_encoding ne $without_le_or_be) && ($xml_encoding ne $bom_encoding)) {
+                MarpaX::Languages::XML::Exception->throw("BOM encoding '$bom_encoding' disagree with XML encoding '$xml_encoding");
+              }
+            }
+          }
+          #
+          # In any case, BOM win. So we always inherit the correct $byte_start.
+          #
+          $final_encoding = $bom_encoding;
+        }
+        if ($final_encoding ne $orig_encoding) {
+          $self->_logger->debugf('Original encoding was \'%s\', final encoding is \'%s\'', $orig_encoding, $final_encoding);
+          #
+          # We have to retry, really. And this time we can disable the EncName$ event -;
+          #
+          $self->_logger->debugf('Setting encoding to \'%s\'', $final_encoding);
+          $io->encoding($final_encoding);
+          $self->_logger->debugf('Restarting parsing with final encoding %s at start position %d', $final_encoding, $byte_start);
+          $io = $self->_set_position($source, $io, $byte_start);
+          $orig_encoding = $final_encoding;
+          goto redo_first_read;
+        }
+        #
+        # Now we can loop on resume().
+        #
+        if ($have_xmldecl) {
+          #
+          # Enable XMLDecl$ event. We want to catch it so that we can loop on element(s).
+          #
+          $self->_logger->debugf('Activating \'%s\' event', 'XMLDecl$');
+          $r->activate('XMLDecl$', 1);
+          #
+          # Read up to XMLDecl$ completion event
+          #
+          $pos = $r->resume();
+          my @events = map { $_->[0] } @{$r->events()};
+          foreach (@events) {
+            #
+            # Should never be logged
+            #
+            $self->_logger->debugf('Got parse event \'%s\'', $_);
+          }
+          if (! grep {$_ eq 'XMLDecl$'} @events) {
+            #
+            # Really bad luck... We have to retry again from the beginning
+            #
+            $self->_logger->debugf('Missing XMLDecl completion event - increasing internal buffer from %d to %d', $block_size, $block_size * 2);
+            $block_size *= 2;
+            $io->block_size($block_size);
+            $self->_logger->debugf('Restarting parsing with final encoding %s at start position %d', $final_encoding, $byte_start);
+            $io = $self->_set_position($source, $io, $byte_start);
+            goto redo_first_read;
+          }
+          #
+          # Disable XMLDecl$ event. Non-needed anymore and has a cost even if cannot reachable from now on.
+          #
+          $self->_logger->debugf('Disabling \'%s\' event', 'XMLDecl$');
+          $r->activate('XMLDecl$', 0);
+        }
+        #
+        # Disable EncName$ event. Same reason as for XMLDecl$ event.
+        #
+        $self->_logger->debugf('Disabling \'%s\' event', 'EncName$');
+        $r->activate('EncName$', 0);
+        #
+        # From now on we can loop on element completion event
+        #
+        
       } else {
         $self->_logger->debugf('EOF');
       }

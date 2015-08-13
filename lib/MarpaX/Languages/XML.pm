@@ -1,6 +1,5 @@
 package MarpaX::Languages::XML;
 use MarpaX::Languages::XML::Exception;
-use MarpaX::Languages::XML::Impl::Logger;
 use MarpaX::Languages::XML::Impl::Parser;
 use MarpaX::Languages::XML::Exception;
 use Moo;

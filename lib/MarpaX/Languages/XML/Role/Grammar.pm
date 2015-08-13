@@ -7,7 +7,6 @@ use Moo::Role;
 
 # AUTHORITY
 
-requires 'xml10';
-requires 'xml11';
+requires 'get';
 
 1;

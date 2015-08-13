@@ -22,7 +22,6 @@ my $loglevel = 'WARN';
 my $logstderr = 0;
 my $grammar = undef;
 my $block_size = 0;
-my $encoding = '';
 
 our @GRAMMAR_VALUES = qw/1.0 1.1/;
 GetOptions ('help!' => \$help,
@@ -34,7 +33,6 @@ GetOptions ('help!' => \$help,
             'fatal' => sub { $loglevel = 'FATAL' },
             'trace' => sub { $loglevel = 'TRACE' },
             'block_size=i' => \$block_size,
-            'encoding=s' => \$encoding,
             'grammar' => sub {
               my ($name, $value) = @_;
               if (! grep {$_ eq $value} @GRAMMAR_VALUES) {
@@ -54,7 +52,6 @@ foreach (@ARGV) {
     $o->ast({source     => $source,
              grammar    => $grammar,
              block_size => $block_size,
-             encoding   => $encoding,
              parse_opts => {
                             trace_terminals => $log->is_trace
                            }

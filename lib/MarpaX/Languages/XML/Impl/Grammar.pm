@@ -2,6 +2,7 @@ package MarpaX::Languages::XML::Impl::Grammar;
 use Data::Section -setup;
 use Marpa::R2;
 use MarpaX::Languages::XML::Exception;
+use MarpaX::Languages::XML::Impl::Logger;
 use Moo;
 use MooX::late;
 use MooX::ClassAttribute;
@@ -20,28 +21,61 @@ This module is an implementation of MarpaX::Languages::XML::Role::Grammar. It pr
 =cut
 our $XML10_REF_DATA = __PACKAGE__->section_data('xml10');
 our $XML11_REF_DATA = __PACKAGE__->section_data('xml10');
-use constant { BLESS_PACKAGE => 'MarpaX::Languages::XML::AST' };
+our @START = qw/document/;
 
-class_has 'xml10' => (
+class_has '_xml10' => (
                       is      => 'ro',
-                      isa     => InstanceOf['Marpa::R2::Scanless::G'],
+                      isa     => HashRef[InstanceOf['Marpa::R2::Scanless::G']],
                       lazy    => 1,
-                      builder => '_build_xml10'
+                      builder => '__build_xml10'
                      );
 
-class_has 'xml11' => (
+class_has '_xml11' => (
                       is      => 'ro',
-                      isa     => InstanceOf['Marpa::R2::Scanless::G'],
+                      isa     => HashRef[InstanceOf['Marpa::R2::Scanless::G']],
                       lazy    => 1,
-                      builder => '_build_xml11'
+                      builder => '__build_xml11'
                      );
 
-sub _build_xml10 {
-  return Marpa::R2::Scanless::G->new({source => $XML10_REF_DATA, bless_package => BLESS_PACKAGE});
+sub __build_xml10 {
+  return __build_xmlxx($XML10_REF_DATA, 'MarpaX::Languages::XML::XML10::AST', @START);
 }
 
-sub _build_xml11 {
-  return Marpa::R2::Scanless::G->new({source => $XML11_REF_DATA, bless_package => BLESS_PACKAGE});
+sub __build_xml11 {
+  return __build_xmlxx($XML10_REF_DATA, 'MarpaX::Languages::XML::XML11::AST', @START);
+}
+
+sub __build_xmlxx {
+  my ($source_ref, $bless, @start) = @_;
+  my %rc = ();
+  foreach (@start) {
+    my $new_source = ${$source_ref};
+    $new_source =~ s/\$START/$_/sxmg;
+    $rc{$_} = Marpa::R2::Scanless::G->new({source => \$new_source, bless_package => $bless});
+  }
+  return \%rc;
+}
+
+sub get {
+  my ($self, $version, $start) = @_;
+
+  $version //= '1.0';
+  $start //= 'document';
+  my $rc;
+
+  if ($version eq '1.0') {
+    $rc = $self->_xml10->{$start};
+  }
+  elsif ($version eq '1.1') {
+    $rc = $self->_xml11->{$start};
+  }
+
+  if (! $rc) {
+    MarpaX::Languages::XML::Exception->throw("Invalid grammar version ($version) or grammar start ($start)");
+  }
+  $self->_logger->debugf('Got grammar for %s, version %s', $start, $version);
+
+  return $rc;
 }
 
 =head1 SEE ALSO
@@ -50,6 +84,7 @@ L<Marpa::R2>, L<XML1.0|http://www.w3.org/TR/xml/>, L<XML1.1|http://www.w3.org/TR
 
 =cut
 
+extends 'MarpaX::Languages::XML::Impl::Logger';
 with 'MarpaX::Languages::XML::Role::Grammar';
 
 1;
@@ -61,7 +96,7 @@ inaccessible is ok by default
 lexeme default = action => [start,length,value,name] forgiving => 1
 
 # start                         ::= document | extParsedEnt | extSubset
-start                         ::= document
+start                         ::= $START
 MiscAny                       ::= Misc*
 document                      ::= prolog element MiscAny
 Name                          ::= NAME
@@ -126,6 +161,7 @@ SDDeclMaybe                   ::= SDDecl
 SDDeclMaybe                   ::=
 SMaybe                        ::= S
 SMaybe                        ::=
+event 'XMLDecl$' = completed <XMLDecl>
 XMLDecl                       ::= '<?xml' VersionInfo EncodingDeclMaybe SDDeclMaybe SMaybe '?>'
 VersionInfo                   ::= S 'version' Eq ['] VersionNum [']
 VersionInfo                   ::= S 'version' Eq '"' VersionNum '"'
@@ -155,12 +191,13 @@ SDDecl                        ::= S 'standalone' Eq ['] 'yes' [']  # [VC: Standa
                                 | S 'standalone' Eq [']  'no' [']  # [VC: Standalone Document Declaration]
                                 | S 'standalone' Eq '"' 'yes' '"'  # [VC: Standalone Document Declaration]
                                 | S 'standalone' Eq '"'  'no' '"'  # [VC: Standalone Document Declaration]
-event 'element$' = completed <element>
 element                       ::= EmptyElemTag
                                 | STag content ETag  # [WFC: Element Type Match] [VC: Element Valid]
 STagUnit                      ::= S Attribute
 STagUnitAny                   ::= STagUnit*
-STag                          ::= '<' Name STagUnitAny SMaybe '>' # [WFC: Unique Att Spec]
+event 'tagStart$' = completed <tagStart>
+tagStart                      ::= TAG_START
+STag                          ::= tagStart Name STagUnitAny SMaybe '>' # [WFC: Unique Att Spec]
 Attribute                     ::= Name Eq AttValue  # [VC: Attribute Value Type] [WFC: No External Entity References] [WFC: No < in Attribute Values]
 ETag                          ::= '</' Name SMaybe '>'
 CharDataMaybe                 ::= CharData
@@ -170,7 +207,7 @@ contentUnitAny                ::= contentUnit*
 content                       ::= CharDataMaybe contentUnitAny
 EmptyElemTagUnit              ::= S Attribute
 EmptyElemTagUnitAny           ::= EmptyElemTagUnit*
-EmptyElemTag                  ::= '<' Name EmptyElemTagUnitAny SMaybe '/>' # [WFC: Unique Att Spec]
+EmptyElemTag                  ::= tagStart Name EmptyElemTagUnitAny SMaybe '/>' # [WFC: Unique Att Spec]
 elementdecl                   ::= '<!ELEMENT' S Name S contentspec SMaybe '>' # [VC: Unique Element Type Declaration]
 contentspec                   ::= 'EMPTY' | 'ANY' | Mixed | children
 ChoiceOrSeq                   ::= choice | seq
@@ -359,3 +396,4 @@ ATTVALUEINTERIORDQUOTEUNIT          ~ [^<&"]+
 ATTVALUEINTERIORSQUOTEUNIT          ~ [^<&']+
 
 S                                   ~ [\x{20}\x{9}\x{D}\x{A}]+
+TAG_START                           ~ '<'
