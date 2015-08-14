@@ -416,6 +416,8 @@ sub parse {
           if (! @events) {
             #
             # Try to read more in the initial buffer. We want to catch 'EncName$' eventually.
+            # If the XML document is parsable we are guaranteed to stop because of tagStart$
+            # (and XML document must have at least one starting tag, c.f. the grammar).
             #
             $self->_logger->debugf('Increasing internal buffer from %d to %d', $block_size, $block_size * 2);
             $block_size *= 2;
@@ -525,16 +527,13 @@ sub parse {
           $pos = $r->resume();
           my @events = map { $_->[0] } @{$r->events()};
           foreach (@events) {
-            #
-            # Should never be logged
-            #
             $self->_logger->debugf('Got parse event \'%s\'', $_);
           }
           if (! grep {$_ eq 'XMLDecl$'} @events) {
             #
             # Really bad luck... We have to retry again from the beginning
             #
-            $self->_logger->debugf('Missing XMLDecl completion event - increasing internal buffer from %d to %d', $block_size, $block_size * 2);
+            $self->_logger->debugf('Missing the expected XMLDecl completion event - increasing internal buffer from %d to %d', $block_size, $block_size * 2);
             $block_size *= 2;
             $io->block_size($block_size);
             $self->_logger->debugf('Restarting parsing with final encoding %s at start position %d', $final_encoding, $byte_start);
@@ -542,7 +541,7 @@ sub parse {
             goto redo_first_read;
           }
           #
-          # Disable XMLDecl$ event. Non-needed anymore and has a cost even if cannot reachable from now on.
+          # Disable XMLDecl$ event. Not needed anymore and has a cost even if it is not reachable from now on.
           #
           $self->_logger->debugf('Disabling \'%s\' event', 'XMLDecl$');
           $r->activate('XMLDecl$', 0);
@@ -555,7 +554,7 @@ sub parse {
         #
         # From now on we can loop on element completion event
         #
-        
+        # TODO
       } else {
         $self->_logger->debugf('EOF');
       }
