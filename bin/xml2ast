@@ -49,6 +49,7 @@ GetOptions ('help!' => \$help,
 __PACKAGE__->_init($loglevel, $logstderr);
 
 my $o = MarpaX::Languages::XML->new();
+@sax = split(/,/,join(',',@sax));
 my %sax_handlers = map { $_ => \&_info } @sax;
 
 foreach (@ARGV) {

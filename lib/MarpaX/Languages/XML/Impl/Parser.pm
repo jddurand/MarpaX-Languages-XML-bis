@@ -560,7 +560,9 @@ sub parse {
             foreach (@events) {
               $self->_logger->debugf('Got parse event \'%s\'', $_);
             }
-          }
+          } catch {
+            $self->_logger->debugf('%s', "$_");
+          };
         }
       } else {
         $self->_logger->debugf('EOF');
