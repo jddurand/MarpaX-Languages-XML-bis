@@ -477,8 +477,7 @@ sub parse {
         } else {
           if ($bom_encoding eq 'UTF-8') {
             #
-            # The guess in our case can have returned ISO-xxx, or ascii. Why trusting a guess
-            # when it is only a guess.
+            # Why trusting a guess when it is only a guess.
             #
             # if (($guess_encoding ne '') && ($guess_encoding ne 'UTF-8')) {
             #   $self->_logger->errorf('BOM encoding \'%s\' disagree with guessed encoding \'%s\'', $bom_encoding, $xml_encoding);
@@ -502,7 +501,7 @@ sub parse {
         if ($final_encoding ne $orig_encoding) {
           $self->_logger->debugf('Original encoding was \'%s\', final encoding is \'%s\'', $orig_encoding, $final_encoding);
           #
-          # We have to retry, really. And this time we can disable the EncName$ event -;
+          # We have to retry. EncName$ event, if any, will match.
           #
           $self->_logger->debugf('Setting encoding to \'%s\'', $final_encoding);
           $io->encoding($final_encoding);
