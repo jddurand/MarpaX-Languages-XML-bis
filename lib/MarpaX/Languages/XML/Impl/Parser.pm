@@ -199,16 +199,14 @@ sub _guess_encoding {
     };
   }
 
-  if ($name) {
-    if ($name eq 'ASCII') {
-      #
-      # Ok, ascii is UTF-8 compatible. Let's say UTF-8.
-      #
-      $self->_logger->debugf('data says %s, revisited as UTF-8', $name);
-      $name = 'UTF-8';
-    } else {
-      $self->_logger->debugf('data says %s', $name);
-    }
+  if ($name eq 'ASCII') {
+    #
+    # Ok, ascii is UTF-8 compatible. Let's say UTF-8.
+    #
+    $self->_logger->debugf('data says %s, revisited as UTF-8', $name);
+    $name = 'UTF-8';
+  } else {
+    $self->_logger->debugf('data says %s', $name);
   }
 
   return $name;
@@ -327,34 +325,29 @@ sub _open {
 }
 
 sub parse {
-  my ($self, $hash_ref) = @_;
+  my ($self, %hash) = @_;
 
   my $r;
   my $value;
 
-  $hash_ref //= {};
-  if ((reftype($hash_ref) || '') ne 'HASH') {
-    MarpaX::Languages::XML::Exception->throw('First parameter must be a ref to HASH');
+  my $source = $hash{source} || '';
+  if (reftype($source)) {
+    MarpaX::Languages::XML::Exception->throw('source must be a SCALAR');
   }
 
-  my $source = $hash_ref->{source};
-  if ((reftype($source) || '') ne '') {
-    MarpaX::Languages::XML::Exception->throw('Hash\'s source must be a SCALAR');
+  my $block_size = $hash{block_size} || 1048576;
+  if (reftype($block_size)) {
+    MarpaX::Languages::XML::Exception->throw('block_size must be a SCALAR');
   }
 
-  my $block_size = $hash_ref->{block_size} || 1048576;
-  if ((reftype($block_size) || '') ne '') {
-    MarpaX::Languages::XML::Exception->throw('Hash\'s block_size must be a SCALAR');
-  }
-
-  my $grammar    = $hash_ref->{grammar} || MarpaX::Languages::XML::Impl::Grammar->new->get('1.0', 'document');
+  my $grammar    = $hash{grammar} || MarpaX::Languages::XML::Impl::Grammar->new->xml10(%hash);
   if ((blessed($grammar) || '') ne 'Marpa::R2::Scanless::G') {
-    MarpaX::Languages::XML::Exception->throw('Hash\'s grammar must be an Marpa::R2::Scanless::G instance');
+    MarpaX::Languages::XML::Exception->throw('Grammar must be an Marpa::R2::Scanless::G instance');
   }
 
-  my $parse_opts = $hash_ref->{parse_opts} || {};
+  my $parse_opts = $hash{parse_opts} || {};
   if ((reftype($parse_opts) || '') ne 'HASH') {
-    MarpaX::Languages::XML::Exception->throw('Hash\'s parse_opts must be a ref to HASH');
+    MarpaX::Languages::XML::Exception->throw('parse_opts must be a ref to HASH');
   }
 
   try {
@@ -552,9 +545,23 @@ sub parse {
         $self->_logger->debugf('Disabling \'%s\' event', 'EncName$');
         $r->activate('EncName$', 0);
         #
-        # From now on we can loop on element completion event
+        # From now on we can loop on element completion event.
+        # It is assumed that the block_size is enough to catch at least one element
+        # up to parsing failure or exhaustion. If that is not the case, we re-read
+        # until EOF.
+        # Buffer itself is circular and move as parsing is moving.
         #
-        # TODO
+        while ($pos < length($buffer)) {
+          my $resume_ok = 0;
+          try {
+            $self->_logger->debugf('Resuming recognizer at position %d', $pos);
+            $pos = $r->resume($pos);
+            my @events = map { $_->[0] } @{$r->events()};
+            foreach (@events) {
+              $self->_logger->debugf('Got parse event \'%s\'', $_);
+            }
+          }
+        }
       } else {
         $self->_logger->debugf('EOF');
       }

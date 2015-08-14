@@ -12,15 +12,9 @@ use MooX::late;
 # AUTHORITY
 
 sub ast {
-  my ($self, $hash_ref) = @_;
+  my ($self, %hash) = @_;
 
-  $hash_ref //= {};
-
-  if (ref($hash_ref) ne 'HASH') {
-    MarpaX::Languages::XML::Exception->throw('First parameter must be a ref to HASH');
-  }
-
-  return MarpaX::Languages::XML::Impl::Parser->new->parse($hash_ref);
+  return MarpaX::Languages::XML::Impl::Parser->new->parse(%hash);
 
 }
 

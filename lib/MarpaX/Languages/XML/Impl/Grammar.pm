@@ -1,12 +1,12 @@
 package MarpaX::Languages::XML::Impl::Grammar;
 use Data::Section -setup;
 use Marpa::R2;
+use MarpaX::Languages::XML::Impl::Logger;
 use MarpaX::Languages::XML::Exception;
 use MarpaX::Languages::XML::Impl::Logger;
 use Moo;
 use MooX::late;
-use MooX::ClassAttribute;
-use MooX::Types::MooseLike::Base qw/:all/;
+use Scalar::Util qw/blessed reftype/;
 
 # ABSTRACT: MarpaX::Languages::XML::Role::Grammar implementation
 
@@ -19,63 +19,93 @@ use MooX::Types::MooseLike::Base qw/:all/;
 This module is an implementation of MarpaX::Languages::XML::Role::Grammar. It provides Marpa::R2::Scanless::G's class attributes for XML versions 1.0 and 1.1.
 
 =cut
-our $XML10_REF_DATA = __PACKAGE__->section_data('xml10');
-our $XML11_REF_DATA = __PACKAGE__->section_data('xml10');
-our @START = qw/document/;
+our %VERSION_OK = (
+                   '1.0' => __PACKAGE__->section_data('xml10'),
+                   '1.1' => __PACKAGE__->section_data('xml10')
+                  );
+our @START_OK = qw/document extParsedEnt extSubset/;
+our @SAX_EVENTS = qw/start_document
+                     end_document
+                     start_element
+                     end_element
+                     characters
+                     ignorable_whitespace
+                     start_prefix_mapping
+                     end_prefix_mapping
+                     processing_instruction
+                     skipped_entity
 
-class_has '_xml10' => (
-                      is      => 'ro',
-                      isa     => HashRef[InstanceOf['Marpa::R2::Scanless::G']],
-                      lazy    => 1,
-                      builder => '__build_xml10'
-                     );
+                     notation_decl
+                     unparsed_entity_decl
 
-class_has '_xml11' => (
-                      is      => 'ro',
-                      isa     => HashRef[InstanceOf['Marpa::R2::Scanless::G']],
-                      lazy    => 1,
-                      builder => '__build_xml11'
-                     );
+                     start_dtd
+                     end_dtd
+                     start_entity
+                     end_entity
+                     start_cdata
+                     end_cdata
+                     comment
 
-sub __build_xml10 {
-  return __build_xmlxx($XML10_REF_DATA, 'MarpaX::Languages::XML::XML10::AST', @START);
+                     element_decl
+                     attribute_decl
+                     internal_entity_decl
+                     external_entity_decl
+                    /;
+
+sub xml10 {
+  my ($self, %hash) = @_;
+  return $self->xml(%hash, version => '1.0');
 }
 
-sub __build_xml11 {
-  return __build_xmlxx($XML10_REF_DATA, 'MarpaX::Languages::XML::XML11::AST', @START);
+sub xml11 {
+  my ($self, %hash) = @_;
+  return $self->xml(%hash, version => '1.1');
 }
 
-sub __build_xmlxx {
-  my ($source_ref, $bless, @start) = @_;
-  my %rc = ();
-  foreach (@start) {
-    my $new_source = ${$source_ref};
-    $new_source =~ s/\$START/$_/sxmg;
-    $rc{$_} = Marpa::R2::Scanless::G->new({source => \$new_source, bless_package => $bless});
+sub xml {
+  my ($self, %hash) = @_;
+
+  my $version      = $hash{version}      || '1.0';
+  my $start        = $hash{start}        || 'document';
+  my $sax_handlers = $hash{sax_handlers} || {};
+
+  #
+  # Sanity checks
+  #
+  if (! exists($VERSION_OK{$version})) {
+    MarpaX::Languages::XML::Exception->throw("Invalid grammar version: $version");
   }
-  return \%rc;
-}
-
-sub get {
-  my ($self, $version, $start) = @_;
-
-  $version //= '1.0';
-  $start //= 'document';
-  my $rc;
-
-  if ($version eq '1.0') {
-    $rc = $self->_xml10->{$start};
+  if (! grep {$_ eq $start} @START_OK) {
+    MarpaX::Languages::XML::Exception->throw("Invalid grammar start rul: $start");
   }
-  elsif ($version eq '1.1') {
-    $rc = $self->_xml11->{$start};
+  if (! reftype($sax_handlers) || reftype($sax_handlers) ne 'HASH') {
+    MarpaX::Languages::XML::Exception->throw("Invalid sax handlers: $sax_handlers");
   }
-
-  if (! $rc) {
-    MarpaX::Languages::XML::Exception->throw("Invalid grammar version ($version) or grammar start ($start)");
+  #
+  # Manipulate DATA section
+  #
+  my $data = ${$VERSION_OK{$version}};
+  #
+  # Revisit the start
+  #
+  $data =~ s/\$START/$start/sxmg;
+  #
+  # Remove all non-needed SAX events for performance
+  #
+  foreach (@SAX_EVENTS) {
+    if (exists($sax_handlers->{$_})) {
+      if (! reftype($sax_handlers->{$_}) || reftype($sax_handlers->{$_}) ne 'CODE') {
+        $self->_logger->warnf('SAX Handler for %s is not a \'CODE\' reference', $_);
+      } else {
+        $self->_logger->debugf('Adding SAX Handler for %s', $_);
+        $data .= "event '$_' = nulled <$_>\n";
+      }
+    }
   }
-  $self->_logger->debugf('Got grammar for %s, version %s', $start, $version);
-
-  return $rc;
+  #
+  # Generate the grammar
+  #
+  return Marpa::R2::Scanless::G->new({source => \$data});
 }
 
 =head1 SEE ALSO
@@ -92,13 +122,13 @@ with 'MarpaX::Languages::XML::Role::Grammar';
 __DATA__
 __[ xml10 ]__
 inaccessible is ok by default
-:default ::= action => [values] bless => ::lhs
+:default ::= action => [values]
 lexeme default = action => [start,length,value,name] forgiving => 1
 
 # start                         ::= document | extParsedEnt | extSubset
 start                         ::= $START
 MiscAny                       ::= Misc*
-document                      ::= prolog element MiscAny
+document                      ::= (start_document) prolog element MiscAny (end_document)
 Name                          ::= NAME
 Names                         ::= Name+ separator => SPACE proper => 1
 Nmtoken                       ::= NMTOKENMANY
@@ -195,9 +225,7 @@ element                       ::= EmptyElemTag
                                 | STag content ETag  # [WFC: Element Type Match] [VC: Element Valid]
 STagUnit                      ::= S Attribute
 STagUnitAny                   ::= STagUnit*
-event 'tagStart$' = completed <tagStart>
-tagStart                      ::= TAG_START
-STag                          ::= tagStart Name STagUnitAny SMaybe '>' # [WFC: Unique Att Spec]
+STag                          ::= '<' Name STagUnitAny SMaybe '>' # [WFC: Unique Att Spec]
 Attribute                     ::= Name Eq AttValue  # [VC: Attribute Value Type] [WFC: No External Entity References] [WFC: No < in Attribute Values]
 ETag                          ::= '</' Name SMaybe '>'
 CharDataMaybe                 ::= CharData
@@ -207,7 +235,7 @@ contentUnitAny                ::= contentUnit*
 content                       ::= CharDataMaybe contentUnitAny
 EmptyElemTagUnit              ::= S Attribute
 EmptyElemTagUnitAny           ::= EmptyElemTagUnit*
-EmptyElemTag                  ::= tagStart Name EmptyElemTagUnitAny SMaybe '/>' # [WFC: Unique Att Spec]
+EmptyElemTag                  ::= '<' Name EmptyElemTagUnitAny SMaybe '/>' # [WFC: Unique Att Spec]
 elementdecl                   ::= '<!ELEMENT' S Name S contentspec SMaybe '>' # [VC: Unique Element Type Declaration]
 contentspec                   ::= 'EMPTY' | 'ANY' | Mixed | children
 ChoiceOrSeq                   ::= choice | seq
@@ -396,4 +424,12 @@ ATTVALUEINTERIORDQUOTEUNIT          ~ [^<&"]+
 ATTVALUEINTERIORSQUOTEUNIT          ~ [^<&']+
 
 S                                   ~ [\x{20}\x{9}\x{D}\x{A}]+
-TAG_START                           ~ '<'
+
+#
+# SAX nullable rules
+#
+start_document ::= ;
+end_document   ::= ;
+#
+# SAX events are added on-the-fly, c.f. method xml().
+#
