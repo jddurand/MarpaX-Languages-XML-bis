@@ -13,6 +13,7 @@ requires 'pos';
 requires 'clear';
 requires 'length';
 requires 'encoding';
+requires 'eof';
 requires 'buffer';
 
 1;

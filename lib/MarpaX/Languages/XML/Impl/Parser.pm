@@ -6,6 +6,7 @@ use Marpa::R2;
 use MarpaX::Languages::XML::Exception;
 use MarpaX::Languages::XML::Impl::Logger;
 use MarpaX::Languages::XML::Impl::Grammar;
+use MarpaX::Languages::XML::Impl::IO;
 use Moo;
 use MooX::late;
 use IO::All;
@@ -212,62 +213,14 @@ sub _guess_encoding {
   return $name;
 }
 
-sub _set_position {
-  my ($self, $source, $io, $position) = @_;
-
-  my $pos_ok = 0;
-  try {
-    my $tell = $io->tell;
-    if ($tell != $position) {
-      $self->_logger->debugf('Moving io position from %d to %d', $tell, $position);
-      $io->seek($position, SEEK_SET);
-      if ($io->tell != $position) {
-        die sprintf('Failure setting position from %d to %d failure', $tell, $position);
-      } else {
-        $pos_ok = 1;
-      }
-    } else {
-      $pos_ok = 1;
-    }
-  } catch {
-    $self->_logger->debugf("$_");
-  };
-  if (! $pos_ok) {
-    #
-    # Ah... not seekable perhaps
-    # The only alternative is to reopen the stream
-    #
-    $self->_logger->debugf('Seek failure');
-    my $orig_block_size = $io->block_size;
-    $io = $self->_io($source);
-    $self->_binary($io);
-    $self->_block_size($io, $position);
-    my $length = $self->_read($io);
-    if ($length != $position) {
-      #
-      # Really I do not know what else to do
-      #
-      $self->_exception("Re-opening failed to position source at byte $position");
-    } else {
-      #
-      # Restore original $io block size
-      $io->block_size($orig_block_size);
-    }
-  }
-
-  return $io;
-}
-
 sub _open {
   my ($self, $source) = @_;
   #
   # Read the first five bytes if any. Supported encodings at those
   # mentionned at https://en.wikipedia.org/wiki/Byte_order_mark
   #
-  my $io = $self->_io($source);
-  $self->_binary($io);
-  $self->_block_size($io, 1024);
-  my $length = $self->_read($io);
+  my $io = MarpaX::Languages::XML::Impl::IO->new(source => $source);
+  my $length = $io->block_size(1024)->read->length;
   my $buffer = ${$io->buffer};
 
   my $bom_encoding = '';
@@ -287,13 +240,13 @@ sub _open {
     $bom_encoding = uc($found_encoding);
   }
 
-  $self->_encoding($io, $found_encoding);
+  $io->encoding($found_encoding);
 
   #
-  # Make sure we are positionned at the beginning of the buffer. This is inefficient
-  # for everything that is not seekable.
+  # Make sure we are positionned at the beginning of the buffer and at correct
+  # source position. This is inefficient for everything that is not seekable.
   #
-  $io = $self->_set_position($source, $io, $byte_start);
+  $io->clear->pos($byte_start);
 
   #
   # The stream is supposed to be opened with the correct encoding, if any
@@ -308,54 +261,6 @@ sub _open {
   # (note: per def an encoding name contains only Latin1 character, i.e. uc() is ok)
   #
   return ($io, $bom_encoding, $guess_encoding, $found_encoding, $byte_start);
-}
-
-sub _clear {
-  my ($self, $io) = @_;
-
-  $self->_logger->debugf('Clearing io internal buffer');
-  $io->clear;
-}
-
-sub _read {
-  my ($self, $io) = @_;
-
-  my $length = $io->read;
-  $self->_logger->debugf('Got %d characters', $length);
-
-  if ($length <= 0) {
-    $self->_exception('EOF');
-  }
-
-  return $length;
-}
-
-sub _block_size {
-  my ($self, $io, $block_size) = @_;
-
-  $self->_logger->debugf('Setting io internal buffer to %d', $block_size);
-  return $io->block_size($block_size);
-}
-
-sub _binary {
-  my ($self, $io) = @_;
-
-  $self->_logger->debugf('Setting io access to binary');
-  return $io->binary;
-}
-
-sub _encoding {
-  my ($self, $io, $encoding) = @_;
-
-  $self->_logger->debugf('Setting encoding to %s', $encoding);
-  return $io->encoding($encoding);
-}
-
-sub _io {
-  my ($self, $source) = @_;
-
-  $self->_logger->debugf('Opening %s', $source);
-  return io($source);
 }
 
 sub parse {
@@ -401,24 +306,21 @@ sub parse {
     #
     # Very initial block size
     #
-    $self->_block_size($io, $block_size);
+    $io->block_size($block_size);
     #
     # First the prolog.
     #
   redo_first_read:
-    my $length = $self->_read($io);
-    my $buffer = '';
+    $io->read;
     do {
-      $buffer .= ${$io->buffer};
-      $self->_logger->debugf('Appended %d characters to initial buffer that has now a length of %d characters', $length, length($buffer));
-      $self->_logger->debugf('Instanciating a recognizer');
+      $self->_logger->debugf('Instanciating a document recognizer');
       $r = Marpa::R2::Scanless::R->new({%{$parse_opts},
                                         grammar => $document,
                                         trace_file_handle => $MARPA_TRACE_FILE_HANDLE,
                                        });
       @events = ();
       try {
-        $pos = $r->read(\$buffer);
+        $pos = $r->read($io->buffer);
         @events = map { $_->[0] } @{$r->events()};
       };
       #
@@ -429,11 +331,10 @@ sub parse {
       if (! @events) {
         $self->_logger->debugf('No event');
         $block_size *= 2;
-        $self->_block_size($io, $block_size);
-        $length = $self->_read($io);
+        $io->block_size($block_size)->read;
       } else {
         foreach (@events) {
-          $self->_logger->debugf('Got parse event \'%s\'', $_);
+          $self->_logger->debugf('Got parse event \'%s\' at position %d', $_, $pos);
           if ($_ eq 'EncodingDecl$') {
             #
             # Remember encoding as given in the XML
@@ -447,7 +348,7 @@ sub parse {
           }
         }
       }
-    } while ((! $xml_encoding) || ($root_element_pos >= 0));
+    } while ((! $xml_encoding) && ($root_element_pos < 0));
     #
     # Check eventual encoding v.s. endianness. Algorithm vaguely taken from
     # https://blogs.oracle.com/tucu/entry/detecting_xml_charset_encoding_again
@@ -456,10 +357,9 @@ sub parse {
     if ($final_encoding ne $orig_encoding) {
       $self->_logger->debugf('Original encoding was \'%s\', final encoding is \'%s\': redo initial read', $orig_encoding, $final_encoding);
       #
-      # We have to retry. EncodingDecl$ event, if any, will match.
+      # We have to retry. EncodingDecl$ event, if any, will match at the next round.
       #
-      $self->_encoding($io, $final_encoding);
-      $io = $self->_set_position($source, $io, $byte_start);
+      $io->encoding($final_encoding)->clear->pos($byte_start);
       $orig_encoding = $final_encoding;
       goto redo_first_read;
     } else {
@@ -478,7 +378,7 @@ sub parse {
         @events = map { $_->[0] } @{$r->events()};
       };
       foreach (@events) {
-        $self->_logger->debugf('Got parse event \'%s\'', $_);
+        $self->_logger->debugf('Got parse event \'%s\' at position %d', $_, $pos);
         if ($_ eq 'tagStart$') {
           $root_element_pos = $pos - 1;
         }
@@ -489,8 +389,7 @@ sub parse {
         #
         $self->_logger->debugf('No tag start');
         $block_size *= 2;
-        $self->_block_size($io, $block_size);
-        $io = $self->_set_position($source, $io, $byte_start);
+        $io->block_size($block_size)->clear->pos($byte_start);
         goto redo_first_read;
       }
     }
@@ -503,20 +402,21 @@ sub parse {
     # Note that the grammar guarantees that end_element event is always set.
     #
     $self->_logger->debugf('Looping on element grammar starting at position %d', $root_element_pos);
+    $self->_logger->debugf('Instanciating an element recognizer');
     $r = Marpa::R2::Scanless::R->new({%{$parse_opts},
                                       grammar => $element,
                                       exhaustion => 'event',
                                       trace_file_handle => $MARPA_TRACE_FILE_HANDLE,
                                      });
-    $pos = $r->read(\$buffer, $root_element_pos);
-    while ($pos < length($buffer)) {
+    $pos = $r->read($io->buffer, $root_element_pos);
+    while (! $io->eof) {
       my $resume_ok = 0;
       try {
         $self->_logger->debugf('Resuming recognizer at position %d', $pos);
         $pos = $r->resume($pos);
         my @events = map { $_->[0] } @{$r->events()};
         foreach (@events) {
-          $self->_logger->debugf('Got parse event \'%s\'', $_);
+          $self->_logger->debugf('Got parse event \'%s\' at position %d', $_, $pos);
         }
       } catch {
         $self->_logger->debugf('%s', "$_");

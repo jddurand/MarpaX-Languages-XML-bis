@@ -94,6 +94,13 @@ sub buffer {
 }
 
 
+sub eof {
+  my $self = shift;
+
+  return $self->_io->eof;
+}
+
+
 {
   no warnings 'redefine';
   sub read {
