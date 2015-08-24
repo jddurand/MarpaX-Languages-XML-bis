@@ -6,6 +6,7 @@ use MarpaX::Languages::XML::Exception;
 use MarpaX::Languages::XML::Impl::Logger;
 use Moo;
 use MooX::late;
+use MooX::HandlesVia;
 use Scalar::Util qw/blessed reftype/;
 
 # ABSTRACT: MarpaX::Languages::XML::Role::Grammar implementation
@@ -19,14 +20,17 @@ use Scalar::Util qw/blessed reftype/;
 This module is an implementation of MarpaX::Languages::XML::Role::Grammar. It provides Marpa::R2::Scanless::G's class attributes for XML versions 1.0 and 1.1.
 
 =cut
-our %VERSION_OK = (
+our %XMLVERSION = (
                    '1.0' => __PACKAGE__->section_data('xml10'),
                    '1.1' => __PACKAGE__->section_data('xml10')
                   );
-our @START_OK = qw/document extParsedEnt extSubset/;
+#
+# C.f. comments in the grammar explaining why end_document and end_element are absent
+#
 our @SAX_EVENTS = qw/start_document
+
                      start_element
-                     end_element
+
                      characters
                      ignorable_whitespace
                      start_prefix_mapping
@@ -51,31 +55,48 @@ our @SAX_EVENTS = qw/start_document
                      external_entity_decl
                     /;
 
-sub xml10 {
+has _grammars => (
+                  is => 'ro',
+                  writer =>'_set_grammars',
+                  isa => 'HashRef[Marpa::R2::Scanless::G]',
+                  default => sub { {} },
+                  handles_via => 'Hash',
+                  handles => {
+                              '_get_grammar' => 'get',
+                              '_set_grammar' => 'set'
+                             }
+                 );
+
+sub grammar {
   my ($self, %hash) = @_;
-  return $self->xml(%hash, version => '1.0');
+
+  my $xmlversion = $hash{xmlversion} || '1.0';
+  if (reftype($xmlversion)) {
+    MarpaX::Languages::XML::Exception->throw('xmlversion must be a SCALAR');
+  }
+  my $start = $hash{start} || 'document';
+  if (reftype($start)) {
+    MarpaX::Languages::XML::Exception->throw('start must be a SCALAR');
+  }
+  #
+  # We simulate a singleton within the instance
+  #
+  my $grammar = "$xmlversion/$start";
+  return $self->_get_grammar($grammar) || $self->_set_grammar($grammar => $self->_grammar(%hash, xmlversion => $xmlversion, start => $start));
 }
 
-sub xml11 {
-  my ($self, %hash) = @_;
-  return $self->xml(%hash, version => '1.1');
-}
-
-sub xml {
+sub _grammar {
   my ($self, %hash) = @_;
 
-  my $version      = $hash{version}      || '1.0';
+  my $xmlversion   = $hash{xmlversion}   || '1.0';
   my $start        = $hash{start}        || 'document';
   my $sax_handlers = $hash{sax_handlers} || {};
 
   #
   # Sanity checks
   #
-  if (! exists($VERSION_OK{$version})) {
-    MarpaX::Languages::XML::Exception->throw("Invalid grammar version: $version");
-  }
-  if (! grep {$_ eq $start} @START_OK) {
-    MarpaX::Languages::XML::Exception->throw("Invalid grammar start rul: $start");
+  if (! exists($XMLVERSION{$xmlversion})) {
+    MarpaX::Languages::XML::Exception->throw("Invalid grammar version: $xmlversion");
   }
   if (! reftype($sax_handlers) || reftype($sax_handlers) ne 'HASH') {
     MarpaX::Languages::XML::Exception->throw("Invalid sax handlers: $sax_handlers");
@@ -83,22 +104,31 @@ sub xml {
   #
   # Manipulate DATA section
   #
-  my $data = ${$VERSION_OK{$version}};
+  my $data = ${$XMLVERSION{$xmlversion}};
   #
   # Revisit the start
   #
   $data =~ s/\$START/$start/sxmg;
   #
-  # Remove all non-needed SAX events for performance
+  # Remove all non-needed SAX events for performance.
   #
   foreach (@SAX_EVENTS) {
     if (exists($sax_handlers->{$_})) {
       if (! reftype($sax_handlers->{$_}) || reftype($sax_handlers->{$_}) ne 'CODE') {
-        $self->_logger->warnf('SAX Handler for %s is not a \'CODE\' reference', $_);
+        $self->_logger->warnf('%s/%s: SAX Handler for %s is not a \'CODE\' reference', $xmlversion, $start, $_);
       } else {
-        $self->_logger->debugf('Adding SAX Handler for %s', $_);
+        $self->_logger->debugf('%s/%s: Adding SAX Handler for %s', $xmlversion, $start, $_);
         $data .= "event '$_' = nulled <$_>\n";
       }
+    }
+  }
+  if ($start eq 'document') {
+    #
+    # Force the existence of 'EncodingDecl$' and 'tagStart' events in the document grammar
+    #
+    foreach (qw/EncodingDecl tagStart/) {
+      $self->_logger->debugf('%s/%s: Adding internal completion event for %s', $xmlversion, $start, $_, $_);
+      $data .= "event '$_\$' = completed <$_>\n";
     }
   }
   #
@@ -127,7 +157,7 @@ lexeme default = action => [start,length,value,name] forgiving => 1
 # start                         ::= document | extParsedEnt | extSubset
 start                         ::= $START
 MiscAny                       ::= Misc*
-# Note: end_document is when the has either abandoned parsing or reached the end of input.
+# Note: end_document is when either we abandoned parsing or reached the end of input of the 'document' grammar
 document                      ::= (start_document) prolog element MiscAny
 Name                          ::= NAME
 Names                         ::= Name+ separator => SPACE proper => 1
@@ -191,7 +221,6 @@ SDDeclMaybe                   ::= SDDecl
 SDDeclMaybe                   ::=
 SMaybe                        ::= S
 SMaybe                        ::=
-event 'XMLDecl$' = completed <XMLDecl>
 XMLDecl                       ::= '<?xml' VersionInfo EncodingDeclMaybe SDDeclMaybe SMaybe '?>'
 VersionInfo                   ::= S 'version' Eq ['] VersionNum [']
 VersionInfo                   ::= S 'version' Eq '"' VersionNum '"'
@@ -221,11 +250,13 @@ SDDecl                        ::= S 'standalone' Eq ['] 'yes' [']  # [VC: Standa
                                 | S 'standalone' Eq [']  'no' [']  # [VC: Standalone Document Declaration]
                                 | S 'standalone' Eq '"' 'yes' '"'  # [VC: Standalone Document Declaration]
                                 | S 'standalone' Eq '"'  'no' '"'  # [VC: Standalone Document Declaration]
-element                       ::= EmptyElemTag (start_element) (end_element)
-                                | STag (start_element) content ETag (end_element) # [WFC: Element Type Match] [VC: Element Valid]
+# Note: end_element is when either we abandoned parsing or reached the end of input of the 'element' grammar
+element                       ::= EmptyElemTag (start_element)
+                                | STag (start_element) content ETag # [WFC: Element Type Match] [VC: Element Valid]
 STagUnit                      ::= S Attribute
 STagUnitAny                   ::= STagUnit*
-STag                          ::= '<' Name STagUnitAny SMaybe '>' # [WFC: Unique Att Spec]
+tagStart                      ::= '<'
+STag                          ::= tagStart Name STagUnitAny SMaybe '>' # [WFC: Unique Att Spec]
 Attribute                     ::= Name Eq AttValue  # [VC: Attribute Value Type] [WFC: No External Entity References] [WFC: No < in Attribute Values]
 ETag                          ::= '</' Name SMaybe '>'
 CharDataMaybe                 ::= CharData
@@ -235,7 +266,7 @@ contentUnitAny                ::= contentUnit*
 content                       ::= CharDataMaybe contentUnitAny
 EmptyElemTagUnit              ::= S Attribute
 EmptyElemTagUnitAny           ::= EmptyElemTagUnit*
-EmptyElemTag                  ::= '<' Name EmptyElemTagUnitAny SMaybe '/>' # [WFC: Unique Att Spec]
+EmptyElemTag                  ::= tagStart Name EmptyElemTagUnitAny SMaybe '/>' # [WFC: Unique Att Spec]
 elementdecl                   ::= '<!ELEMENT' S Name S contentspec SMaybe '>' # [VC: Unique Element Type Declaration]
 contentspec                   ::= 'EMPTY' | 'ANY' | Mixed | children
 ChoiceOrSeq                   ::= choice | seq
@@ -308,7 +339,6 @@ TextDecl                      ::= '<?xml' VersionInfoMaybe EncodingDecl SMaybe '
 extParsedEnt                  ::= TextDeclMaybe content
 EncodingDecl                  ::= S 'encoding' Eq '"' EncName '"'
 EncodingDecl                  ::= S 'encoding' Eq ['] EncName [']
-event 'EncName$' = completed <EncName>
 EncName                       ::= ENCNAME
 NotationDecl                  ::= '<!NOTATION' S Name S ExternalID SMaybe '>' # [VC: Unique Notation Name]
 NotationDecl                  ::= '<!NOTATION' S Name S   PublicID SMaybe '>' # [VC: Unique Notation Name]
@@ -430,7 +460,6 @@ S                                   ~ [\x{20}\x{9}\x{D}\x{A}]+
 #
 start_document ::= ;
 start_element  ::= ;
-end_element    ::= ;
 comment        ::= ;
 #
 # SAX events are added on-the-fly, c.f. method xml().
