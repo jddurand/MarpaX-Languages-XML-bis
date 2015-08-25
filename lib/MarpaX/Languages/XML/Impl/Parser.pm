@@ -221,6 +221,9 @@ sub _open {
   #
   my $io = MarpaX::Languages::XML::Impl::IO->new(source => $source);
   $io->block_size(1024)->read;
+  if ($io->length <= 0) {
+    $self->_exception('EOF when reading first bytes');
+  }
   my $buffer = ${$io->buffer};
 
   my $bom_encoding = '';
@@ -310,8 +313,11 @@ sub parse {
     #
     # First the prolog.
     #
-  redo_first_read:
     $io->read;
+    if ($io->length <= 0) {
+      $self->_exception('EOF when parsing prolog');
+    }
+  parse_prolog:
     do {
       $self->_logger->debugf('Instanciating a document recognizer');
       $r = Marpa::R2::Scanless::R->new({%{$parse_opts},
@@ -333,7 +339,14 @@ sub parse {
       if (! @events) {
         $self->_logger->debugf('No event');
         $block_size *= 2;
+        my $previous_length = $io->length;
         $io->block_size($block_size)->read;
+        if ($io->length <= $previous_length) {
+          #
+          # Nothing more to read: prolog is buggy.
+          #
+          $self->_exception('EOF when parsing prolog');
+        }
       } else {
         foreach (@events) {
           $self->_logger->debugf('Got parse event \'%s\' at position %d', $_, $pos);
@@ -361,13 +374,13 @@ sub parse {
       #
       # We have to retry. Per def we will (should) not enter again in this if block.
       #
-      if ($byte_start > 0) {
-        $io->encoding($final_encoding)->clear->pos($byte_start);
-      } else {
-        $io->encoding($final_encoding)->pos($byte_start);
-      }
+      $io->encoding($final_encoding)->clear->pos($byte_start);
       $orig_encoding = $final_encoding;
-      goto redo_first_read;
+      $io->read;
+      if ($io->length <= 0) {
+        $self->_exception('EOF when parsing prolog');
+      }
+      goto parse_prolog;
     } else {
       $self->_logger->debugf('Encoding match on \'%s\': continuing', $final_encoding);
     }
@@ -395,8 +408,16 @@ sub parse {
         #
         $self->_logger->debugf('No tag start');
         $block_size *= 2;
+        my $previous_length = $io->length;
         $io->block_size($block_size)->clear->pos($byte_start);
-        goto redo_first_read;
+        $io->read;
+        if ($io->length <= $previous_length) {
+          #
+          # Nothing more to read: prolog is buggy.
+          #
+          $self->_exception('EOF when parsing prolog');
+        }
+        goto parse_prolog;
       }
     }
     #
