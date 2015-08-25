@@ -319,14 +319,16 @@ sub parse {
                                         trace_file_handle => $MARPA_TRACE_FILE_HANDLE,
                                        });
       @events = ();
+      #
+      # We accept a failure if buffer is too small
+      #
       try {
         $pos = $r->read($io->buffer);
         @events = map { $_->[0] } @{$r->events()};
       };
       #
-      # We expect either start_element or EncodingDecl$.
-      # Why start_element ? Because an XML document must have at least one. This is a
-      # a way to eat everything up to the end of the prolog.
+      # We expect either tagSart$ or EncodingDecl$.
+      # Why tagSart$ ? Because an XML document must have at least one element.
       #
       if (! @events) {
         $self->_logger->debugf('No event');
@@ -341,7 +343,7 @@ sub parse {
             #
             my ($start, $span_length) = $r->last_completed_span('EncName');
             $xml_encoding = uc($r->literal($start, $span_length));
-            $self->_logger->debugf('Got encoding name \'%s\'', $xml_encoding);
+            $self->_logger->debugf('XML says encoding \'%s\'', $xml_encoding);
           }
           elsif ($_ eq 'tagStart$') {
             $root_element_pos = $pos - 1;
@@ -355,15 +357,19 @@ sub parse {
     #
     my $final_encoding = $self->_final_encoding($bom_encoding, $guess_encoding, $xml_encoding, $orig_encoding);
     if ($final_encoding ne $orig_encoding) {
-      $self->_logger->debugf('Original encoding was \'%s\', final encoding is \'%s\': redo initial read', $orig_encoding, $final_encoding);
+      $self->_logger->debugf('Encoding is \'%s\' != \'%s\': redo initial read', $final_encoding, $orig_encoding);
       #
-      # We have to retry. EncodingDecl$ event, if any, will match at the next round.
+      # We have to retry. Per def we will (should) not enter again in this if block.
       #
-      $io->encoding($final_encoding)->clear->pos($byte_start);
+      if ($byte_start > 0) {
+        $io->encoding($final_encoding)->clear->pos($byte_start);
+      } else {
+        $io->encoding($final_encoding)->pos($byte_start);
+      }
       $orig_encoding = $final_encoding;
       goto redo_first_read;
     } else {
-      $self->_logger->debugf('Original encoding was \'%s\', final encoding is \'%s\': continuing', $orig_encoding, $final_encoding);
+      $self->_logger->debugf('Encoding match on \'%s\': continuing', $final_encoding);
     }
     #
     # At this point the the root element may not have been reached. In such a case, force it.
@@ -468,13 +474,13 @@ sub _final_encoding {
       #   $self->_logger->errorf('BOM encoding \'%s\' disagree with guessed encoding \'%s\'', $bom_encoding, $xml_encoding);
       # }
       if (($xml_encoding ne '') && ($xml_encoding ne 'UTF-8')) {
-        MarpaX::Languages::XML::Exception->throw("BOM encoding '$bom_encoding' disagree with XML encoding '$xml_encoding");
+        $self->_exception("BOM encoding '$bom_encoding' disagree with XML encoding '$xml_encoding");
       }
     } else {
       if ($bom_encoding =~ /^(.*)[LB]E$/) {
         my $without_le_or_be = ($+[1] > $-[1]) ? substr($bom_encoding, $-[1], $+[1] - $-[1]) : '';
         if (($xml_encoding ne '') && ($xml_encoding ne $without_le_or_be) && ($xml_encoding ne $bom_encoding)) {
-          MarpaX::Languages::XML::Exception->throw("BOM encoding '$bom_encoding' disagree with XML encoding '$xml_encoding");
+          $self->_exception("BOM encoding '$bom_encoding' disagree with XML encoding '$xml_encoding");
         }
       }
     }
