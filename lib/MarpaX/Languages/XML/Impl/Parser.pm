@@ -220,7 +220,7 @@ sub _open {
   # mentionned at https://en.wikipedia.org/wiki/Byte_order_mark
   #
   my $io = MarpaX::Languages::XML::Impl::IO->new(source => $source);
-  my $length = $io->block_size(1024)->read->length;
+  $io->block_size(1024)->read;
   my $buffer = ${$io->buffer};
 
   my $bom_encoding = '';
