@@ -90,7 +90,7 @@ sub length {
 sub buffer {
   my $self = shift;
 
-  return $self->_io->buffer;
+  return $self->_io->buffer(@_);
 }
 
 

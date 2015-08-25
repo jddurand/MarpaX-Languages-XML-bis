@@ -1,17 +1,13 @@
 package MarpaX::Languages::XML::Impl::Parser;
-use Config;
-use Encode::Guess;
-use Fcntl qw/:seek/;
 use Marpa::R2;
 use MarpaX::Languages::XML::Exception;
-use MarpaX::Languages::XML::Impl::Logger;
+use MarpaX::Languages::XML::Impl::Encoding;
 use MarpaX::Languages::XML::Impl::Grammar;
 use MarpaX::Languages::XML::Impl::IO;
+use MarpaX::Languages::XML::Impl::Logger;
 use Moo;
 use MooX::late;
-use IO::All;
-use IO::All::LWP;
-use Scalar::Util qw/blessed reftype/;
+use Scalar::Util qw/reftype/;
 use Try::Tiny;
 
 # ABSTRACT: MarpaX::Languages::XML::Role::parser implementation
@@ -66,153 +62,6 @@ sub _exception {
   MarpaX::Languages::XML::Exception->throw($message);
 }
 
-sub _bytes_to_BOM {
-  my ($self, $bytes) = @_;
-
-  $self->_logger->debugf('Guessing encoding with the BOM');
-
-  my $bom = '';
-  my $bom_size = 0;
-
-  #
-  # 5 bytes
-  #
-  if ($bytes =~ m/^\x{2B}\x{2F}\x{76}\x{38}\x{2D}/) { # If no following character is encoded, 38 is used for the fourth byte and the following byte is 2D
-    $bom = 'UTF-7';
-    $bom_size = 5;
-  }
-  #
-  # 4 bytes
-  #
-  elsif ($bytes =~ m/^(?:\x{2B}\x{2F}\x{76}\x{38}|\x{2B}\x{2F}\x{76}\x{39}|\x{2B}\x{2F}\x{76}\x{2B}|\x{2B}\x{2F}\x{76}\x{2F})/s) { # 3 bytes + all possible values of the 4th byte
-    $bom = 'UTF-7';
-    $bom_size = 4;
-  }
-  elsif ($bytes =~ m/^(?:\x{00}\x{00}\x{FF}\x{FE}|\x{FE}\x{FF}\x{00}\x{00})/s) { # UCS-4, unusual octet order (2143 or 3412)
-    $bom = 'UCS-4';
-    $bom_size = 4;
-  }
-  elsif ($bytes =~ m/^\x{00}\x{00}\x{FE}\x{FF}/s) { # UCS-4, big-endian machine (1234 order)
-    $bom = 'UTF-32BE';
-    $bom_size = 4;
-  }
-  elsif ($bytes =~ m/^\x{FF}\x{FE}\x{00}\x{00}/s) { # UCS-4, little-endian machine (4321 order)
-    $bom = 'UTF-32LE';
-    $bom_size = 4;
-  }
-  elsif ($bytes =~ m/^\x{DD}\x{73}\x{66}\x{73}/s) {
-    $bom = 'UTF-EBCDIC';
-    $bom_size = 4;
-  }
-  elsif ($bytes =~ m/^\x{84}\x{31}\x{95}\x{33}/s) {
-    $bom = 'GB-18030';
-    $bom_size = 4;
-  }
-  #
-  # 3 bytes
-  #
-  elsif ($bytes =~ m/^\x{EF}\x{BB}\x{BF}/s) { # UTF-8
-    $bom = 'UTF-8';
-    $bom_size = 3;
-  }
-  elsif ($bytes =~ m/^\x{F7}\x{64}\x{4C}/s) {
-    $bom = 'UTF-1';
-    $bom_size = 3;
-  }
-  elsif ($bytes =~ m/^\x{0E}\x{FE}\x{FF}/s) { # Signature recommended in UTR #6
-    $bom = 'SCSU';
-    $bom_size = 3;
-  }
-  elsif ($bytes =~ m/^\x{FB}\x{EE}\x{28}/s) {
-    $bom = 'BOCU-1';
-    $bom_size = 3;
-  }
-  #
-  # 2 bytes
-  #
-  elsif ($bytes =~ m/^\x{FE}\x{FF}/s) { # UTF-16, big-endian
-    $bom = 'UTF-16BE';
-    $bom_size = 2;
-  }
-  elsif ($bytes =~ m/^\x{FF}\x{FE}/s) { # UTF-16, little-endian
-    $bom = 'UTF-16LE';
-    $bom_size = 2;
-  }
-
-  if ($bom_size > 0) {
-    $self->_logger->debugf('BOM says %s using %d bytes', $bom, $bom_size);
-  }
-
-  return ($bom, $bom_size);
-}
-
-sub _guess_encoding {
-  my ($self, $bytes) = @_;
-
-  $self->_logger->debugf('Guessing encoding with the data');
-
-  #
-  # Do ourself common guesses
-  #
-  my $name = '';
-  if ($bytes =~ /^\x{00}\x{00}\x{00}\x{3C}/) { # '<' in UTF-32BE
-    $name = 'UTF-32BE';
-  }
-  elsif ($bytes =~ /^\x{3C}\x{00}\x{00}\x{00}/) { # '<' in UTF-32LE
-    $name = 'UTF-32LE';
-  }
-  elsif ($bytes =~ /^\x{00}\x{3C}\x{00}\x{3F}/) { # '<?' in UTF-16BE
-    $name = 'UTF-16BE';
-  }
-  elsif ($bytes =~ /^\x{3C}\x{00}\x{3F}\x{00}/) { # '<?' in UTF-16LE
-    $name = 'UTF-16LE';
-  }
-  elsif ($bytes =~ /^\x{3C}\x{3F}\x{78}\x{6D}/) { # '<?xml' in US-ASCII
-    $name = 'ASCII';
-  }
-
-  if (! $name) {
-    my $is_ebcdic = $Config{'ebcdic'} || '';
-    if ($is_ebcdic eq 'define') {
-      $self->_logger->debugf('Encode::Guess not supported on EBCDIC platform');
-      return;
-    }
-
-    my @suspect_list = ();
-    if ($bytes =~ /\e/) {
-      push(@suspect_list, qw/7bit-jis iso-2022-kr/);
-    }
-    elsif ($bytes =~ /[\x80-\xFF]{4}/) {
-      push(@suspect_list, qw/euc-cn big5-eten euc-jp cp932 euc-kr cp949/);
-    } else {
-      push(@suspect_list, qw/utf-8/);
-    }
-
-    local $Encode::Guess::NoUTFAutoGuess = 0;
-    try {
-      my $enc = guess_encoding($bytes, @suspect_list);
-      if (! defined($enc) || ! ref($enc)) {
-        die $enc || 'unknown encoding';
-      }
-      $name = uc($enc->name || '');
-    } catch {
-      $self->_logger->debugf('%s', $_);
-    };
-  }
-
-  if ($name eq 'ASCII') {
-    #
-    # Ok, ascii is UTF-8 compatible. Let's say UTF-8.
-    #
-    $self->_logger->debugf('data says %s, revisited as UTF-8', $name);
-    $name = 'UTF-8';
-  } else {
-    $self->_logger->debugf('data says %s', $name);
-  }
-
-  return $name;
-}
-
 sub _open {
   my ($self, $source) = @_;
   #
@@ -226,12 +75,14 @@ sub _open {
   }
   my $buffer = ${$io->buffer};
 
+  my $encoding = MarpaX::Languages::XML::Impl::Encoding->new();
+
   my $bom_encoding = '';
   my $guess_encoding = '';
 
-  my ($found_encoding, $byte_start) = $self->_bytes_to_BOM($buffer);
+  my ($found_encoding, $byte_start) = $encoding->bom($buffer);
   if (length($found_encoding) <= 0) {
-    $found_encoding = $self->_guess_encoding($buffer);
+    $found_encoding = $encoding->guess($buffer);
     if (length($found_encoding) <= 0) {
       $self->_logger->debugf('Assuming relaxed (perl) utf8 encoding');
       $found_encoding = 'UTF8';  # == utf8 == perl relaxed unicode
@@ -272,6 +123,9 @@ sub parse {
   my $r;
   my $value;
 
+  #
+  # Sanity checks
+  #
   my $source = $hash{source} || '';
   if (reftype($source)) {
     $self->_exception('source must be a SCALAR');
@@ -282,22 +136,26 @@ sub parse {
     $self->_exception('block_size must be a SCALAR');
   }
 
-  #
-  # We force our internal start_element callback, just to catch the end of the prolog
-  #
-  my $document = MarpaX::Languages::XML::Impl::Grammar->new->grammar(%hash, start => 'document');
-  my $element  = MarpaX::Languages::XML::Impl::Grammar->new->grammar(%hash, start => 'element');
-
   my $parse_opts = $hash{parse_opts} || {};
   if ((reftype($parse_opts) || '') ne 'HASH') {
     $self->_exception('parse_opts must be a ref to HASH');
   }
+
+  #
+  # Get grammars
+  #
+  my $document = MarpaX::Languages::XML::Impl::Grammar->new->grammar(%hash, start => 'document');
+  my $element  = MarpaX::Languages::XML::Impl::Grammar->new->grammar(%hash, start => 'element');
 
   try {
     #
     # Guess the encoding
     #
     my ($io, $bom_encoding, $guess_encoding, $orig_encoding, $byte_start) = $self->_open($source);
+    #
+    # Very initial block size
+    #
+    $io->block_size($block_size);
     #
     # $xml_encoding will hold the encoding as per the XML itself
     #
@@ -307,9 +165,10 @@ sub parse {
     my $pos;
     my @events;
     #
-    # Very initial block size
+    # We prefer to have a direct access to the buffer
     #
-    $io->block_size($block_size);
+    my $buffer = '';
+    $io->buffer($buffer);
     #
     # First the prolog.
     #
@@ -329,7 +188,7 @@ sub parse {
       # We accept a failure if buffer is too small
       #
       try {
-        $pos = $r->read($io->buffer);
+        $pos = $r->read(\$buffer);
         @events = map { $_->[0] } @{$r->events()};
       };
       #
@@ -390,7 +249,7 @@ sub parse {
     # is too small.
     #
     if ($root_element_pos < 0) {
-      $self->_logger->debugf('Resuming prolog parsing up to eventual root element in the buffer');
+      $self->_logger->debugf('Resuming prolog parsing up to root element');
       @events = ();
       try {
         $pos = $r->resume($pos);
@@ -435,7 +294,7 @@ sub parse {
                                       exhaustion => 'event',
                                       trace_file_handle => $MARPA_TRACE_FILE_HANDLE,
                                      });
-    $pos = $r->read($io->buffer, $root_element_pos);
+    $pos = $r->read(\$buffer, $root_element_pos);
     while (! $io->eof) {
       my $resume_ok = 0;
       try {
