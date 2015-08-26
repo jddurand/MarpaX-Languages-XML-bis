@@ -120,7 +120,6 @@ sub _open {
 sub parse {
   my ($self, %hash) = @_;
 
-  my $r;
   my $value;
 
   #
@@ -144,8 +143,20 @@ sub parse {
   #
   # Get grammars
   #
-  my $document = MarpaX::Languages::XML::Impl::Grammar->new->grammar(%hash, start => 'document');
-  my $element  = MarpaX::Languages::XML::Impl::Grammar->new->grammar(%hash, start => 'element');
+  my $document = MarpaX::Languages::XML::Impl::Grammar->new->compile(%hash,
+                                                                     start => 'document',
+                                                                     internal_events =>
+                                                                     {
+                                                                      G1 =>
+                                                                      {
+                                                                       EncodingDecl => { type => 'completed', name => 'EncodingDecl$' }
+                                                                      },
+                                                                      L0 =>
+                                                                      {
+                                                                       STAG_START => { type => 'before', name => '^STAG_START' }
+                                                                      }
+                                                                     }
+                                                                    );
 
   try {
     #
@@ -164,6 +175,7 @@ sub parse {
     my $nb_first_read = 0;
     my $pos;
     my @events;
+    my $r;
     #
     # We prefer to have a direct access to the buffer
     #
@@ -204,7 +216,7 @@ sub parse {
           #
           # Nothing more to read: prolog is buggy.
           #
-          $self->_exception('EOF when parsing prolog');
+          $self->_exception('EOF when parsing prolog', $r);
         }
       } else {
         foreach (@events) {
@@ -217,8 +229,8 @@ sub parse {
             $xml_encoding = uc($r->literal($start, $span_length));
             $self->_logger->debugf('XML says encoding \'%s\'', $xml_encoding);
           }
-          elsif ($_ eq 'tagStart$') {
-            $root_element_pos = $pos - 1;
+          elsif ($_ eq '^STAG_START') {
+            $root_element_pos = $pos;
           }
         }
       }
@@ -237,7 +249,7 @@ sub parse {
       $orig_encoding = $final_encoding;
       $io->read;
       if ($io->length <= 0) {
-        $self->_exception('EOF when parsing prolog');
+        $self->_exception('EOF when parsing prolog', $r);
       }
       goto parse_prolog;
     } else {
@@ -257,8 +269,8 @@ sub parse {
       };
       foreach (@events) {
         $self->_logger->debugf('Got parse event \'%s\' at position %d', $_, $pos);
-        if ($_ eq 'tagStart$') {
-          $root_element_pos = $pos - 1;
+        if ($_ eq '^STAG_START') {
+          $root_element_pos = $pos;
         }
       }
       if ($root_element_pos < 0) {
@@ -274,7 +286,7 @@ sub parse {
           #
           # Nothing more to read: prolog is buggy.
           #
-          $self->_exception('EOF when parsing prolog');
+          $self->_exception('EOF when parsing prolog', $r);
         }
         goto parse_prolog;
       }
@@ -287,27 +299,7 @@ sub parse {
     # Buffer itself is circular and move as parsing is moving.
     # Note that the grammar guarantees that end_element event is always set.
     #
-    $self->_logger->debugf('Looping on element grammar starting at position %d', $root_element_pos);
-    $self->_logger->debugf('Instanciating an element recognizer');
-    $r = Marpa::R2::Scanless::R->new({%{$parse_opts},
-                                      grammar => $element,
-                                      exhaustion => 'event',
-                                      trace_file_handle => $MARPA_TRACE_FILE_HANDLE,
-                                     });
-    $pos = $r->read(\$buffer, $root_element_pos);
-    while (! $io->eof) {
-      my $resume_ok = 0;
-      try {
-        $self->_logger->debugf('Resuming recognizer at position %d', $pos);
-        $pos = $r->resume($pos);
-        my @events = map { $_->[0] } @{$r->events()};
-        foreach (@events) {
-          $self->_logger->debugf('Got parse event \'%s\' at position %d', $_, $pos);
-        }
-      } catch {
-        $self->_logger->debugf('%s', "$_");
-      };
-    }
+    $self->_element_loop($io, $block_size, $parse_opts, \%hash, \$buffer, $root_element_pos);
 
     my $ambiguous = $r->ambiguous();
     if ($ambiguous) {
@@ -319,11 +311,93 @@ sub parse {
     #
     # We do "$_" to force an eventual stringification
     #
-    $self->_exception("$_", $r);
+    $self->_exception("$_");
     return;                          # Will never be executed
   };
 
   return $value;
+}
+
+sub _element_loop {
+  my ($self, $io, $block_size, $parse_opts, $hash_ref, $buffer_ref, $pos, $element) = @_;
+
+  $self->_logger->debugf('Parsing element at position %d', $pos);
+
+  $element //= MarpaX::Languages::XML::Impl::Grammar->new->compile(%{$hash_ref},
+                                                                   start => 'element',
+                                                                   internal_events =>
+                                                                   {
+                                                                    G1 =>
+                                                                    {
+                                                                     Attribute => { type => 'completed', name => 'Attribute$' }
+                                                                    },
+                                                                    L0 =>
+                                                                    {
+                                                                     STAG_START => { type => 'before', name => '^STAG_START' },
+                                                                     STAG_END   => { type => 'after', name => 'STAG_END$' }
+                                                                    }
+                                                                   }
+                                                                  );
+
+  my $r;
+  my @events;
+  do {
+    $self->_logger->debugf('Instanciating an element recognizer');
+    $r = Marpa::R2::Scanless::R->new({%{$parse_opts},
+                                      grammar => $element,
+                                      exhaustion => 'event',
+                                      trace_file_handle => $MARPA_TRACE_FILE_HANDLE,
+                                     });
+    #
+    # Very first event is always predictable we guarantee that $pos's character
+    # is always the lexeme STAG_START.
+    #
+    $self->_logger->debugf('Disabling %s event', '^STAG_START');
+    $r->activate('^STAG_START', 0);
+    $self->_logger->debugf('Doing first read');
+    my $next_pos = $r->read($buffer_ref, $pos);
+    $self->_logger->debugf('Enabling %s event', '^STAG_START');
+    $r->activate('^STAG_START', 1);
+    #
+    # After the first read, we expect to be paused by either:
+    # - ^STAG_START : a new element
+    # - STAG_END$   : end of current element
+    # - Attribute$  : end of an attribute in current element
+    @events = map { $_->[0] } @{$r->events()};
+    if (! @events) {
+      $self->_logger->debugf('No event');
+      my $previous_length = $io->length;
+      $block_size *= 2;
+      $io->block_size($block_size)->read;
+      if ($io->length <= $previous_length) {
+        #
+        # Nothing more to read: element is buggy.
+        #
+        $self->_exception('EOF when parsing element');
+      }
+    } else {
+      $pos = $next_pos;
+    }
+  } while (! @events);
+
+  foreach (@events) {
+    $self->_logger->debugf('Got parse event \'%s\' at position %d', $_, $pos);
+  }
+
+  exit;
+  while (! $io->eof) {
+    my $resume_ok = 0;
+    try {
+      $self->_logger->debugf('Resuming recognizer at position %d', $pos);
+      $pos = $r->resume($pos);
+      my @events = map { $_->[0] } @{$r->events()};
+      foreach (@events) {
+        $self->_logger->debugf('Got parse event \'%s\' at position %d', $_, $pos);
+      }
+    } catch {
+      $self->_logger->debugf('%s', "$_");
+    };
+  }
 }
 
 sub _final_encoding {

@@ -7,6 +7,6 @@ use Moo::Role;
 
 # AUTHORITY
 
-requires 'grammar';
+requires 'compile';
 
 1;

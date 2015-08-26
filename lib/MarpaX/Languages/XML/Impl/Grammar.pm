@@ -67,7 +67,7 @@ has _grammars => (
                              }
                  );
 
-sub grammar {
+sub compile {
   my ($self, %hash) = @_;
 
   my $xmlversion = $hash{xmlversion} || '1.0';
@@ -88,9 +88,10 @@ sub grammar {
 sub _grammar {
   my ($self, %hash) = @_;
 
-  my $xmlversion   = $hash{xmlversion}   || '1.0';
-  my $start        = $hash{start}        || 'document';
-  my $sax_handlers = $hash{sax_handlers} || {};
+  my $xmlversion      = $hash{xmlversion}      || '1.0';
+  my $start           = $hash{start}           || 'document';
+  my $sax_handlers    = $hash{sax_handlers}    || {};
+  my $internal_events = $hash{internal_events} || {};
 
   #
   # Sanity checks
@@ -100,6 +101,9 @@ sub _grammar {
   }
   if (! reftype($sax_handlers) || reftype($sax_handlers) ne 'HASH') {
     MarpaX::Languages::XML::Exception->throw("Invalid sax handlers: $sax_handlers");
+  }
+  if (! reftype($internal_events) || reftype($internal_events) ne 'HASH') {
+    MarpaX::Languages::XML::Exception->throw("Invalid internal events: $internal_events");
   }
   #
   # Manipulate DATA section
@@ -122,18 +126,28 @@ sub _grammar {
       }
     }
   }
-  if ($start eq 'document') {
-    #
-    # Force the existence of 'EncodingDecl$' and 'tagStart' events in the document grammar
-    #
-    foreach (qw/EncodingDecl tagStart/) {
-      $self->_logger->debugf('%s/%s: Adding internal completion event for %s', $xmlversion, $start, $_, $_);
-      $data .= "event '$_\$' = completed <$_>\n";
+  foreach (keys %{$internal_events}) {
+    my $level = $_;  # G1 or L0
+    foreach (keys %{$internal_events->{$level}}) {
+      my $rule = $_;
+      my $type = $internal_events->{$level}->{$rule}->{type};
+      my $name = $internal_events->{$level}->{$rule}->{name};
+      $self->_logger->debugf('%s/%s: Adding %s %s event', $xmlversion, $start, $level, $name);
+      if ($level eq 'G1') {
+        $data .= "event '$name' = $type <$rule>\n";
+      }
+      elsif ($level eq 'L0') {
+        $data .= ":lexeme ~ <$rule> pause => $type event => '$name'\n";
+      }
+      else {
+        MarpaX::Languages::XML::Exception->throw("Invalid internal event level: $level");
+      }
     }
   }
   #
   # Generate the grammar
   #
+  $self->_logger->debugf('%s/%s: Instanciating grammar', $xmlversion, $start);
   return Marpa::R2::Scanless::G->new({source => \$data});
 }
 
@@ -228,9 +242,9 @@ Eq                            ::= SMaybe '=' SMaybe
 VersionNum                    ::= '1.0'
 Misc                          ::= Comment | PI | S
 doctypedecl                   ::= '<!DOCTYPE' S Name              SMaybe '[' intSubset ']' SMaybe '>' # [VC: Root Element Type] [WFC: External Subset]
-                                | '<!DOCTYPE' S Name              SMaybe                           '>' # [VC: Root Element Type] [WFC: External Subset]
+                                | '<!DOCTYPE' S Name              SMaybe                          '>' # [VC: Root Element Type] [WFC: External Subset]
                                 | '<!DOCTYPE' S Name S ExternalID SMaybe '[' intSubset ']' SMaybe '>' # [VC: Root Element Type] [WFC: External Subset]
-                                | '<!DOCTYPE' S Name S ExternalID SMaybe                           '>' # [VC: Root Element Type] [WFC: External Subset]
+                                | '<!DOCTYPE' S Name S ExternalID SMaybe                          '>' # [VC: Root Element Type] [WFC: External Subset]
 DeclSep                       ::= PEReference   # [WFC: PE Between Declarations]
                                 | S
 intSubsetUnit                 ::= markupdecl | DeclSep
@@ -255,9 +269,12 @@ element                       ::= EmptyElemTag (start_element)
                                 | STag (start_element) content ETag # [WFC: Element Type Match] [VC: Element Valid]
 STagUnit                      ::= S Attribute
 STagUnitAny                   ::= STagUnit*
-tagStart                      ::= '<'
-STag                          ::= tagStart Name STagUnitAny SMaybe '>' # [WFC: Unique Att Spec]
-Attribute                     ::= Name Eq AttValue  # [VC: Attribute Value Type] [WFC: No External Entity References] [WFC: No < in Attribute Values]
+STAG_START                      ~ '<'
+STAG_END                        ~ '>' | '/>'
+STagName                      ::= Name
+STag                          ::= STAG_START STagName STagUnitAny SMaybe STAG_END # [WFC: Unique Att Spec]
+AttributeName                 ::= Name
+Attribute                     ::= AttributeName Eq AttValue  # [VC: Attribute Value Type] [WFC: No External Entity References] [WFC: No < in Attribute Values]
 ETag                          ::= '</' Name SMaybe '>'
 CharDataMaybe                 ::= CharData
 CharDataMaybe                 ::=
@@ -266,7 +283,7 @@ contentUnitAny                ::= contentUnit*
 content                       ::= CharDataMaybe contentUnitAny
 EmptyElemTagUnit              ::= S Attribute
 EmptyElemTagUnitAny           ::= EmptyElemTagUnit*
-EmptyElemTag                  ::= tagStart Name EmptyElemTagUnitAny SMaybe '/>' # [WFC: Unique Att Spec]
+EmptyElemTag                  ::= STAG_START Name EmptyElemTagUnitAny SMaybe STAG_END # [WFC: Unique Att Spec]
 elementdecl                   ::= '<!ELEMENT' S Name S contentspec SMaybe '>' # [VC: Unique Element Type Declaration]
 contentspec                   ::= 'EMPTY' | 'ANY' | Mixed | children
 ChoiceOrSeq                   ::= choice | seq
