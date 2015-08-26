@@ -30,6 +30,7 @@ our %XMLVERSION = (
 our @SAX_EVENTS = qw/start_document
 
                      start_element
+                     end_element
 
                      characters
                      ignorable_whitespace
@@ -264,9 +265,8 @@ SDDecl                        ::= S 'standalone' Eq ['] 'yes' [']  # [VC: Standa
                                 | S 'standalone' Eq [']  'no' [']  # [VC: Standalone Document Declaration]
                                 | S 'standalone' Eq '"' 'yes' '"'  # [VC: Standalone Document Declaration]
                                 | S 'standalone' Eq '"'  'no' '"'  # [VC: Standalone Document Declaration]
-# Note: end_element is when either we abandoned parsing or reached the end of input of the 'element' grammar
-element                       ::= EmptyElemTag (start_element)
-                                | STag (start_element) content ETag # [WFC: Element Type Match] [VC: Element Valid]
+element                       ::= EmptyElemTag (start_element) (end_element)
+                                | STag (start_element) content ETag (end_element) # [WFC: Element Type Match] [VC: Element Valid]
 STagUnit                      ::= S Attribute
 STagUnitAny                   ::= STagUnit*
 STAG_START                      ~ '<'
@@ -477,6 +477,7 @@ S                                   ~ [\x{20}\x{9}\x{D}\x{A}]+
 #
 start_document ::= ;
 start_element  ::= ;
+end_element    ::= ;
 comment        ::= ;
 #
 # SAX events are added on-the-fly, c.f. method xml().
