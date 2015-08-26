@@ -172,6 +172,8 @@ sub parse {
     #
     my $xml_encoding = '';
     my $root_element_pos = -1;
+    my $root_line;
+    my $root_column;
     my $nb_first_read = 0;
     my $pos;
     my @events;
@@ -231,6 +233,8 @@ sub parse {
           }
           elsif ($_ eq '^STAG_START') {
             $root_element_pos = $pos;
+            my ($start, $length) = $r->pause_span();
+            ($root_line, $root_column) = $r->line_column($start);
           }
         }
       }
@@ -271,6 +275,8 @@ sub parse {
         $self->_logger->debugf('Got parse event \'%s\' at position %d', $_, $pos);
         if ($_ eq '^STAG_START') {
           $root_element_pos = $pos;
+          my ($start, $length) = $r->pause_span();
+          ($root_line, $root_column) = $r->line_column($start);
         }
       }
       if ($root_element_pos < 0) {
@@ -299,7 +305,7 @@ sub parse {
     # Buffer itself is circular and move as parsing is moving.
     # Note that the grammar guarantees that end_element event is always set.
     #
-    $self->_element_loop($io, $block_size, $parse_opts, \%hash, \$buffer, $root_element_pos);
+    $self->_element_loop($io, $block_size, $parse_opts, \%hash, \$buffer, $root_element_pos, $root_line, $root_column);
 
     my $ambiguous = $r->ambiguous();
     if ($ambiguous) {
@@ -319,9 +325,9 @@ sub parse {
 }
 
 sub _element_loop {
-  my ($self, $io, $block_size, $parse_opts, $hash_ref, $buffer_ref, $pos, $element) = @_;
+  my ($self, $io, $block_size, $parse_opts, $hash_ref, $buffer_ref, $pos, $line, $column, $element) = @_;
 
-  $self->_logger->debugf('Parsing element at position %d', $pos);
+  $self->_logger->debugf('Parsing element at line %d column %d position %d', $line, $column, $pos);
 
   $element //= MarpaX::Languages::XML::Impl::Grammar->new->compile(%{$hash_ref},
                                                                    start => 'element',
