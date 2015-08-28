@@ -122,6 +122,12 @@ sub _get_literal {
   return $r->literal($start, $span_length);
 }
 
+sub _get_lexeme_line_column {
+  my ($self, $r) = @_;
+
+  my ($start, $length) = $r->pause_span();
+  return $r->line_column($start);
+}
 
 sub parse {
   my ($self, %hash) = @_;
@@ -246,8 +252,7 @@ sub parse {
           }
           elsif ($_ eq '^STAG_START') {
             $root_element_pos = $pos;
-            my ($start, $length) = $r->pause_span();
-            ($root_line, $root_column) = $r->line_column($start);
+            ($root_line, $root_column) = $self->_get_lexeme_line_column($r);
           }
         }
       }
@@ -278,7 +283,7 @@ sub parse {
     # is too small.
     #
     if ($root_element_pos < 0) {
-      $self->_logger->debugf('Resuming prolog parsing up to root element');
+      $self->_logger->debugf('Resuming document regonizer at position %d', $pos);
       @events = ();
       try {
         $pos = $r->resume($pos);
@@ -360,7 +365,8 @@ sub _element_loop {
                                                                    {
                                                                     G1 =>
                                                                     {
-                                                                     Attribute => { type => 'completed', name => 'Attribute$' }
+                                                                     Attribute => { type => 'completed', name => 'Attribute$' },
+                                                                     element => { type => 'completed', name => 'element$' }
                                                                     },
                                                                     L0 =>
                                                                     {
@@ -370,6 +376,7 @@ sub _element_loop {
                                                                    }
                                                                   );
 
+parse_element:
   my $r;
   my @events;
   my %attributes;
@@ -381,12 +388,14 @@ sub _element_loop {
                                       trace_file_handle => $MARPA_TRACE_FILE_HANDLE,
                                      });
     #
-    # Very first event is always predictable we guarantee that $pos's character
-    # is always the lexeme STAG_START.
+    # Very first character is always predictable we guarantee that it is the lexeme STAG_START
     #
     $self->_logger->debugf('Disabling %s event', '^STAG_START');
     $r->activate('^STAG_START', 0);
     $self->_logger->debugf('Doing first read');
+    #
+    # Implicitely starting at position 0
+    #
     $pos = $r->read(\$_[5]);
     $self->_logger->debugf('Enabling %s event', '^STAG_START');
     $r->activate('^STAG_START', 1);
@@ -395,6 +404,8 @@ sub _element_loop {
     # - ^STAG_START : a new element
     # - STAG_END$   : end of current element
     # - Attribute$  : end of an attribute in current element
+    # - 'exhausted  : parsing exhausted but lexemes remain
+    #
     @events = map { $_->[0] } @{$r->events()};
     if (! @events) {
       $self->_logger->debugf('No event');
@@ -410,35 +421,74 @@ sub _element_loop {
     }
   } while (! @events);
 
-  foreach (@events) {
-    $self->_logger->debugf('Got parse event \'%s\' at position %d', $_, $pos);
-    if ($_ eq 'Attribute$') {
-      my $name  = $self->_get_literal($r, 'AttributeName');
-      my $value = $self->_get_literal($r, 'AttValue');
-      $self->_logger->debugf('Got attribute: %s = %s', $name, $value);
-      #
-      # Per def AttValue is quoted (single or double)
-      #
-      substr($value,  0, 1, '');
-      substr($value, -1, 1, '');
-      $attributes{$name} = $value;
+  while (1) {
+    my $completed;
+    foreach (@events) {
+      $self->_logger->debugf('Got parse event \'%s\' at position %d', $_, $pos);
+      if ($_ eq '^STAG_START') {
+        my ($line, $column) = $self->_get_lexeme_line_column($r);
+        $pos = $self->_element_loop($io, $block_size, $parse_opts, $hash_ref, $_[5], $pos, $line, $column);
+      }
+      elsif ($_ eq 'Attribute$') {
+        my $name  = $self->_get_literal($r, 'AttributeName');
+        my $value = $self->_get_literal($r, 'AttValue');
+        $self->_logger->debugf('Got attribute: %s = %s', $name, $value);
+        #
+        # Per def AttValue is quoted (single or double)
+        #
+        substr($value,  0, 1, '');
+        substr($value, -1, 1, '');
+        $attributes{$name} = $value;
+      }
+      elsif ($_ eq 'element$') {
+        $completed = 1;
+        last;
+      }
+      elsif ($_ eq '\'exhausted') {
+        my $previous_length = $io->length;
+        $block_size *= 2;
+        $io->block_size($block_size)->read;
+        if ($io->length <= $previous_length) {
+          #
+          # Nothing more to read: element is buggy.
+          #
+          $self->_exception('EOF when parsing element');
+        }
+        goto parse_element;
+      }
     }
-  }
-
-  exit;
-  while (! $io->eof) {
+    if ($completed) {
+      last;
+    }
+    #
+    # Here we guarantee that STAG_END was not reached
+    # We do not want to have a resume failure because this will
+    # end the recognizer.
+    #
     my $resume_ok = 0;
     try {
-      $self->_logger->debugf('Resuming recognizer at position %d', $pos);
+      $self->_logger->debugf('Resuming element recognizer at position %d', $pos);
       $pos = $r->resume($pos);
-      my @events = map { $_->[0] } @{$r->events()};
-      foreach (@events) {
-        $self->_logger->debugf('Got parse event \'%s\' at position %d', $_, $pos);
-      }
+      @events = map { $_->[0] } @{$r->events()};
     } catch {
       $self->_logger->debugf('%s', "$_");
     };
+    if (! @events) {
+      $self->_logger->debugf('No event');
+      my $previous_length = $io->length;
+      $block_size *= 2;
+      $io->block_size($block_size)->read;
+      if ($io->length <= $previous_length) {
+        #
+        # Nothing more to read: element is buggy.
+        #
+        $self->_exception('EOF when parsing element');
+      }
+      goto parse_element;
+    };
   }
+
+  return $pos;
 }
 
 
