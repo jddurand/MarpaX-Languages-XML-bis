@@ -415,7 +415,7 @@ sub _element_loop {
     if ($_ eq 'Attribute$') {
       my $name  = $self->_get_literal($r, 'AttributeName');
       my $value = $self->_get_literal($r, 'AttValue');
-      $self->_logger->debugf('Got attribute %s=%s', $name, $value);
+      $self->_logger->debugf('Got attribute: %s = %s', $name, $value);
       #
       # Per def AttValue is quoted (single or double)
       #
