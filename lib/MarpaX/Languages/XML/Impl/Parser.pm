@@ -117,6 +117,14 @@ sub _open {
   return ($io, $bom_encoding, $guess_encoding, $found_encoding, $byte_start);
 }
 
+sub _get_literal {
+  my ($self, $r, $non_terminal) = @_;
+
+  my ($start, $span_length) = $r->last_completed_span($non_terminal);
+  return $r->literal($start, $span_length);
+}
+
+
 sub parse {
   my ($self, %hash) = @_;
 
@@ -197,17 +205,16 @@ sub parse {
                                         grammar => $document,
                                         trace_file_handle => $MARPA_TRACE_FILE_HANDLE,
                                        });
-      @events = ();
       #
       # We accept a failure if buffer is too small
       #
       try {
         $pos = $r->read(\$buffer);
-        @events = map { $_->[0] } @{$r->events()};
       };
+      @events = map { $_->[0] } @{$r->events()};
       #
-      # We expect either tagSart$ or EncodingDecl$.
-      # Why tagSart$ ? Because an XML document must have at least one element.
+      # We expect either ^STAG_START or EncodingDecl$.
+      # Why ^STAG_START ? Because an XML document must have at least one element.
       #
       if (! @events) {
         $self->_logger->debugf('No event');
@@ -227,8 +234,7 @@ sub parse {
             #
             # Remember encoding as given in the XML
             #
-            my ($start, $span_length) = $r->last_completed_span('EncName');
-            $xml_encoding = uc($r->literal($start, $span_length));
+            $xml_encoding = uc($self->_get_literal($r, 'EncName'));
             $self->_logger->debugf('XML says encoding \'%s\'', $xml_encoding);
           }
           elsif ($_ eq '^STAG_START') {
@@ -237,6 +243,13 @@ sub parse {
             ($root_line, $root_column) = $r->line_column($start);
           }
         }
+        #
+        # We accept a failure if buffer is too small
+        #
+        try {
+          $pos = $r->resume();
+          @events = map { $_->[0] } @{$r->events()};
+        };
       }
     } while ((! $xml_encoding) && ($root_element_pos < 0));
     #
@@ -305,7 +318,7 @@ sub parse {
     # Buffer itself is circular and move as parsing is moving.
     # Note that the grammar guarantees that end_element event is always set.
     #
-    $self->_element_loop($io, $block_size, $parse_opts, \%hash, \$buffer, $root_element_pos, $root_line, $root_column);
+    $self->_element_loop($io, $block_size, $parse_opts, \%hash, $buffer, $root_element_pos, $root_line, $root_column);
 
     my $ambiguous = $r->ambiguous();
     if ($ambiguous) {
@@ -325,9 +338,15 @@ sub parse {
 }
 
 sub _element_loop {
-  my ($self, $io, $block_size, $parse_opts, $hash_ref, $buffer_ref, $pos, $line, $column, $element) = @_;
+  #
+  # We will INTENTIONNALLY use $_[5] to manipulate $buffer, in order to avoid COW
+  #
+  my ($self, $io, $block_size, $parse_opts, $hash_ref, undef, $pos, $line, $column, $element) = @_;
 
-  $self->_logger->debugf('Parsing element at line %d column %d position %d', $line, $column, $pos);
+  $self->_logger->debugf('Parsing element at line %d column %d', $line, $column);
+  if ($pos > 0) {
+    substr($_[5], 0, $pos, '');
+  }
 
   $element //= MarpaX::Languages::XML::Impl::Grammar->new->compile(%{$hash_ref},
                                                                    start => 'element',
@@ -347,6 +366,7 @@ sub _element_loop {
 
   my $r;
   my @events;
+  my %attributes;
   do {
     $self->_logger->debugf('Instanciating an element recognizer');
     $r = Marpa::R2::Scanless::R->new({%{$parse_opts},
@@ -361,7 +381,7 @@ sub _element_loop {
     $self->_logger->debugf('Disabling %s event', '^STAG_START');
     $r->activate('^STAG_START', 0);
     $self->_logger->debugf('Doing first read');
-    my $next_pos = $r->read($buffer_ref, $pos);
+    $pos = $r->read(\$_[5]);
     $self->_logger->debugf('Enabling %s event', '^STAG_START');
     $r->activate('^STAG_START', 1);
     #
@@ -381,13 +401,22 @@ sub _element_loop {
         #
         $self->_exception('EOF when parsing element');
       }
-    } else {
-      $pos = $next_pos;
     }
   } while (! @events);
 
   foreach (@events) {
     $self->_logger->debugf('Got parse event \'%s\' at position %d', $_, $pos);
+    if ($_ eq 'Attribute$') {
+      my $name  = $self->_get_literal($r, 'AttributeName');
+      my $value = $self->_get_literal($r, 'AttValue');
+      $self->_logger->debugf('Got attribute %s=%s', $name, $value);
+      #
+      # Per def AttValue is quoted (single or double)
+      #
+      substr($value,  0, 1, '');
+      substr($value, -1, 1, '');
+      $attributes{$name} = $value;
+    }
   }
 
   exit;
