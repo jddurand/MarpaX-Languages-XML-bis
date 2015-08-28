@@ -170,7 +170,7 @@ sub guess {
 sub final {
   my ($self, $bom_encoding, $guess_encoding, $xml_encoding, $orig_encodingp) = @_;
 
-  $self->_logger->debugf('BOM encoding says \'%s\', guess encoding says \'%s\', XML encoding says \'%s\'', $bom_encoding, $guess_encoding, $xml_encoding);
+  $self->_logger->debugf('BOM encoding says \'%s\', guess encoding says \'%s\', XML declaration says \'%s\'', $bom_encoding, $guess_encoding, $xml_encoding);
 
   my $final_encoding;
   if (! $bom_encoding) {
