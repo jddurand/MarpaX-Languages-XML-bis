@@ -90,9 +90,9 @@ sub bom {
   }
 
   if (length($bom) > 0) {
-    $self->_logger->debugf('Encoding guess from BOM: \'%s\' using %d bytes', $bom, $bom_size);
+    $self->_logger->debugf('BOM says encoding is: \'%s\' using %d bytes', $bom, $bom_size);
   } else {
-    $self->_logger->debugf('No encoding guess from BOM');
+    $self->_logger->debugf('No encoding information from BOM');
   }
 
   return ($bom, $bom_size);
@@ -154,7 +154,7 @@ sub guess {
     #
     # Ok, ascii is UTF-8 compatible. Let's say UTF-8.
     #
-    $self->_logger->debugf('Revisiting %s encoding guess to UTF-8', $name);
+    $self->_logger->debugf('Revisiting %s encoding guess from bytes to UTF-8', $name);
     $name = 'UTF-8';
   }
 

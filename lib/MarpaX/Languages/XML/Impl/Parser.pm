@@ -242,7 +242,7 @@ sub parse {
             # Remember encoding as given in the XML
             #
             $xml_encoding = uc($self->_get_literal($r, 'EncName'));
-            $self->_logger->debugf('XML says encoding \'%s\'', $xml_encoding);
+            $self->_logger->debugf('XML says encoding is: \'%s\'', $xml_encoding);
           }
           elsif ($_ eq '^STAG_START') {
             $root_element_pos = $pos;
