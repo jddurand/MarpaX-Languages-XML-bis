@@ -128,21 +128,16 @@ sub _grammar {
     }
   }
   foreach (keys %{$internal_events}) {
-    my $level = $_;  # G1 or L0
-    foreach (keys %{$internal_events->{$level}}) {
-      my $rule = $_;
-      my $type = $internal_events->{$level}->{$rule}->{type};
-      my $name = $internal_events->{$level}->{$rule}->{name};
-      $self->_logger->debugf('%s/%s: Adding %s %s event', $xmlversion, $start, $level, $name);
-      if ($level eq 'G1') {
-        $data .= "event '$name' = $type <$rule>\n";
-      }
-      elsif ($level eq 'L0') {
-        $data .= ":lexeme ~ <$rule> pause => $type event => '$name'\n";
-      }
-      else {
-        MarpaX::Languages::XML::Exception->throw("Invalid internal event level: $level");
-      }
+    my $event_name  = $_;
+    my $lexeme      = $internal_events->{$_}->{lexeme};
+    my $symbol_name = $internal_events->{$_}->{symbol_name};
+    my $type        = $internal_events->{$_}->{type};
+    $self->_logger->debugf('%s/%s: Adding %s %s event', $xmlversion, $start, $lexeme ? 'L0' : 'G1', $event_name);
+    if ($lexeme) {
+      $data .= ":lexeme ~ <$symbol_name> pause => $type event => '$event_name'\n";
+    }
+    else {
+      $data .= "event '$event_name' = $type <$symbol_name>\n";
     }
   }
   #
@@ -179,8 +174,8 @@ Names                         ::= Name+ separator => SPACE proper => 1
 Nmtoken                       ::= NMTOKENMANY
 Nmtokens                      ::= Nmtoken+ separator => SPACE proper => 1
 
-EntityValue                   ::= '"' EntityValueInteriorDquote '"'
-                                | ['] EntityValueInteriorSquote [']
+EntityValue                   ::= DQUOTE EntityValueInteriorDquote DQUOTE
+                                | SQUOTE EntityValueInteriorSquote SQUOTE
 EntityValueInteriorDquoteUnit ::= ENTITYVALUEINTERIORDQUOTEUNIT
 PEReferenceMany               ::= PEReference+
 EntityValueInteriorDquoteUnit ::= PEReferenceMany
@@ -192,8 +187,8 @@ EntityValueInteriorSquoteUnit ::= ReferenceMany
 EntityValueInteriorSquoteUnit ::= PEReferenceMany
 EntityValueInteriorSquote     ::= EntityValueInteriorSquoteUnit*
 
-AttValue                      ::=  '"' AttValueInteriorDquote '"'
-                                |  ['] AttValueInteriorSquote [']
+AttValue                      ::=  DQUOTE AttValueInteriorDquote DQUOTE
+                                |  SQUOTE AttValueInteriorSquote SQUOTE
 AttValueInteriorDquoteUnit    ::= ATTVALUEINTERIORDQUOTEUNIT
 AttValueInteriorDquoteUnit    ::= ReferenceMany
 AttValueInteriorDquote        ::= AttValueInteriorDquoteUnit*
@@ -201,31 +196,34 @@ AttValueInteriorSquoteUnit    ::= ATTVALUEINTERIORSQUOTEUNIT
 AttValueInteriorSquoteUnit    ::= ReferenceMany
 AttValueInteriorSquote        ::= AttValueInteriorSquoteUnit*
 
-SystemLiteral                 ::= '"' NOT_DQUOTEANY '"'
-                                | ['] NOT_SQUOTEANY [']
+SystemLiteral                 ::= DQUOTE NOT_DQUOTEMANY DQUOTE
+                                | DQUOTE                DQUOTE
+                                | SQUOTE NOT_SQUOTEMANY SQUOTE
+                                | SQUOTE                SQUOTE
 PubidCharDquoteAny            ::= PubidCharDquote*
 PubidCharSquoteAny            ::= PubidCharSquote*
-PubidLiteral                  ::= '"' PubidCharDquoteAny '"'
-                                | ['] PubidCharSquoteAny [']
+PubidLiteral                  ::= DQUOTE PubidCharDquoteAny DQUOTE
+                                | SQUOTE PubidCharSquoteAny SQUOTE
 
-PubidCharDquote               ::= [a-zA-Z0-9\-'()+,./:=?;!*#@$_%\x{20}\x{D}\x{A}]
-PubidCharSquote               ::= [a-zA-Z0-9\-()+,./:=?;!*#@$_%\x{20}\x{D}\x{A}]
+PubidCharDquote               ::= PUBIDCHARDQUOTE
+PubidCharSquote               ::= PUBIDCHARSQUOTE
 
 CharData                      ::= CHARDATAMANY
 
-CommentCharAny                ::= COMMENTCHARANY
-Comment                       ::= '<!--' CommentCharAny (comment) '-->'
+CommentCharAny                ::= COMMENTCHARMANY
+CommentCharAny                ::=
+Comment                       ::= COMMENT_START CommentCharAny (comment) COMMENT_END
 
-PI                            ::= '<?' PITarget S PICHARDATAMANY '?>'
-                                | '<?' PITarget                  '?>'
-                                | '<?' PITarget S                '?>'
-                                | '<?' PITarget                  '?>'
+PI                            ::= PI_START PITarget S PICHARDATAMANY PI_END
+                                | PI_START PITarget S                PI_END
+                                | PI_START PITarget                  PI_END
 
 PITarget                      ::= PITARGET
 CDSect                        ::= CDStart CData CDEnd
-CDStart                       ::= '<![CDATA['
-CData                         ::= CDATAANY
-CDEnd                         ::= ']]>'
+CDStart                       ::= CDATA_START
+CData                         ::= CDATAMANY
+CData                         ::=
+CDEnd                         ::= CDATA_END
 XMLDeclMaybe                  ::= XMLDecl
 XMLDeclMaybe                  ::=
 prolog                        ::= XMLDeclMaybe MiscAny
@@ -236,16 +234,16 @@ SDDeclMaybe                   ::= SDDecl
 SDDeclMaybe                   ::=
 SMaybe                        ::= S
 SMaybe                        ::=
-XMLDecl                       ::= '<?xml' VersionInfo EncodingDeclMaybe SDDeclMaybe SMaybe '?>'
-VersionInfo                   ::= S 'version' Eq ['] VersionNum [']
-VersionInfo                   ::= S 'version' Eq '"' VersionNum '"'
-Eq                            ::= SMaybe '=' SMaybe
-VersionNum                    ::= '1.0'
+XMLDecl                       ::= XMLDECL_START VersionInfo EncodingDeclMaybe SDDeclMaybe SMaybe XMLDECL_END
+VersionInfo                   ::= S VERSION Eq SQUOTE VersionNum SQUOTE
+VersionInfo                   ::= S VERSION Eq DQUOTE VersionNum DQUOTE
+Eq                            ::= SMaybe EQUAL SMaybe
+VersionNum                    ::= VERSIONNUM
 Misc                          ::= Comment | PI | S
-doctypedecl                   ::= '<!DOCTYPE' S Name              SMaybe '[' intSubset ']' SMaybe '>' # [VC: Root Element Type] [WFC: External Subset]
-                                | '<!DOCTYPE' S Name              SMaybe                          '>' # [VC: Root Element Type] [WFC: External Subset]
-                                | '<!DOCTYPE' S Name S ExternalID SMaybe '[' intSubset ']' SMaybe '>' # [VC: Root Element Type] [WFC: External Subset]
-                                | '<!DOCTYPE' S Name S ExternalID SMaybe                          '>' # [VC: Root Element Type] [WFC: External Subset]
+doctypedecl                   ::= DOCTYPE_START S Name              SMaybe LBRACKET intSubset RBRACKET SMaybe DOCTYPE_END # [VC: Root Element Type] [WFC: External Subset]
+                                | DOCTYPE_START S Name              SMaybe                                    DOCTYPE_END # [VC: Root Element Type] [WFC: External Subset]
+                                | DOCTYPE_START S Name S ExternalID SMaybe LBRACKET intSubset RBRACKET SMaybe DOCTYPE_END # [VC: Root Element Type] [WFC: External Subset]
+                                | DOCTYPE_START S Name S ExternalID SMaybe                                    DOCTYPE_END # [VC: Root Element Type] [WFC: External Subset]
 DeclSep                       ::= PEReference   # [WFC: PE Between Declarations]
                                 | S
 intSubsetUnit                 ::= markupdecl | DeclSep
@@ -261,21 +259,19 @@ TextDeclMaybe                 ::=
 extSubset                     ::= TextDeclMaybe extSubsetDecl
 extSubsetDeclUnit             ::= markupdecl | conditionalSect | DeclSep
 extSubsetDecl                 ::= extSubsetDeclUnit*
-SDDecl                        ::= S 'standalone' Eq ['] 'yes' [']  # [VC: Standalone Document Declaration]
-                                | S 'standalone' Eq [']  'no' [']  # [VC: Standalone Document Declaration]
-                                | S 'standalone' Eq '"' 'yes' '"'  # [VC: Standalone Document Declaration]
-                                | S 'standalone' Eq '"'  'no' '"'  # [VC: Standalone Document Declaration]
+SDDecl                        ::= S STANDALONE Eq SQUOTE YES SQUOTE # [VC: Standalone Document Declaration]
+                                | S STANDALONE Eq SQUOTE  NO SQUOTE  # [VC: Standalone Document Declaration]
+                                | S STANDALONE Eq DQUOTE YES DQUOTE  # [VC: Standalone Document Declaration]
+                                | S STANDALONE Eq DQUOTE  NO DQUOTE  # [VC: Standalone Document Declaration]
 element                       ::= EmptyElemTag (start_element) (end_element)
                                 | STag (start_element) content ETag (end_element) # [WFC: Element Type Match] [VC: Element Valid]
 STagUnit                      ::= S Attribute
 STagUnitAny                   ::= STagUnit*
-STAG_START                      ~ '<'
-STAG_END                        ~ '>' | '/>'
 STagName                      ::= Name
-STag                          ::= STAG_START STagName STagUnitAny SMaybe STAG_END # [WFC: Unique Att Spec]
+STag                          ::= ELEMENT_START STagName STagUnitAny SMaybe ELEMENT_END # [WFC: Unique Att Spec]
 AttributeName                 ::= Name
 Attribute                     ::= AttributeName Eq AttValue  # [VC: Attribute Value Type] [WFC: No External Entity References] [WFC: No < in Attribute Values]
-ETag                          ::= '</' Name SMaybe '>'
+ETag                          ::= ETAG_START Name SMaybe ETAG_END
 CharDataMaybe                 ::= CharData
 CharDataMaybe                 ::=
 contentUnit                   ::= element CharDataMaybe | Reference CharDataMaybe | CDSect CharDataMaybe | PI CharDataMaybe | Comment CharDataMaybe
@@ -283,62 +279,62 @@ contentUnitAny                ::= contentUnit*
 content                       ::= CharDataMaybe contentUnitAny
 EmptyElemTagUnit              ::= S Attribute
 EmptyElemTagUnitAny           ::= EmptyElemTagUnit*
-EmptyElemTag                  ::= STAG_START Name EmptyElemTagUnitAny SMaybe STAG_END # [WFC: Unique Att Spec]
-elementdecl                   ::= '<!ELEMENT' S Name S contentspec SMaybe '>' # [VC: Unique Element Type Declaration]
-contentspec                   ::= 'EMPTY' | 'ANY' | Mixed | children
+EmptyElemTag                  ::= EMPTYELEM_START Name EmptyElemTagUnitAny SMaybe EMPTYELEM_END # [WFC: Unique Att Spec]
+elementdecl                   ::= ELEMENTDECL_START S Name S contentspec SMaybe ELEMENTDECL_END # [VC: Unique Element Type Declaration]
+contentspec                   ::= EMPTY | ANY | Mixed | children
 ChoiceOrSeq                   ::= choice | seq
 children                      ::= ChoiceOrSeq
-                                | ChoiceOrSeq [?*+]
+                                | ChoiceOrSeq QUESTIONMARK_OR_STAR_OR_PLUS
 NameOrChoiceOrSeq             ::= Name | choice | seq
 cp                            ::= NameOrChoiceOrSeq
-                                | NameOrChoiceOrSeq [?*+]
-choiceUnit                    ::= SMaybe '|' SMaybe cp
+                                | NameOrChoiceOrSeq QUESTIONMARK_OR_STAR_OR_PLUS
+choiceUnit                    ::= SMaybe OR SMaybe cp
 choiceUnitMany                ::= choiceUnit+
-choice                        ::= '(' SMaybe cp choiceUnitMany SMaybe ')' # [VC: Proper Group/PE Nesting]
-seqUnit                       ::= SMaybe ',' SMaybe cp
+choice                        ::= CHOICE_START SMaybe cp choiceUnitMany SMaybe CHOICE_END # [VC: Proper Group/PE Nesting]
+seqUnit                       ::= SMaybe COMMA SMaybe cp
 seqUnitAny                    ::= seqUnit*
-seq                           ::= '(' SMaybe cp seqUnitAny SMaybe ')' # [VC: Proper Group/PE Nesting]
-MixedUnit                     ::= SMaybe '|' SMaybe Name
+seq                           ::= SEQ_START SMaybe cp seqUnitAny SMaybe SEQ_END # [VC: Proper Group/PE Nesting]
+MixedUnit                     ::= SMaybe OR SMaybe Name
 MixedUnitAny                  ::= MixedUnit*
-Mixed                         ::= '(' SMaybe '#PCDATA' MixedUnitAny SMaybe ')*' # [VC: Proper Group/PE Nesting] [VC: No Duplicate Types]
-                                | '(' SMaybe '#PCDATA'               SMaybe ')'            # [VC: Proper Group/PE Nesting] [VC: No Duplicate Types]
-AttlistDecl                   ::= '<!ATTLIST' S Name AttDefAny SMaybe '>'
+Mixed                         ::= MIXED_START1 SMaybe PCDATA MixedUnitAny SMaybe MIXED_END1 # [VC: Proper Group/PE Nesting] [VC: No Duplicate Types]
+                                | MIXED_START2 SMaybe PCDATA              SMaybe MIXED_END2 # [VC: Proper Group/PE Nesting] [VC: No Duplicate Types]
+AttlistDecl                   ::= ATTLIST_START S Name AttDefAny SMaybe ATTLIST_END
 AttDefAny                     ::= AttDef*
 AttDef                        ::= S Name S AttType S DefaultDecl
 AttType                       ::= StringType | TokenizedType | EnumeratedType
-StringType                    ::= 'CDATA'
-TokenizedType                 ::= 'ID'                 # [VC: ID] [VC: One ID per Element Type] [VC: ID Attribute Default]
-                                | 'IDREF'              # [VC: IDREF]
-                                | 'IDREFS'             # [VC: IDREF]
-                                | 'ENTITY'             # [VC: Entity Name]
-                                | 'ENTITIES'           # [VC: Entity Name]
-                                | 'NMTOKEN'            # [VC: Name Token]
-                                | 'NMTOKENS'           # [VC: Name Token]
+StringType                    ::= CDATA
+TokenizedType                 ::= ID                 # [VC: ID] [VC: One ID per Element Type] [VC: ID Attribute Default]
+                                | IDREF              # [VC: IDREF]
+                                | IDREFS             # [VC: IDREF]
+                                | ENTITY             # [VC: Entity Name]
+                                | ENTITIES           # [VC: Entity Name]
+                                | NMTOKEN            # [VC: Name Token]
+                                | NMTOKENS           # [VC: Name Token]
 EnumeratedType                ::= NotationType | Enumeration
-NotationTypeUnit              ::= SMaybe '|' SMaybe Name
+NotationTypeUnit              ::= SMaybe OR SMaybe Name
 NotationTypeUnitAny           ::= NotationTypeUnit*
-NotationType                  ::= 'NOTATION' S '(' SMaybe Name NotationTypeUnitAny SMaybe ')' # [VC: Notation Attributes] [VC: One Notation Per Element Type] [VC: No Notation on Empty Element] [VC: No Duplicate Tokens]
-EnumerationUnit               ::= SMaybe '|' SMaybe Nmtoken
+NotationType                  ::= NOTATION S NOTATION_START SMaybe Name NotationTypeUnitAny SMaybe NOTATION_END # [VC: Notation Attributes] [VC: One Notation Per Element Type] [VC: No Notation on Empty Element] [VC: No Duplicate Tokens]
+EnumerationUnit               ::= SMaybe OR SMaybe Nmtoken
 EnumerationUnitAny            ::= EnumerationUnit*
-Enumeration                   ::= '(' SMaybe Nmtoken EnumerationUnitAny SMaybe ')' # [VC: Enumeration] [VC: No Duplicate Tokens]
-DefaultDecl                   ::= '#REQUIRED' | '#IMPLIED'
+Enumeration                   ::= ENUMERATION_START SMaybe Nmtoken EnumerationUnitAny SMaybe ENUMERATION_END # [VC: Enumeration] [VC: No Duplicate Tokens]
+DefaultDecl                   ::= REQUIRED | IMPLIED
                                 |            AttValue                              # [VC: Required Attribute] [VC: Attribute Default Value Syntactically Correct] [WFC: No < in Attribute Values] [VC: Fixed Attribute Default] [WFC: No External Entity References]
-                                | '#FIXED' S AttValue                              # [VC: Required Attribute] [VC: Attribute Default Value Syntactically Correct] [WFC: No < in Attribute Values] [VC: Fixed Attribute Default] [WFC: No External Entity References]
+                                | FIXED S AttValue                              # [VC: Required Attribute] [VC: Attribute Default Value Syntactically Correct] [WFC: No < in Attribute Values] [VC: Fixed Attribute Default] [WFC: No External Entity References]
 conditionalSect               ::= includeSect | ignoreSect
-includeSect                   ::= '<![' SMaybe 'INCLUDE' SMaybe '[' extSubsetDecl          ']]>' # [VC: Proper Conditional Section/PE Nesting]
-ignoreSect                    ::= '<![' SMaybe  'IGNORE' SMaybe '[' ignoreSectContentsAny ']]>'
-                                | '<![' SMaybe  'IGNORE' SMaybe '['                        ']]>' # [VC: Proper Conditional Section/PE Nesting]
+includeSect                   ::= INCLUDESECT_START SMaybe INCLUDE SMaybe LBRACKET extSubsetDecl          INCLUDESECT_END # [VC: Proper Conditional Section/PE Nesting]
+ignoreSect                    ::= IGNORESECT_START SMaybe  IGNORE SMaybe LBRACKET ignoreSectContentsAny  IGNORESECT_END
+                                | IGNORESECT_START SMaybe  IGNORE SMaybe LBRACKET                        IGNORESECT_END # [VC: Proper Conditional Section/PE Nesting]
 ignoreSectContentsAny         ::= ignoreSectContents*
-ignoreSectContentsUnit        ::= '<![' ignoreSectContents ']]>' Ignore
-ignoreSectContentsUnit        ::= '<!['                    ']]>' Ignore
+ignoreSectContentsUnit        ::= IGNORESECTCONTENTSUNIT_START ignoreSectContents IGNORESECTCONTENTSUNIT_END Ignore
+ignoreSectContentsUnit        ::= IGNORESECTCONTENTSUNIT_START                    IGNORESECTCONTENTSUNIT_END Ignore
 ignoreSectContentsUnitAny     ::= ignoreSectContentsUnit*
 ignoreSectContents            ::= Ignore ignoreSectContentsUnitAny
 Ignore                        ::= IGNOREMANY
-CharRef                       ::= '&#' DIGITMANY ';'
-                                | '&#x' ALPHAMANY ';' # [WFC: Legal Character]
+CharRef                       ::= CHARREF_START1 DIGITMANY CHARREF_END1
+                                | CHARREF_START2 ALPHAMANY CHARREF_END2 # [WFC: Legal Character]
 Reference                     ::= EntityRef | CharRef
-EntityRef                     ::= '&' Name ';' # [WFC: Entity Declared] [VC: Entity Declared] [WFC: Parsed Entity] [WFC: No Recursion]
-PEReference                   ::= '%' Name ';' # [VC: Entity Declared] [WFC: No Recursion] [WFC: In DTD]
+EntityRef                     ::= ENTITYREF_START Name ENTITYREF_END # [WFC: Entity Declared] [VC: Entity Declared] [WFC: Parsed Entity] [WFC: No Recursion]
+PEReference                   ::= PEREFERENCE_START Name PEREFERENCE_END # [VC: Entity Declared] [WFC: No Recursion] [WFC: In DTD]
 EntityDecl                    ::= GEDecl | PEDecl
 GEDecl                        ::= '<!ENTITY' S Name S EntityDef SMaybe '>'
 PEDecl                        ::= '<!ENTITY' S '%' S Name S PEDef SMaybe '>'
@@ -362,12 +358,12 @@ NotationDecl                  ::= '<!NOTATION' S Name S   PublicID SMaybe '>' # 
 PublicID                      ::= 'PUBLIC' S PubidLiteral
 
 _SPACE                          ~ [\x{20}]
-_NOT_SQUOTEANY                  ~ [^']*
-_NOT_DQUOTEANY                  ~ [^"]*
+_NOT_SQUOTEMANY                 ~ [^']+
+_NOT_DQUOTEMANY                 ~ [^"]+
 
 SPACE                           ~ _SPACE
-NOT_SQUOTEANY                   ~ _NOT_SQUOTEANY
-NOT_DQUOTEANY                   ~ _NOT_DQUOTEANY
+NOT_SQUOTEMANY                  ~ _NOT_SQUOTEMANY
+NOT_DQUOTEMANY                  ~ _NOT_DQUOTEMANY
 
 _CHARDATAUNIT                   ~      [^<&\]]
                                 |  ']'
@@ -427,8 +423,8 @@ _CHAR_WITHOUT_RBRACKET_RBRACKET_GT  ~ _CHAR_WITHOUT_RBRACKET
                                     |                    ']' _CHAR_WITHOUT_RBRACKET
                                     |                   ']]'
                                     |                   ']]' _CHAR_WITHOUT_GT
-_CDATAANY                          ~ _CHAR_WITHOUT_RBRACKET_RBRACKET_GT*
-CDATAANY                           ~ _CDATAANY
+_CDATAMANY                         ~ _CHAR_WITHOUT_RBRACKET_RBRACKET_GT+
+CDATAMANY                          ~ _CDATAMANY
 
 # A Ignore is a positive sequence of Char minus '<![' or ']]>'
 _CHAR_WITHOUT_LT                    ~ [^\x{0}-\x{8}\x{B}-\x{C}\x{E}-\x{1F}\x{D800}-\x{DFFF}\x{FFFE}\x{FFFF}<]
@@ -448,8 +444,8 @@ IGNOREMANY                         ~ _IGNOREMANY
 _CHAR_WITHOUT_MINUS                 ~ [^\x{0}-\x{8}\x{B}-\x{C}\x{E}-\x{1F}\x{D800}-\x{DFFF}\x{FFFE}\x{FFFF}\-]
 _COMMENTCHAR     ~ _CHAR_WITHOUT_MINUS
                  |                 '-' _CHAR_WITHOUT_MINUS
-_COMMENTCHARANY                     ~ _COMMENTCHAR*
-COMMENTCHARANY                     ~ _COMMENTCHARANY
+_COMMENTCHARMANY                    ~ _COMMENTCHAR+
+COMMENTCHARMANY                     ~ _COMMENTCHARMANY
 
 _DIGIT                              ~ [0-9]
 _DIGITMANY                         ~ _DIGIT+
@@ -471,7 +467,84 @@ ATTVALUEINTERIORDQUOTEUNIT          ~ [^<&"]+
 ATTVALUEINTERIORSQUOTEUNIT          ~ [^<&']+
 
 S                                   ~ [\x{20}\x{9}\x{D}\x{A}]+
-
+DQUOTE                              ~ '"'
+SQUOTE                              ~ [']
+PUBIDCHARDQUOTE                     ~ [a-zA-Z0-9\-'()+,./:=?;!*#@$_%\x{20}\x{D}\x{A}]
+PUBIDCHARSQUOTE                     ~ [a-zA-Z0-9\-()+,./:=?;!*#@$_%\x{20}\x{D}\x{A}]
+COMMENT_START                       ~ '<!--'
+COMMENT_END                         ~ '-->'
+PI_START                            ~ '<?'
+PI_END                              ~ '?>'
+CDATA_START                         ~ '<![CDATA['
+CDATA_END                           ~ ']]>'
+XMLDECL_START                       ~ '<?xml'
+XMLDECL_END                         ~ '?>'
+VERSION                             ~ 'version'
+EQUAL                               ~ '='
+VERSIONNUM                          ~ '1.0'
+DOCTYPE_START                       ~ '<!DOCTYPE'
+DOCTYPE_END                         ~ '>'
+LBRACKET                            ~ '['
+RBRACKET                            ~ ']'
+STANDALONE                          ~ 'standalone'
+YES                                 ~ 'yes'
+NO                                  ~ 'no'
+ELEMENT_START                       ~ '<'
+ELEMENT_END                         ~ '>'
+ETAG_START                          ~ '</'
+ETAG_END                            ~ '>'
+EMPTYELEM_START                     ~ '<'
+EMPTYELEM_END                       ~ '/>'
+ELEMENTDECL_START                   ~ '<!ELEMENT'
+ELEMENTDECL_END                     ~ '>'
+EMPTY                               ~ 'EMPTY'
+ANY                                 ~ 'ANY'
+QUESTIONMARK_OR_STAR_OR_PLUS        ~ [?*+]
+OR                                  ~ '|'
+CHOICE_START                        ~ '('
+CHOICE_END                          ~ ')'
+SEQ_START                           ~ '('
+SEQ_END                             ~ ')'
+MIXED_START1                        ~ '('
+MIXED_END1                          ~ ')*'
+MIXED_START2                        ~ '('
+MIXED_END2                          ~ ')'
+COMMA                               ~ ','
+PCDATA                              ~ '#PCDATA'
+ATTLIST_START                       ~ '<!ATTLIST'
+ATTLIST_END                         ~ '>'
+CDATA                               ~ 'CDATA'
+ID                                  ~ 'ID'
+IDREF                               ~ 'IDREF'
+IDREFS                              ~ 'IDREFS'
+ENTITY                              ~ 'ENTITY'
+ENTITIES                            ~ 'ENTITIES'
+NMTOKEN                             ~ 'NMTOKEN'
+NMTOKENS                            ~ 'NMTOKENS'
+NOTATION                            ~ 'NOTATION'
+NOTATION_START                      ~ '('
+NOTATION_END                        ~ ')'
+ENUMERATION_START                   ~ '('
+ENUMERATION_END                     ~ ')'
+REQUIRED                            ~ '#REQUIRED'
+IMPLIED                             ~ '#IMPLIED'
+FIXED                               ~ '#FIXED'
+INCLUDE                             ~ 'INCLUDE'
+IGNORE                              ~ 'IGNORE'
+INCLUDESECT_START                   ~ '<!['
+INCLUDESECT_END                     ~ ']]>'
+IGNORESECT_START                    ~ '<!['
+IGNORESECT_END                      ~ ']]>'
+IGNORESECTCONTENTSUNIT_START        ~ '<!['
+IGNORESECTCONTENTSUNIT_END          ~ ']]>'
+CHARREF_START1                      ~ '&#'
+CHARREF_END1                        ~ ';'
+CHARREF_START2                      ~ '&#x'
+CHARREF_END2                        ~ ';'
+ENTITYREF_START                     ~ '&'
+ENTITYREF_END                       ~ ';'
+PEREFERENCE_START                   ~ '%'
+PEREFERENCE_END                     ~ ';'
 #
 # SAX nullable rules
 #

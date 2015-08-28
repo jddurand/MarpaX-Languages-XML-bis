@@ -52,7 +52,7 @@ sub BUILD {
   my $source = $args->{source};
   $self->_set_source($source);
 
-  $self->_logger->debugf('IO: Opening %s', $self->_source);
+  $self->_logger->tracef('IO: Opening %s', $self->_source);
   my $io = io($self->_source);
   $self->_set_io($io);
   $self->_binary;
@@ -62,7 +62,7 @@ sub block_size {
   my $self = shift;
 
   if (@_) {
-    $self->_logger->debugf('IO: Setting block size to %d', $_[0]);
+    $self->_logger->tracef('IO: Setting block size to %d', $_[0]);
     $self->_io->block_size($_[0]);
   }
 
@@ -72,7 +72,7 @@ sub block_size {
 sub _binary {
   my $self = shift;
 
-  $self->_logger->debugf('IO: Setting binary mode');
+  $self->_logger->tracef('IO: Setting binary mode');
   $self->_io->binary();
 
   return $self;
@@ -82,7 +82,7 @@ sub length {
   my $self = shift;
 
   my $length = $self->_io->length;
-  $self->_logger->debugf('IO: Buffer length is %d', $length);
+  $self->_logger->tracef('IO: Buffer length is %d', $length);
 
   return $length;
 }
@@ -106,7 +106,7 @@ sub eof {
   sub read {
     my $self = shift;
 
-    $self->_logger->debugf('IO: Reading %d characters', $self->_io->block_size);
+    $self->_logger->tracef('IO: Reading %d characters', $self->_io->block_size);
     $self->_io->read;
 
     return $self;
@@ -116,7 +116,7 @@ sub eof {
 sub clear {
   my $self = shift;
 
-  $self->_logger->debugf('IO: Clearing buffer');
+  $self->_logger->tracef('IO: Clearing buffer');
   $self->_io->clear;
 
   return $self;
@@ -126,7 +126,7 @@ sub encoding {
   my $self = shift;
 
   if (@_) {
-    $self->_logger->debugf('IO: Setting encoding to %s', $_[0]);
+    $self->_logger->tracef('IO: Setting encoding to %s', $_[0]);
     $self->_io->encoding($_[0]);
   }
 
@@ -136,7 +136,7 @@ sub encoding {
 sub pos {
   my ($self, $pos) = @_;
 
-  $self->_logger->debugf('IO: Setting position to %d', $pos);
+  $self->_logger->tracef('IO: Setting position to %d', $pos);
 
   my $pos_ok = 0;
   try {
@@ -153,18 +153,18 @@ sub pos {
       $pos_ok = 1;
     }
   } catch {
-    $self->_logger->debugf('IO: %s', "$_");
+    $self->_logger->tracef('IO: %s', "$_");
   };
   if (! $pos_ok) {
     #
     # Ah... not seekable perhaps
     # The only alternative is to reopen the stream
     #
-    $self->_logger->debugf('IO: Seek failure');
+    $self->_logger->tracef('IO: Seek failure');
 
     my $orig_block_size = $self->block_size;
 
-    $self->_logger->debugf('IO: Re-opening %s', $self->_source);
+    $self->_logger->tracef('IO: Re-opening %s', $self->_source);
     my $io = io($self->_source);
     $self->_set_io($io);
     $self->_binary;

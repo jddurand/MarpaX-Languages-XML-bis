@@ -90,9 +90,9 @@ sub bom {
   }
 
   if (length($bom) > 0) {
-    $self->_logger->debugf('BOM says encoding is: \'%s\' using %d bytes', $bom, $bom_size);
+    $self->_logger->tracef('BOM says encoding is: \'%s\' using %d bytes', $bom, $bom_size);
   } else {
-    $self->_logger->debugf('No encoding information from BOM');
+    $self->_logger->tracef('No encoding information from BOM');
   }
 
   return ($bom, $bom_size);
@@ -124,7 +124,7 @@ sub guess {
   if (! $name) {
     my $is_ebcdic = $Config{'ebcdic'} || '';
     if ($is_ebcdic eq 'define') {
-      $self->_logger->debugf('Encode::Guess not supported on EBCDIC platform');
+      $self->_logger->tracef('Encode::Guess not supported on EBCDIC platform');
       return;
     }
 
@@ -146,7 +146,7 @@ sub guess {
       }
       $name = uc($enc->name || '');
     } catch {
-      $self->_logger->debugf('%s', $_);
+      $self->_logger->tracef('%s', $_);
     };
   }
 
@@ -154,14 +154,14 @@ sub guess {
     #
     # Ok, ascii is UTF-8 compatible. Let's say UTF-8.
     #
-    $self->_logger->debugf('Revisiting %s encoding guess from bytes to UTF-8', $name);
+    $self->_logger->tracef('Revisiting %s encoding guess from bytes to UTF-8', $name);
     $name = 'UTF-8';
   }
 
   if (length($name) > 0) {
-    $self->_logger->debugf('Encoding guess from bytes: \'%s\'', $name);
+    $self->_logger->tracef('Encoding guess from bytes: \'%s\'', $name);
   } else {
-    $self->_logger->debugf('No encoding guess from bytes');
+    $self->_logger->tracef('No encoding guess from bytes');
   }
 
   return $name;
@@ -170,7 +170,7 @@ sub guess {
 sub final {
   my ($self, $bom_encoding, $guess_encoding, $xml_encoding, $orig_encodingp) = @_;
 
-  $self->_logger->debugf('BOM encoding says \'%s\', guess encoding says \'%s\', XML declaration says \'%s\'', $bom_encoding, $guess_encoding, $xml_encoding);
+  $self->_logger->tracef('BOM encoding says \'%s\', guess encoding says \'%s\', XML declaration says \'%s\'', $bom_encoding, $guess_encoding, $xml_encoding);
 
   my $final_encoding;
   if (! $bom_encoding) {
@@ -211,7 +211,7 @@ sub final {
     $final_encoding = $bom_encoding;
   }
 
-  $self->_logger->debugf('Final encoding is \'%s\'', $final_encoding);
+  $self->_logger->tracef('Final encoding is \'%s\'', $final_encoding);
 
   return $final_encoding;
 }

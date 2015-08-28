@@ -115,11 +115,209 @@ sub _open {
   return ($io, $bom_encoding, $guess_encoding, $found_encoding, $byte_start);
 }
 
+sub _read {
+  my ($self, $io, $current_length, $recursion_level) = @_;
+
+  $io->read;
+  my $new_length;
+  if (($new_length = $io->length) <= $current_length) {
+    $self->_exception('[%3d] EOF', $recursion_level);
+  }
+  return $new_length;
+}
+
+#
+# Generic routine doing a parse using a top grammar and switching to eventual sub-grammars, using a shared buffer in input.
+# It is assumed that, at $pos, the grammar will STOP at any possible first lexeme.
+#
+# For example the document grammar must stop at either:
+# '<?xml'    (which is optional)
+# '<'        (which is required)
+#
+# We rely on the fact that the XML grammar has NO discard event. Therefore a parsing failure can
+# occur only if:
+# - there is no more input
+# - input is wrong
+#
+# We have to distinguish between lexemes of variable size (sequences) and those of fixed size
+# This is the reason of this constant declaration (note that XML1.0 and XML1.1 share the same
+# lexeme names and their "fixed_length" value):
+#
+our %LEXEME_INTERNAL_EVENTS = (
+                               '^NAME'                          => { fixed_length => 0, lexeme => 1, type => 'before', symbol_name => 'NAME'        },
+                               '^NMTOKENMANY'                   => { fixed_length => 0, lexeme => 1, type => 'before', symbol_name => 'NMTOKENMANY' },
+                               '^SPACE'                         => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'SPACE' },
+                               '^DQUOTE'                        => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'DQUOTE' },
+                               '^SQUOTE'                        => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'SQUOTE' },
+                               '^ENTITYVALUEINTERIORDQUOTEUNIT' => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'ENTITYVALUEINTERIORDQUOTEUNIT' },
+                               '^ENTITYVALUEINTERIORSQUOTEUNIT' => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'ENTITYVALUEINTERIORSQUOTEUNIT' },
+                               '^ATTVALUEINTERIORDQUOTEUNIT'    => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'ATTVALUEINTERIORDQUOTEUNIT' },
+                               '^ATTVALUEINTERIORSQUOTEUNIT'    => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'ATTVALUEINTERIORSQUOTEUNIT' },
+                               '^NOT_DQUOTEMANY'                => { fixed_length => 0, lexeme => 1, type => 'before', symbol_name => 'NOT_DQUOTEMANY' },
+                               '^NOT_SQUOTEMANY'                => { fixed_length => 0, lexeme => 1, type => 'before', symbol_name => 'NOT_SQUOTEMANY' },
+                               '^PUBIDCHARDQUOTE'               => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'PUBIDCHARDQUOTE' },
+                               '^PUBIDCHARSQUOTE'               => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'PUBIDCHARSQUOTE' },
+                               '^CHARDATAMANY'                  => { fixed_length => 0, lexeme => 1, type => 'before', symbol_name => 'CHARDATAMANY' },
+                               '^COMMENTCHARMANY'               => { fixed_length => 0, lexeme => 1, type => 'before', symbol_name => 'COMMENTCHARMANY' },
+                               '^COMMENT_START'                 => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'COMMENT_START' },
+                               '^COMMENT_END'                   => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'COMMENT_END' },
+                               '^PI_START'                      => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'PI_START' },
+                               '^PI_END'                        => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'PI_END' },
+                               '^PITARGET'                      => { fixed_length => 0, lexeme => 1, type => 'before', symbol_name => 'PITARGET' },
+                               '^CDATA_START'                   => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'CDATA_START' },
+                               '^CDATA_END'                     => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'CDATA_END' },
+                               '^CDATAMANY'                     => { fixed_length => 0, lexeme => 1, type => 'before', symbol_name => 'CDATAMANY' },
+                               '^XMLDECL_START'                 => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'XMLDECL_START' },
+                               '^XMLDECL_END'                   => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'XMLDECL_END' },
+                               '^VERSION'                       => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'VERSION' },
+                               '^EQUAL'                         => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'EQUAL' },
+                               '^VERSIONNUM'                    => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'VERSIONNUM' },
+                               '^DOCTYPE_START'                 => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'DOCTYPE_START' },
+                               '^DOCTYPE_END'                   => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'DOCTYPE_END' },
+                               '^LBRACKET'                      => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'LBRACKET' },
+                               '^RBRACKET'                      => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'RBRACKET' },
+                               '^STANDALONE'                    => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'STANDALONE' },
+                               '^YES'                           => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'YES' },
+                               '^NO'                            => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'NO' },
+                               '^ELEMENT_START'                 => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'ELEMENT_START' },
+                               '^ELEMENT_END'                   => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'ELEMENT_END' },
+                               '^ETAG_START'                    => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'ETAG_START' },
+                               '^ETAG_END'                      => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'ETAG_END' },
+                               '^S'                             => { fixed_length => 0, lexeme => 1, type => 'before', symbol_name => 'S' },
+                               '^EMPTYELEM_START'               => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'ELEMENT_START' },
+                               '^EMPTYELEM_END'                 => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'ELEMENT_END' },
+                               '^EMPTY'                         => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'EMPTY' },
+                               '^ANY'                           => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'ANY' },
+                               '^QUESTIONMARK_OR_STAR_OR_PLUS'  => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'QUESTIONMARK_OR_STAR_OR_PLUS' },
+                               '^OR'                            => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'OR' },
+                               '^CHOICE_START'                  => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'CHOICE_START' },
+                               '^CHOICE_END'                    => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'CHOICE_END' },
+                               '^SEQ_START'                     => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'SEQ_START' },
+                               '^SEQ_END'                       => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'SEQ_END' },
+                               '^MIXED_START1'                  => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'MIXED_START1' },
+                               '^MIXED_END1'                    => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'MIXED_END1' },
+                               '^MIXED_START2'                  => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'MIXED_START2' },
+                               '^MIXED_END2'                    => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'MIXED_END2' },
+                               '^COMMA'                         => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'COMMA' },
+                               '^PCDATA'                        => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'PCDATA' },
+                               '^ATTLIST_START'                 => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'ATTLIST_START' },
+                               '^ATTLIST_END'                   => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'ATTLIST_END' },
+                               '^CDATA'                         => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'CDATA' },
+                               '^ID'                            => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'ID' },
+                               '^IDREF'                         => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'IDREF' },
+                               '^IDREFS'                        => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'IDREFS' },
+                               '^ENTITY'                        => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'ENTITY' },
+                               '^ENTITIES'                      => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'ENTITIES' },
+                               '^NMTOKEN'                       => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'NMTOKEN' },
+                               '^NMTOKENS'                      => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'NMTOKENS' },
+                               '^NOTATION'                      => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'NOTATION' },
+                               '^NOTATION_START'                => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'NOTATION_START' },
+                               '^NOTATION_END'                  => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'NOTATION_END' },
+                               '^ENUMERATION_START'             => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'ENUMERATION_START' },
+                               '^ENUMERATION_END'               => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'ENUMERATION_END' },
+                               '^REQUIRED'                      => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'REQUIRED' },
+                               '^IMPLIED'                       => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'IMPLIED' },
+                               '^FIXED'                         => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'FIXED' },
+                               '^INCLUDE'                       => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'INCLUDE' },
+                               '^IGNORE'                        => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'IGNORE' },
+                               '^INCLUDESECT_START'             => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'INCLUDESECT_START' },
+                               '^INCLUDESECT_END'               => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'INCLUDESECT_END' },
+                               '^IGNORESECTCONTENTSUNIT_START'  => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'IGNORESECTCONTENTSUNIT_START' },
+                               '^IGNORESECTCONTENTSUNIT_END'    => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'IGNORESECTCONTENTSUNIT_END' },
+                               '^CHARREF_START1'                => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'CHARREF_START1' },
+                               '^CHARREF_END1'                  => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'CHARREF_END1' },
+                               '^CHARREF_START2'                => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'CHARREF_START2' },
+                               '^CHARREF_END2'                  => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'CHARREF_END2' },
+                               '^ENTITYREF_START'               => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'ENTITYREF_START' },
+                               '^ENTITYREF_END'                 => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'ENTITYREF_END' },
+                               '^PEREFERENCE_START'             => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'PEREFERENCE_START' },
+                               '^PEREFERENCE_END'               => { fixed_length => 1, lexeme => 1, type => 'before', symbol_name => 'PEREFERENCE_END' },
+                              );
+
+#
+sub _generic_parse {
+  my ($self, $io, $pos, $global_pos, $global_line, $global_column, $grammars_ref, $hash_ref, $parse_opts_ref, $start_symbol, $end_event_name, $internal_events_ref, $switches_ref, $recursion_level) = @_;
+
+  $recursion_level //= 0;
+
+  $grammars_ref->{$start_symbol} //= MarpaX::Languages::XML::Impl::Grammar->new->compile(%{$hash_ref},
+                                                                                         start => $start_symbol,
+                                                                                         internal_events => $internal_events_ref
+                                                                                        );
+  #
+  # Get the list of required events
+  #
+  my %required_event_names = map { $_ => 0 } grep { $internal_events_ref->{$_}->{required} } keys %{$internal_events_ref};
+
+  my $redo_first_read;
+  my @events;
+  my $length = $io->length;
+  my $next_pos;
+  my $r;
+
+  do {
+    $redo_first_read = 0;
+    @events = ();
+    $self->_logger->debugf('[%3d] Instanciating a %s recognizer', $recursion_level, $start_symbol);
+    $r = Marpa::R2::Scanless::R->new({%{$parse_opts_ref},
+                                      grammar => $grammars_ref->{$start_symbol},
+                                      trace_file_handle => $MARPA_TRACE_FILE_HANDLE,
+                                     });
+    try {
+      $self->_logger->debugf('[%3d] Reading at internal position %d global position %d line %d column %d', $recursion_level, $pos, $global_pos, $global_line, $global_column);
+      $next_pos = $r->read($io->buffer, $pos);
+      @events = @{$r->events()};
+    } catch {
+      #
+      # It is okay to retry only if there are required event names and none of them has fired.
+      #
+      $self->_logger->debugf('[%3d] %s', $recursion_level, "$_");
+      $self->_read($io, $length, $recursion_level);
+    } finally {
+      if (! @events) {
+        $redo_first_read = 1;
+      } else {
+        $pos = $next_pos;
+      }
+    };
+  } while ($redo_first_read);
+
+  $self->_logger->debugf('[%3d] Reading returned internal position %d', $recursion_level, $pos);
+  my $got_end_event_name;
+  while ($pos < $length) {
+    $got_end_event_name = 0;
+    foreach (@{$r->events()}) {
+      my $event_name = $_->[0];
+      my ($line, $column) = $self->_get_line_column($r, $internal_events_ref->{$event_name}->{lexeme}, $internal_events_ref->{$event_name}->{symbol_name});
+      $self->_logger->debugf('[%3d] Got event \'%s\' at internal position %d global position %d line %d column %d', $recursion_level, $event_name, $pos, $pos + $global_pos, $line + $global_line, $column + $global_column);
+      my $code_ref = $switches_ref->{$event_name}->{code_ref};
+      my $args_ref = $switches_ref->{$event_name}->{args_ref};
+      if ($code_ref) {
+        $pos = $self->$code_ref(@{$args_ref});
+      }
+      if ($event_name eq $end_event_name) {
+        $got_end_event_name = 1;
+        last;
+      }
+    }
+    if (! $got_end_event_name) {
+      $io->read;
+      my $new_length;
+      if (($new_length = $io->length) <= $length) {
+        $self->_exception('[%3d] EOF when parsing %s', $recursion_level, $r, $start_symbol);
+      }
+      $length = $new_length;
+      $self->_logger->debugf('[%3d] Resuming at internal buffer position %d', $recursion_level, $pos);
+      $pos = $r->resume($pos);
+    }
+  }
+}
+
 sub _get_literal {
   my ($self, $r, $non_terminal) = @_;
 
-  my ($start, $span_length) = $r->last_completed_span($non_terminal);
-  return $r->literal($start, $span_length);
+  my ($start, $length) = $r->last_completed_span($non_terminal);
+  return $r->literal($start, $length);
 }
 
 sub _get_lexeme_line_column {
@@ -129,7 +327,95 @@ sub _get_lexeme_line_column {
   return $r->line_column($start);
 }
 
+sub _get_literal_line_column {
+  my ($self, $r, $non_terminal) = @_;
+
+  my ($start, $length) = $r->last_completed_span($non_terminal);
+  return $r->line_column($start);
+}
+
+sub _get_line_column {
+  my ($self, $r, $lexeme, $non_terminal) = @_;
+
+  return $lexeme ? $self->_get_lexeme_line_column($r) : $self->_get_literal_line_column($r, $non_terminal);
+}
+
 sub parse {
+  my ($self, %hash) = @_;
+
+  #
+  # Sanity checks
+  #
+  my $source = $hash{source} || '';
+  if (reftype($source)) {
+    $self->_exception('source must be a SCALAR');
+  }
+
+  my $block_size = $hash{block_size} || 11;
+  if (reftype($block_size)) {
+    $self->_exception('block_size must be a SCALAR');
+  }
+
+  my $parse_opts_ref = $hash{parse_opts} || {};
+  if ((reftype($parse_opts_ref) || '') ne 'HASH') {
+    $self->_exception('parse_opts must be a ref to HASH');
+  }
+
+  try {
+    #
+    # Encoding object instance
+    #
+    my $encoding = MarpaX::Languages::XML::Impl::Encoding->new();
+    #
+    # Guess the encoding
+    #
+    my ($io, $bom_encoding, $guess_encoding, $orig_encoding, $byte_start) = $self->_open($source, $encoding);
+    #
+    # Very initial block size and read
+    #
+    $io->block_size($block_size)->read;
+    #
+    # Go
+    #
+    my %internal_events = (
+                           #
+                           # A valid XML must have at least one element
+                           #
+                           '^ELEMENT_START' => { required => 1, lexeme => 1, type => 'before',    symbol_name => 'ELEMENT_START' },
+                           #
+                           # A valid XML may have a declaration block
+                           #
+                           '^XMLDECL_START' => { required => 0, lexeme => 1, type => 'before',    symbol_name => 'XMLDECL_START' },
+                           #
+                           # Encoding declaration is optional
+                           #
+                           'EncodingDecl$'  => { required => 0, lexeme => 0, type => 'completed', symbol_name => 'EncodingDecl' },
+                           );
+    my %switches = (
+                   );
+    $self->_generic_parse(
+                          $io,               # io
+                          0,                 # pos
+                          0,                 # global_pos
+                          0,                 # global_line
+                          0,                 # global_column
+                          {},                # grammars_ref
+                          \%hash,            # $hash_ref
+                          $parse_opts_ref,   # parse_opts_ref
+                          'document',        # start_symbol
+                          '',                # end_event_name
+                          \%internal_events, # internal_events_ref,
+                          \%switches,        # switches
+                          0 # recursion_level
+                         );
+  } catch {
+    $self->_exception("$_");
+    return;
+  };
+
+}
+
+sub orig_parse {
   my ($self, %hash) = @_;
 
   my $value;
@@ -404,7 +690,7 @@ parse_element:
     # - ^STAG_START : a new element
     # - STAG_END$   : end of current element
     # - Attribute$  : end of an attribute in current element
-    # - 'exhausted  : parsing exhausted but lexemes remain
+    # - 'exhausted  : parsing exhausted
     #
     @events = map { $_->[0] } @{$r->events()};
     if (! @events) {
