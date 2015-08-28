@@ -167,6 +167,55 @@ sub guess {
   return $name;
 }
 
+sub final {
+  my ($self, $bom_encoding, $guess_encoding, $xml_encoding, $orig_encodingp) = @_;
+
+  $self->_logger->debugf('BOM encoding says \'%s\', guess encoding says \'%s\', XML encoding says \'%s\'', $bom_encoding, $guess_encoding, $xml_encoding);
+
+  my $final_encoding;
+  if (! $bom_encoding) {
+    if (! $guess_encoding || ! $xml_encoding) {
+      $final_encoding = 'UTF-8';
+    } else {
+      #
+      # General handling of 'LE' and 'BE' extensions
+      #
+      if (($guess_encoding eq "${xml_encoding}BE") || ($guess_encoding eq "${xml_encoding}LE")) {
+        $final_encoding = $guess_encoding;
+      } else {
+        $final_encoding = $xml_encoding;
+      }
+    }
+  } else {
+    if ($bom_encoding eq 'UTF-8') {
+      #
+      # Why trusting a guess when it is only a guess.
+      #
+      # if (($guess_encoding ne '') && ($guess_encoding ne 'UTF-8')) {
+      #   $self->_logger->errorf('BOM encoding \'%s\' disagree with guessed encoding \'%s\'', $bom_encoding, $xml_encoding);
+      # }
+      if (($xml_encoding ne '') && ($xml_encoding ne 'UTF-8')) {
+        $self->_exception("BOM encoding '$bom_encoding' disagree with XML encoding '$xml_encoding");
+      }
+    } else {
+      if ($bom_encoding =~ /^(.*)[LB]E$/) {
+        my $without_le_or_be = ($+[1] > $-[1]) ? substr($bom_encoding, $-[1], $+[1] - $-[1]) : '';
+        if (($xml_encoding ne '') && ($xml_encoding ne $without_le_or_be) && ($xml_encoding ne $bom_encoding)) {
+          $self->_exception("BOM encoding '$bom_encoding' disagree with XML encoding '$xml_encoding");
+        }
+      }
+    }
+    #
+    # In any case, BOM win. So we always inherit the correct $byte_start.
+    #
+    $final_encoding = $bom_encoding;
+  }
+
+  $self->_logger->debugf('Final encoding is \'%s\'', $final_encoding);
+
+  return $final_encoding;
+}
+
 extends 'MarpaX::Languages::XML::Impl::Logger';
 
 1;

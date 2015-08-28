@@ -9,5 +9,6 @@ use Moo::Role;
 
 requires 'bom';
 requires 'guess';
+requires 'final';
 
 1;
