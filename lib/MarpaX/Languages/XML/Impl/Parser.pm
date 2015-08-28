@@ -165,6 +165,12 @@ sub parse {
                                                                       }
                                                                      }
                                                                     );
+  my $misc_any = MarpaX::Languages::XML::Impl::Grammar->new->compile(%hash,
+                                                                     start => 'MiscAny',
+                                                                     internal_events =>
+                                                                     {
+                                                                     }
+                                                                    );
 
   try {
     #
@@ -318,7 +324,13 @@ sub parse {
     # Buffer itself is circular and move as parsing is moving.
     # Note that the grammar guarantees that end_element event is always set.
     #
-    $self->_element_loop($io, $block_size, $parse_opts, \%hash, $buffer, $root_element_pos, $root_line, $root_column);
+    $pos = $self->_element_loop($io, $block_size, $parse_opts, \%hash, $buffer, $root_element_pos, $root_line, $root_column);
+    #
+    # document rule is:
+    # document ::= (start_document) prolog element MiscAny
+    #
+    # and we have parsed element. So we continue at MiscAny
+    #
 
     my $ambiguous = $r->ambiguous();
     if ($ambiguous) {
