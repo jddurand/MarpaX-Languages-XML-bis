@@ -215,6 +215,7 @@ sub parse {
       # We accept a failure if buffer is too small
       #
       try {
+        $self->_logger->debugf('Parsing buffer');
         $pos = $r->read(\$buffer);
       };
       @events = map { $_->[0] } @{$r->events()};
@@ -249,13 +250,6 @@ sub parse {
             ($root_line, $root_column) = $r->line_column($start);
           }
         }
-        #
-        # We accept a failure if buffer is too small
-        #
-        try {
-          $pos = $r->resume();
-          @events = map { $_->[0] } @{$r->events()};
-        };
       }
     } while ((! $xml_encoding) && ($root_element_pos < 0));
     #
