@@ -664,6 +664,7 @@ sub parse {
     # Guess the encoding
     #
     my ($io, $bom_encoding, $guess_encoding, $orig_encoding, $byte_start) = $self->_open($source, $encoding);
+    $self->_logger->debugf('BOM and/or guess gives encoding %s and byte offset %d', $orig_encoding, $byte_start);
     #
     # We want to handle buffer direcly with no COW
     #
