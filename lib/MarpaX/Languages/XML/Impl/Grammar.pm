@@ -132,7 +132,7 @@ sub _grammar {
     my $lexeme      = $internal_events->{$_}->{lexeme};
     my $symbol_name = $internal_events->{$_}->{symbol_name};
     my $type        = $internal_events->{$_}->{type};
-    $self->_logger->debugf('%s/%s: Adding %s %s event', $xmlversion, $start, $lexeme ? 'L0' : 'G1', $event_name);
+    $self->_logger->debugf('%s/%s: Adding %s %s %s event', $xmlversion, $start, $lexeme ? 'L0' : 'G1', $event_name, $type);
     if ($lexeme) {
       $data .= ":lexeme ~ <$symbol_name> pause => $type event => '$event_name'\n";
     }
@@ -284,10 +284,14 @@ elementdecl                   ::= ELEMENTDECL_START S Name S contentspec SMaybe 
 contentspec                   ::= EMPTY | ANY | Mixed | children
 ChoiceOrSeq                   ::= choice | seq
 children                      ::= ChoiceOrSeq
-                                | ChoiceOrSeq QUESTIONMARK_OR_STAR_OR_PLUS
+                                | ChoiceOrSeq QUESTIONMARK
+                                | ChoiceOrSeq STAR
+                                | ChoiceOrSeq PLUS
 NameOrChoiceOrSeq             ::= Name | choice | seq
 cp                            ::= NameOrChoiceOrSeq
-                                | NameOrChoiceOrSeq QUESTIONMARK_OR_STAR_OR_PLUS
+                                | NameOrChoiceOrSeq QUESTIONMARK
+                                | NameOrChoiceOrSeq STAR
+                                | NameOrChoiceOrSeq PLUS
 choiceUnit                    ::= SMaybe OR SMaybe cp
 choiceUnitMany                ::= choiceUnit+
 choice                        ::= CHOICE_START SMaybe cp choiceUnitMany SMaybe CHOICE_END # [VC: Proper Group/PE Nesting]
@@ -336,215 +340,140 @@ Reference                     ::= EntityRef | CharRef
 EntityRef                     ::= ENTITYREF_START Name ENTITYREF_END # [WFC: Entity Declared] [VC: Entity Declared] [WFC: Parsed Entity] [WFC: No Recursion]
 PEReference                   ::= PEREFERENCE_START Name PEREFERENCE_END # [VC: Entity Declared] [WFC: No Recursion] [WFC: In DTD]
 EntityDecl                    ::= GEDecl | PEDecl
-GEDecl                        ::= '<!ENTITY' S Name S EntityDef SMaybe '>'
-PEDecl                        ::= '<!ENTITY' S '%' S Name S PEDef SMaybe '>'
+GEDecl                        ::= ENTITY_START S           Name S EntityDef SMaybe ENTITY_END
+PEDecl                        ::= ENTITY_START S PERCENT S Name S PEDef     SMaybe ENTITY_END
 EntityDef                     ::= EntityValue
                                 | ExternalID
                                 | ExternalID NDataDecl
 PEDef                         ::= EntityValue
                                 | ExternalID
-ExternalID                    ::= 'SYSTEM' S SystemLiteral
-                                | 'PUBLIC' S PubidLiteral S SystemLiteral
-NDataDecl                     ::= S 'NDATA' S Name  # [VC: Notation Declared]
-VersionInfoMaybe             ::= VersionInfo
-VersionInfoMaybe             ::=
-TextDecl                      ::= '<?xml' VersionInfoMaybe EncodingDecl SMaybe '?>'
+ExternalID                    ::= SYSTEM S                SystemLiteral
+                                | PUBLIC S PubidLiteral S SystemLiteral
+NDataDecl                     ::= S NDATA S Name  # [VC: Notation Declared]
+VersionInfoMaybe              ::= VersionInfo
+VersionInfoMaybe              ::=
+TextDecl                      ::= TEXTDECL_START VersionInfoMaybe EncodingDecl SMaybe TEXTDECL_END
 extParsedEnt                  ::= TextDeclMaybe content
-EncodingDecl                  ::= S 'encoding' Eq '"' EncName '"'
-EncodingDecl                  ::= S 'encoding' Eq ['] EncName [']
+EncodingDecl                  ::= S ENCODING Eq DQUOTE EncName DQUOTE
+EncodingDecl                  ::= S ENCODING Eq SQUOTE EncName SQUOTE
 EncName                       ::= ENCNAME
-NotationDecl                  ::= '<!NOTATION' S Name S ExternalID SMaybe '>' # [VC: Unique Notation Name]
-NotationDecl                  ::= '<!NOTATION' S Name S   PublicID SMaybe '>' # [VC: Unique Notation Name]
-PublicID                      ::= 'PUBLIC' S PubidLiteral
-
-_SPACE                          ~ [\x{20}]
-_NOT_SQUOTEMANY                 ~ [^']+
-_NOT_DQUOTEMANY                 ~ [^"]+
-
-SPACE                           ~ _SPACE
-NOT_SQUOTEMANY                  ~ _NOT_SQUOTEMANY
-NOT_DQUOTEMANY                  ~ _NOT_DQUOTEMANY
-
-_CHARDATAUNIT                   ~      [^<&\]]
-                                |  ']'
-                                |  ']' [^<&\]]
-                                | ']]'
-                                | ']]' [^<&>]
-_CHARDATAMANY                   ~ _CHARDATAUNIT+
-CHARDATAMANY                    ~ _CHARDATAMANY
-
-# A PI char is a Char minus '?>'. We revisit char range from:
-# [\x{9}\x{A}\x{D}\x{20}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]
-# to its equivalent exclusion:
-# [^\x{0}-\x{8}\x{B}-\x{C}\x{E}-\x{1F}\x{D800}-\x{DFFF}\x{FFFE}\x{FFFF}]
-
-_PICHARDATAUNIT                 ~      [^\x{0}-\x{8}\x{B}-\x{C}\x{E}-\x{1F}\x{D800}-\x{DFFF}\x{FFFE}\x{FFFF}?]
-                                |  '?'
-                                |  '?' [^\x{0}-\x{8}\x{B}-\x{C}\x{E}-\x{1F}\x{D800}-\x{DFFF}\x{FFFE}\x{FFFF}>]
-_PICHARDATAMANY                 ~ _PICHARDATAUNIT+
-PICHARDATAMANY                  ~ _PICHARDATAMANY
-
-# _CHAR                           ~ [\x{9}\x{A}\x{D}\x{20}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]
-# _CHARANY                        ~ _CHAR*
-# CHARANY                         ~ _CHARANY
-
-_NAMESTARTCHAR                  ~ [:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}]
-_NAMEENDCHARANY                 ~ [:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]*
-_NAME                           ~ _NAMESTARTCHAR _NAMEENDCHARANY
-NAME                            ~ _NAME
-
-_NMTOKENMANY                    ~ [:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]+
-NMTOKENMANY                     ~ _NMTOKENMANY
-
-# A PITarget is a Name without [xX][mM][lL]
-_PITARGET_NAMESTARTCHAR_WITHOUT_X ~ [^\x{0}-\x{39}\x{3B}-x\{40}\x{5B}-\x{5E}\x{60}\x{7B}-\x{DF}\x{D7}\x{F7}\x{300}-\x{36F}\x{37E}\x{2000}-\x{200B}\x{200E}-\x{206F}\x{2190}-\x{2BFF}\x{2FF0}-\x{3000}\x{D800}-\x{F8FF}\x{FDD0}-\x{FDDF}\x{FFFE}-\x{FFFF}\x{F0000}-\x{10FFFF}xX]
-_PITARGET_NAMEENDCHAR_WITHOUT_X   ~ [^\x{0}-\x{2C}\x{2F}\x{3B}-x\{40}\x{5B}-\x{5E}\x{60}\x{7B}-\x{B6}\x{B8}-\x{DF}\x{D7}\x{F7}\x{37E}\x{2000}-\x{200B}\x{200E}-\x{203E}\x{2041}-\x{206F}\x{2190}-\x{2BFF}\x{2FF0}-\x{3000}\x{D800}-\x{F8FF}\x{FDD0}-\x{FDDF}\x{FFFE}-\x{FFFF}\x{F0000}-\x{10FFFF}xX]
-_PITARGET_NAMEENDCHAR_WITHOUT_M   ~ [^\x{0}-\x{2C}\x{2F}\x{3B}-x\{40}\x{5B}-\x{5E}\x{60}\x{7B}-\x{B6}\x{B8}-\x{DF}\x{D7}\x{F7}\x{37E}\x{2000}-\x{200B}\x{200E}-\x{203E}\x{2041}-\x{206F}\x{2190}-\x{2BFF}\x{2FF0}-\x{3000}\x{D800}-\x{F8FF}\x{FDD0}-\x{FDDF}\x{FFFE}-\x{FFFF}\x{F0000}-\x{10FFFF}mM]
-_PITARGET_NAMEENDCHAR_WITHOUT_L   ~ [^\x{0}-\x{2C}\x{2F}\x{3B}-x\{40}\x{5B}-\x{5E}\x{60}\x{7B}-\x{B6}\x{B8}-\x{DF}\x{D7}\x{F7}\x{37E}\x{2000}-\x{200B}\x{200E}-\x{203E}\x{2041}-\x{206F}\x{2190}-\x{2BFF}\x{2FF0}-\x{3000}\x{D800}-\x{F8FF}\x{FDD0}-\x{FDDF}\x{FFFE}-\x{FFFF}\x{F0000}-\x{10FFFF}lL]
-_PITARGET_NAMESTARTCHAR           ~ _PITARGET_NAMESTARTCHAR_WITHOUT_X
-                                  |                              [xX]
-                                  |                              [xX] _PITARGET_NAMEENDCHAR_WITHOUT_M
-                                  |                              [xX] [mM]
-                                  |                              [xX] [mM] _PITARGET_NAMEENDCHAR_WITHOUT_L
-_PITARGET_NAMEENDCHAR             ~ _PITARGET_NAMEENDCHAR_WITHOUT_X
-                                  |                            [xX]
-                                  |                            [xX] _PITARGET_NAMEENDCHAR_WITHOUT_M
-                                  |                            [xX] [mM]
-                                  |                            [xX] [mM] _PITARGET_NAMEENDCHAR_WITHOUT_L
-_PITARGET_NAMEENDCHARANY         ~ _PITARGET_NAMEENDCHAR*
-_PITARGET                         ~ _PITARGET_NAMESTARTCHAR _PITARGET_NAMEENDCHARANY
-PITARGET                          ~ _PITARGET
-
-# A CData is a sequence of Char minus ']]>'
-_CHAR_WITHOUT_RBRACKET              ~ [^\x{0}-\x{8}\x{B}-\x{C}\x{E}-\x{1F}\x{D800}-\x{DFFF}\x{FFFE}\x{FFFF}\]]
-_CHAR_WITHOUT_GT                    ~ [^\x{0}-\x{8}\x{B}-\x{C}\x{E}-\x{1F}\x{D800}-\x{DFFF}\x{FFFE}\x{FFFF}>]
-_CHAR_WITHOUT_RBRACKET_RBRACKET_GT  ~ _CHAR_WITHOUT_RBRACKET
-                                    |                    ']'
-                                    |                    ']' _CHAR_WITHOUT_RBRACKET
-                                    |                   ']]'
-                                    |                   ']]' _CHAR_WITHOUT_GT
-_CDATAMANY                         ~ _CHAR_WITHOUT_RBRACKET_RBRACKET_GT+
-CDATAMANY                          ~ _CDATAMANY
-
-# A Ignore is a positive sequence of Char minus '<![' or ']]>'
-_CHAR_WITHOUT_LT                    ~ [^\x{0}-\x{8}\x{B}-\x{C}\x{E}-\x{1F}\x{D800}-\x{DFFF}\x{FFFE}\x{FFFF}<]
-_CHAR_WITHOUT_LBRACKET              ~ [^\x{0}-\x{8}\x{B}-\x{C}\x{E}-\x{1F}\x{D800}-\x{DFFF}\x{FFFE}\x{FFFF}\[]
-_CHAR_WITHOUT_EMARK                 ~ [^\x{0}-\x{8}\x{B}-\x{C}\x{E}-\x{1F}\x{D800}-\x{DFFF}\x{FFFE}\x{FFFF}!]
-_CHAR_WITHOUT_LT_EMARK_LBRACKET     ~ _CHAR_WITHOUT_LT
-                                    |               '<' _CHAR_WITHOUT_EMARK
-                                    |               '<'
-                                    |              '<!'
-                                    |              '<!' _CHAR_WITHOUT_LBRACKET
-_IGNORE                             ~ _CHAR_WITHOUT_LT_EMARK_LBRACKET
-                                    | _CHAR_WITHOUT_RBRACKET_RBRACKET_GT
-_IGNOREMANY                        ~ _IGNORE+
-IGNOREMANY                         ~ _IGNOREMANY
-
-# A comment is a sequence of Char minus '--'
-_CHAR_WITHOUT_MINUS                 ~ [^\x{0}-\x{8}\x{B}-\x{C}\x{E}-\x{1F}\x{D800}-\x{DFFF}\x{FFFE}\x{FFFF}\-]
-_COMMENTCHAR     ~ _CHAR_WITHOUT_MINUS
-                 |                 '-' _CHAR_WITHOUT_MINUS
-_COMMENTCHARMANY                    ~ _COMMENTCHAR+
-COMMENTCHARMANY                     ~ _COMMENTCHARMANY
-
-_DIGIT                              ~ [0-9]
-_DIGITMANY                         ~ _DIGIT+
-DIGITMANY                          ~ _DIGITMANY
-
-_ALPHA                              ~ [0-9a-fA-F]
-_ALPHAMANY                         ~ _ALPHA+
-ALPHAMANY                          ~ _ALPHAMANY
-
-_ENCNAME_STAR                       ~ [A-Za-z]
-_ENCNAME_END                        ~ [A-Za-z0-9._\-]*
-_ENCNAME                            ~ _ENCNAME_STAR _ENCNAME_END
-ENCNAME                             ~ _ENCNAME
-
-ENTITYVALUEINTERIORDQUOTEUNIT       ~ [^%&"]+
-ENTITYVALUEINTERIORSQUOTEUNIT       ~ [^%&']+
-
-ATTVALUEINTERIORDQUOTEUNIT          ~ [^<&"]+
-ATTVALUEINTERIORSQUOTEUNIT          ~ [^<&']+
-
-S                                   ~ [\x{20}\x{9}\x{D}\x{A}]+
-DQUOTE                              ~ '"'
-SQUOTE                              ~ [']
-PUBIDCHARDQUOTE                     ~ [a-zA-Z0-9\-'()+,./:=?;!*#@$_%\x{20}\x{D}\x{A}]
-PUBIDCHARSQUOTE                     ~ [a-zA-Z0-9\-()+,./:=?;!*#@$_%\x{20}\x{D}\x{A}]
-COMMENT_START                       ~ '<!--'
-COMMENT_END                         ~ '-->'
-PI_START                            ~ '<?'
-PI_END                              ~ '?>'
-CDATA_START                         ~ '<![CDATA['
-CDATA_END                           ~ ']]>'
-XMLDECL_START                       ~ '<?xml'
-XMLDECL_END                         ~ '?>'
-VERSION                             ~ 'version'
-EQUAL                               ~ '='
-VERSIONNUM                          ~ '1.0'
-DOCTYPE_START                       ~ '<!DOCTYPE'
-DOCTYPE_END                         ~ '>'
-LBRACKET                            ~ '['
-RBRACKET                            ~ ']'
-STANDALONE                          ~ 'standalone'
-YES                                 ~ 'yes'
-NO                                  ~ 'no'
-ELEMENT_START                       ~ '<'
-ELEMENT_END                         ~ '>'
-ETAG_START                          ~ '</'
-ETAG_END                            ~ '>'
-EMPTYELEM_START                     ~ '<'
-EMPTYELEM_END                       ~ '/>'
-ELEMENTDECL_START                   ~ '<!ELEMENT'
-ELEMENTDECL_END                     ~ '>'
-EMPTY                               ~ 'EMPTY'
-ANY                                 ~ 'ANY'
-QUESTIONMARK_OR_STAR_OR_PLUS        ~ [?*+]
-OR                                  ~ '|'
-CHOICE_START                        ~ '('
-CHOICE_END                          ~ ')'
-SEQ_START                           ~ '('
-SEQ_END                             ~ ')'
-MIXED_START1                        ~ '('
-MIXED_END1                          ~ ')*'
-MIXED_START2                        ~ '('
-MIXED_END2                          ~ ')'
-COMMA                               ~ ','
-PCDATA                              ~ '#PCDATA'
-ATTLIST_START                       ~ '<!ATTLIST'
-ATTLIST_END                         ~ '>'
-CDATA                               ~ 'CDATA'
-ID                                  ~ 'ID'
-IDREF                               ~ 'IDREF'
-IDREFS                              ~ 'IDREFS'
-ENTITY                              ~ 'ENTITY'
-ENTITIES                            ~ 'ENTITIES'
-NMTOKEN                             ~ 'NMTOKEN'
-NMTOKENS                            ~ 'NMTOKENS'
-NOTATION                            ~ 'NOTATION'
-NOTATION_START                      ~ '('
-NOTATION_END                        ~ ')'
-ENUMERATION_START                   ~ '('
-ENUMERATION_END                     ~ ')'
-REQUIRED                            ~ '#REQUIRED'
-IMPLIED                             ~ '#IMPLIED'
-FIXED                               ~ '#FIXED'
-INCLUDE                             ~ 'INCLUDE'
-IGNORE                              ~ 'IGNORE'
-INCLUDESECT_START                   ~ '<!['
-INCLUDESECT_END                     ~ ']]>'
-IGNORESECT_START                    ~ '<!['
-IGNORESECT_END                      ~ ']]>'
-IGNORESECTCONTENTSUNIT_START        ~ '<!['
-IGNORESECTCONTENTSUNIT_END          ~ ']]>'
-CHARREF_START1                      ~ '&#'
-CHARREF_END1                        ~ ';'
-CHARREF_START2                      ~ '&#x'
-CHARREF_END2                        ~ ';'
-ENTITYREF_START                     ~ '&'
-ENTITYREF_END                       ~ ';'
-PEREFERENCE_START                   ~ '%'
-PEREFERENCE_END                     ~ ';'
+NotationDecl                  ::= NOTATIONDECL_START S Name S ExternalID SMaybe NOTATIONDECL_END # [VC: Unique Notation Name]
+NotationDecl                  ::= NOTATIONDECL_START S Name S   PublicID SMaybe NOTATIONDECL_END # [VC: Unique Notation Name]
+PublicID                      ::= PUBLIC S PubidLiteral
+#
+# Generic internal token matching anything
+#
+_ANYTHING ~ [\s\S]
+NAME ~ _ANYTHING
+NMTOKENMANY ~ _ANYTHING
+ENTITYVALUEINTERIORDQUOTEUNIT ~ _ANYTHING
+ENTITYVALUEINTERIORSQUOTEUNIT ~ _ANYTHING
+ATTVALUEINTERIORDQUOTEUNIT ~ _ANYTHING
+ATTVALUEINTERIORSQUOTEUNIT ~ _ANYTHING
+NOT_DQUOTEMANY ~ _ANYTHING
+NOT_SQUOTEMANY ~ _ANYTHING
+PUBIDCHARDQUOTE ~ _ANYTHING
+PUBIDCHARSQUOTE ~ _ANYTHING
+CHARDATAMANY ~ _ANYTHING
+COMMENTCHARMANY ~ _ANYTHING
+PITARGET ~ _ANYTHING
+CDATAMANY ~ _ANYTHING
+PICHARDATAMANY ~ _ANYTHING
+IGNOREMANY ~ _ANYTHING
+DIGITMANY ~ _ANYTHING
+ALPHAMANY ~ _ANYTHING
+ENCNAME ~ _ANYTHING
+S ~ _ANYTHING
+SPACE ~ _ANYTHING
+DQUOTE ~ _ANYTHING
+SQUOTE ~ _ANYTHING
+COMMENT_START ~ _ANYTHING
+COMMENT_END ~ _ANYTHING
+PI_START ~ _ANYTHING
+PI_END ~ _ANYTHING
+CDATA_START ~ _ANYTHING
+CDATA_END ~ _ANYTHING
+XMLDECL_START ~ _ANYTHING
+XMLDECL_END ~ _ANYTHING
+VERSION ~ _ANYTHING
+EQUAL ~ _ANYTHING
+VERSIONNUM ~ _ANYTHING
+DOCTYPE_START ~ _ANYTHING
+DOCTYPE_END ~ _ANYTHING
+LBRACKET ~ _ANYTHING
+RBRACKET ~ _ANYTHING
+STANDALONE ~ _ANYTHING
+YES ~ _ANYTHING
+NO ~ _ANYTHING
+ELEMENT_START ~ _ANYTHING
+ELEMENT_END ~ _ANYTHING
+ETAG_START ~ _ANYTHING
+ETAG_END ~ _ANYTHING
+EMPTYELEM_START ~ _ANYTHING
+EMPTYELEM_END ~ _ANYTHING
+ELEMENTDECL_START ~ _ANYTHING
+ELEMENTDECL_END ~ _ANYTHING
+EMPTY ~ _ANYTHING
+ANY ~ _ANYTHING
+QUESTIONMARK ~ _ANYTHING
+STAR ~ _ANYTHING
+PLUS ~ _ANYTHING
+OR ~ _ANYTHING
+CHOICE_START ~ _ANYTHING
+CHOICE_END ~ _ANYTHING
+SEQ_START ~ _ANYTHING
+SEQ_END ~ _ANYTHING
+MIXED_START1 ~ _ANYTHING
+MIXED_END1 ~ _ANYTHING
+MIXED_START2 ~ _ANYTHING
+MIXED_END2 ~ _ANYTHING
+COMMA ~ _ANYTHING
+PCDATA ~ _ANYTHING
+ATTLIST_START ~ _ANYTHING
+ATTLIST_END ~ _ANYTHING
+CDATA ~ _ANYTHING
+ID ~ _ANYTHING
+IDREF ~ _ANYTHING
+IDREFS ~ _ANYTHING
+ENTITY ~ _ANYTHING
+ENTITIES ~ _ANYTHING
+NMTOKEN ~ _ANYTHING
+NMTOKENS ~ _ANYTHING
+NOTATION ~ _ANYTHING
+NOTATION_START ~ _ANYTHING
+NOTATION_END ~ _ANYTHING
+ENUMERATION_START ~ _ANYTHING
+ENUMERATION_END ~ _ANYTHING
+REQUIRED ~ _ANYTHING
+IMPLIED ~ _ANYTHING
+FIXED ~ _ANYTHING
+INCLUDE ~ _ANYTHING
+IGNORE ~ _ANYTHING
+INCLUDESECT_START ~ _ANYTHING
+INCLUDESECT_END ~ _ANYTHING
+IGNORESECT_START ~ _ANYTHING
+IGNORESECT_END ~ _ANYTHING
+IGNORESECTCONTENTSUNIT_START ~ _ANYTHING
+IGNORESECTCONTENTSUNIT_END ~ _ANYTHING
+CHARREF_START1 ~ _ANYTHING
+CHARREF_END1 ~ _ANYTHING
+CHARREF_START2 ~ _ANYTHING
+CHARREF_END2 ~ _ANYTHING
+ENTITYREF_START ~ _ANYTHING
+ENTITYREF_END ~ _ANYTHING
+PEREFERENCE_START ~ _ANYTHING
+PEREFERENCE_END ~ _ANYTHING
+ENTITY_START ~ _ANYTHING
+ENTITY_END ~ _ANYTHING
+PERCENT ~ _ANYTHING
+SYSTEM ~ _ANYTHING
+PUBLIC ~ _ANYTHING
+NDATA ~ _ANYTHING
+TEXTDECL_START ~ _ANYTHING
+TEXTDECL_END ~ _ANYTHING
+ENCODING ~ _ANYTHING
+NOTATIONDECL_START ~ _ANYTHING
+NOTATIONDECL_END ~ _ANYTHING
 #
 # SAX nullable rules
 #

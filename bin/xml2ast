@@ -58,9 +58,7 @@ foreach (@ARGV) {
     $o->ast(source     => $source,
             xmlversion => $xmlversion,
             block_size => $block_size,
-            parse_opts => {
-                trace_terminals => $log->is_trace
-            },
+            parse_opts => { trace_terminals => $log->is_trace ? 99 : 0 },
             sax_handlers => \%sax_handlers
         );
   } catch {
