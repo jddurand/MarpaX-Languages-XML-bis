@@ -510,7 +510,6 @@ sub _generic_parse {
     # Predicted events always come first -;
     #
     my $have_prediction = 0;
-    my $stop = 0;
     my $data;
     my %length = ();
     my $max_length = 0;
@@ -590,13 +589,9 @@ sub _generic_parse {
         #
         if (! $rc_switch) {
           $self->_logger->debugf('[%2d] Event callback %s says to stop', $recursion_level, $_);
-          $stop = 1;
-          last;
+          return;
         }
       }
-    }
-    if ($stop) {
-      last;
     }
     $self->_logger->tracef('[%2d] have_prediction %d can_stop %d length %s', $recursion_level, $have_prediction, $can_stop, \%length);
     if ($have_prediction) {
@@ -634,12 +629,8 @@ sub _generic_parse {
           #
           if (! $rc_switch) {
             $self->_logger->debugf('[%2d] Event callback %s says to stop', $recursion_level, $_);
-            $stop = 1;
-            last;
+            return;
           }
-        }
-        if ($stop) {
-          last;
         }
         $self->_logger->debugf('[%2d] Lexeme complete of length %d', $recursion_level, $max_length);
         #
