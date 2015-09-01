@@ -116,11 +116,7 @@ sub _exception {
 }
 
 sub _encoding {
-  my ($self) = @_;
-  #
-  # Encoding object instance
-  #
-  my $encoding = MarpaX::Languages::XML::Impl::Encoding->new();
+  my ($self, $encoding) = @_;
   #
   # Read the first bytes. 1024 is far enough.
   #
@@ -179,7 +175,7 @@ sub _encoding {
   # An XML processor SHOULD work with case-insensitive encoding name. So we uc()
   # (note: per def an encoding name contains only Latin1 character, i.e. uc() is ok)
   #
-  return $found_encoding;
+  return ($bom_encoding, $guess_encoding, $found_encoding, $byte_start);
 }
 
 #
@@ -752,13 +748,15 @@ sub parse {
   }
 
   try {
-    #
-    # Guess the encoding
-    #
-  retry_because_of_encoding:
     my $recursion_level = 0;
-    my $orig_encoding = $self->_encoding();
+    #
+    # Encoding object instance
+    #
+    my $encoding = MarpaX::Languages::XML::Impl::Encoding->new();
+    my ($bom_encoding, $guess_encoding, $orig_encoding, $byte_start)  = $self->_encoding($encoding);
     $self->_logger->debugf('[%2d] BOM and/or guess gives encoding %s and byte offset %d', $recursion_level, $orig_encoding, $byte_start);
+    my $nb_retry_because_of_encoding = 0;
+  retry_because_of_encoding:
     #
     # We want to handle buffer direcly with no COW
     #
@@ -767,24 +765,29 @@ sub parse {
     #
     # Very initial block size and read
     #
-    $self->io->block_size($block_size)->read;
+    $self->io->block_size($block_size);
+    $self->io->read;
     #
     # Go
     #
+    my $final_encoding = $orig_encoding;
     my %internal_events = (
                            'prolog$'       => { fixed_length => 0, end_of_grammar => 1, type => 'completed', symbol_name => 'prolog' },
                            );
-    my $encoding_ok = 1;
     my %switches = (
                     '_ENCNAME$'  => sub {
                       my ($self, $recursion_level, $encname) = @_;
-
-                      $self->_logger->debugf('[%2d] XML says encoding %s', $recursion_level, $encname);
-                      if ($encname ne $orig_encoding) {
-                        $orig_encoding = $encname;
-                        $encoding_ok = 0;
-                      }
-                      return $encoding_ok;
+                      #
+                      # Encoding is composed only of ASCII codepoints, so uc is ok
+                      #
+                      my $xml_encoding = uc($encname);
+                      $self->_logger->debugf('[%2d] XML says encoding %s', $recursion_level, $xml_encoding);
+                      #
+                      # Check eventual encoding v.s. endianness. Algorithm vaguely taken from
+                      # https://blogs.oracle.com/tucu/entry/detecting_xml_charset_encoding_again
+                      #
+                      $final_encoding = $encoding->final($bom_encoding, $guess_encoding, $xml_encoding, $orig_encoding);
+                      return ($final_encoding eq $orig_encoding);
                     }
                    );
     $self->_generic_parse(
@@ -804,9 +807,26 @@ sub parse {
                           \%switches,        # switches
                           $recursion_level   # recursion_level
                          );
-    if (! $encoding_ok) {
-      $self->_logger->debugf('[%2d] Redoing parse using encoding %s', $recursion_level, $orig_encoding);
-      goto retry_because_of_encoding;
+    if ($final_encoding ne $orig_encoding) {
+      $self->_logger->debugf('[%2d] Redoing parse using encoding %s instead of %s', $recursion_level, $final_encoding, $orig_encoding);
+      #
+      # Set encoding
+      #
+      $self->io->encoding($final_encoding);
+      #
+      # Clear buffer
+      #
+      $self->io->clear;
+      #
+      # If there was a recognized BOM, maintain byte_start
+      #
+      $self->io->pos($byte_start);
+      if (++$nb_retry_because_of_encoding == 1) {
+        $orig_encoding = $final_encoding;
+        goto retry_because_of_encoding;
+      } else {
+        MarpaX::Languages::XML::Exception->throw("Two many retries because of encoding difference beween BOM, guess and XML");
+      }
     }
   } catch {
     $self->_exception("$_");
