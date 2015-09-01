@@ -43,6 +43,9 @@ has _offset => (
                                },
             );
 
+#
+# Grammars (cached because of element recursivity)
+#
 has _grammars => (
                   is          => 'rw',
                   isa         => HashRef[InstanceOf['Marpa::R2::Scanless::G']],
@@ -54,11 +57,6 @@ has _grammars => (
                                   _set__grammar    => 'set',
                                  },
                  );
-
-has _recce => (
-               is          => 'rw',
-               isa         => InstanceOf['Marpa::R2::Scanless::R'],
-              );
 #
 # Externalized attributes
 # -----------------------
@@ -437,19 +435,21 @@ sub _generic_parse {
 
   $recursion_level //= 0;
 
+  my $remaining = $length - $pos;
+  $self->_logger->debugf('[%3d] Buffer length: %d, position: %d, remaining: %d', $recursion_level, $length, $pos, $remaining);
+
   #
   # Create grammar if necesssary
   #
-  my $g;
-  if (! $self->_exists__grammar($start_symbol)) {
-    my %internal_events = (%LEXEME_DESCRIPTIONS, %{$internal_events_ref});
-    $g = $self->_set__grammar($start_symbol, MarpaX::Languages::XML::Impl::Grammar->new->compile(%{$hash_ref},
-                                                                                                 start => $start_symbol,
-                                                                                                 internal_events => \%internal_events
-                                                                                                ));
-  } else {
-    $g = $self->_get__grammar($start_symbol);
-  }
+  my $g = $self->_exists__grammar($start_symbol) ?
+    $self->_get__grammar($start_symbol)
+    :
+    $self->_set__grammar($start_symbol, MarpaX::Languages::XML::Impl::Grammar->new->compile(%{$hash_ref},
+                                                                                            start => $start_symbol,
+                                                                                            internal_events => {%LEXEME_DESCRIPTIONS, %{$internal_events_ref}}
+                                                                                           ));
+  ;
+
   #
   # Create a recognizer
   #
@@ -458,10 +458,10 @@ sub _generic_parse {
                                        grammar => $g,
                                        trace_file_handle => $MARPA_TRACE_FILE_HANDLE,
                                       });
-  $self->_recce($r);
-  $self->_logger->debugf('[%3d] Buffer length: %d', $recursion_level, $length);
-  my $remaining = $length - $pos;
-  $self->_logger->debugf('[%3d] Remaining chars: %d', $recursion_level, $remaining);
+
+  #
+  # Loop on input
+  #
   for (
        do {
          $self->_logger->debugf('[%3d] Reading at (pos, line, column) = (%d, %d, %d), (global_pos, global_line, global_column) = (%d, %d, %d)',
@@ -489,10 +489,10 @@ sub _generic_parse {
     }
     my $can_stop = 0;
     my @event_names = map { $_->[0] } @{$r->events()};
-
     $self->_logger->debugf('[%3d] Events: %s', $recursion_level, \@event_names);
+
   manage_events:
-    # $self->_logger->debugf('[%3d] Data: %s', $recursion_level, substr($_[1], $pos));
+    $self->_logger->debugf('[%3d] Data: %s', $recursion_level, substr($_[1], $pos));
     if ($remaining) {
     } else {
       $self->_logger->debugf('[%3d] Data[%d..%d]: %s', $recursion_level, $pos, $length - 1, substr($_[1], $pos));
@@ -626,6 +626,7 @@ sub _generic_parse {
         # lexeme complete can generate new events: handle them before eventually resuming
         #
         @event_names = map { $_->[0] } @{$r->events()};
+        $self->_logger->debugf('[%3d] Events: %s', $recursion_level, \@event_names);
         goto manage_events;
       }
     }
