@@ -120,9 +120,9 @@ sub _grammar {
   foreach (@SAX_EVENTS) {
     if (exists($sax_handlers->{$_})) {
       if (! reftype($sax_handlers->{$_}) || reftype($sax_handlers->{$_}) ne 'CODE') {
-        $self->_logger->warnf('%s/%s: SAX Handler for %s is not a \'CODE\' reference', $xmlversion, $start, $_);
+        $self->_logger->warnf('[%s/%s] SAX Handler for %s is not a \'CODE\' reference', $xmlversion, $start, $_);
       } else {
-        $self->_logger->debugf('%s/%s: Adding SAX Handler for %s', $xmlversion, $start, $_);
+        $self->_logger->tracef('[%s/%s] Adding SAX Handler for %s', $xmlversion, $start, $_);
         $data .= "event '$_' = nulled <$_>\n";
       }
     }
@@ -132,7 +132,7 @@ sub _grammar {
     my $lexeme      = $internal_events->{$_}->{lexeme};
     my $symbol_name = $internal_events->{$_}->{symbol_name};
     my $type        = $internal_events->{$_}->{type};
-    $self->_logger->debugf('%s/%s: Adding %s %s %s event', $xmlversion, $start, $lexeme ? 'L0' : 'G1', $event_name, $type);
+    $self->_logger->tracef('[%s/%s] Adding %s %s %s event', $xmlversion, $start, $lexeme ? 'L0' : 'G1', $event_name, $type);
     if ($lexeme) {
       $data .= ":lexeme ~ <$symbol_name> pause => $type event => '$event_name'\n";
     }
@@ -143,7 +143,7 @@ sub _grammar {
   #
   # Generate the grammar
   #
-  $self->_logger->debugf('%s/%s: Instanciating grammar', $xmlversion, $start);
+  $self->_logger->debugf('[%s/%s] Instanciating grammar', $xmlversion, $start);
   return Marpa::R2::Scanless::G->new({source => \$data});
 }
 

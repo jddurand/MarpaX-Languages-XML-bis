@@ -36,7 +36,7 @@ sub TIEHANDLE {
 sub PRINT {
   my $self = shift;
   if ($self->_logger->is_trace) {
-    $self->_logger->trace(@_);
+    $self->_logger->tracef("[Marpa] @_");
   }
   return 1;
 }
@@ -44,7 +44,8 @@ sub PRINT {
 sub PRINTF {
   my $self = shift;
   if ($self->_logger->is_trace) {
-    $self->_logger->tracef(@_);
+    my $fmt = shift;
+    $self->_logger->tracef("[Marpa] $fmt", @_);
   }
 }
 

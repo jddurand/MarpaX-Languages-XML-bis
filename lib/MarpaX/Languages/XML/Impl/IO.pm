@@ -3,11 +3,10 @@ use Fcntl qw/:seek/;
 use IO::All;
 use IO::All::LWP;
 use MarpaX::Languages::XML::Exception;
-use MarpaX::Languages::XML::Impl::Logger;
 use MarpaX::Languages::XML::Role::IO;
 use Moo;
 use MooX::late;
-use Types::Standard qw/InstanceOf Str/;
+use Types::Standard qw/InstanceOf Str Int/;
 use Try::Tiny;
 
 # ABSTRACT: MarpaX::Languages::XML::Role::IO implementation
@@ -28,49 +27,59 @@ has _io => (
            );
 
 has _source => (
-            is => 'rw',
-            isa => Str
-           );
+                is => 'rw',
+                isa => Str
+               );
 
-around BUILDARGS => sub {
-  my $orig  = shift;
-  my $class = shift;
+has _block_size_value => (
+                          is => 'rw',
+                          isa => Int,
+                          default => 1024
+                         );
 
-  if ( @_ == 1 && !ref $_[0] ) {
-    return $class->$orig( source => $_[0] );
-  }
-  else {
-    return $class->$orig(@_);
-  }
-};
-
-sub BUILD {
+sub open {
   my $self = shift;
-  my $args = shift;
+  my $source = shift;
 
-  $self->_logger->tracef('IO: Opening %s', $args->{source});
-  $self->_source($args->{source});
+  $self->_source($source);
+
+  $self->_logger->tracef('[IO] Opening %s %s', $self->_source, \@_);
   $self->_io(io($self->_source));
+  $self->_io->open(@_);
 
-  $self->_logger->tracef('IO: Setting binary mode');
-  $self->_binary;
+  return $self;
+}
+
+sub close {
+  my $self = shift;
+
+  $self->_logger->tracef('[IO] Closing %s', $self->_source);
+  $self->_io->close();
+
+  return $self;
 }
 
 sub block_size {
   my $self = shift;
 
-  if (@_) {
-    $self->_logger->tracef('IO: Setting block size to %d', $_[0]);
-    $self->_io->block_size($_[0]);
-  }
+  $self->_io->block_size($self->block_size_value(@_));
 
   return $self;
 }
 
-sub _binary {
+sub block_size_value {
   my $self = shift;
 
-  $self->_logger->tracef('IO: Setting binary mode');
+  my $rc;
+  $self->_logger->tracef('[IO] %s block-size %s %s', @_ ? 'Setting' : 'Getting', @_ ? '->' : '<-', $rc = $self->_block_size_value(@_));
+
+  return $rc;
+}
+
+sub binary {
+  my $self = shift;
+
+  $self->_logger->tracef('[IO] Setting binary');
   $self->_io->binary();
 
   return $self;
@@ -79,23 +88,16 @@ sub _binary {
 sub length {
   my $self = shift;
 
-  my $length = $self->_io->length;
-  $self->_logger->tracef('IO: Buffer length is %d', $length);
-
-  return $length;
+  my $rc = $self->_io->length(@_);
+  $self->_logger->tracef('[IO] Getting length -> %s', $rc);
+  return $rc;
 }
 
 sub buffer {
   my $self = shift;
 
+  $self->_logger->tracef('[IO] %s buffer', @_ ? 'Setting' : 'Getting');
   return $self->_io->buffer(@_);
-}
-
-
-sub eof {
-  my $self = shift;
-
-  return $self->_io->eof;
 }
 
 
@@ -104,7 +106,7 @@ sub eof {
   sub read {
     my $self = shift;
 
-    $self->_logger->tracef('IO: Reading %d characters', $self->_io->block_size);
+    $self->_logger->tracef('[IO] Reading %d units', $self->_block_size_value);
     $self->_io->read;
 
     return $self;
@@ -114,59 +116,68 @@ sub eof {
 sub clear {
   my $self = shift;
 
-  $self->_logger->tracef('IO: Clearing buffer');
+  $self->_logger->tracef('[IO] Clearing buffer');
   $self->_io->clear;
+
+  return $self;
+}
+
+sub tell {
+  my $self = shift;
+
+  my $rc = $self->_io->tell;
+  $self->_logger->tracef('[IO] Tell -> %s', $rc);
+  return $rc;
+}
+
+sub seek {
+  my $self = shift;
+
+  $self->_logger->tracef('[IO] Seek %s', \@_);
+  $self->_io->seek(@_);
 
   return $self;
 }
 
 sub encoding {
   my $self = shift;
+  my $encoding = shift;
 
-  if (@_) {
-    $self->_logger->tracef('IO: Setting encoding to %s', $_[0]);
-    $self->_io->encoding($_[0]);
-  }
+  $self->_logger->tracef('[IO] Setting encoding %s', $encoding);
+  $self->_io->encoding($encoding);
 
   return $self;
 }
 
 sub pos {
-  my ($self, $pos) = @_;
-
-  $self->_logger->tracef('IO: Setting position to %d', $pos);
+  my $self = shift;
+  my $pos = shift;
 
   my $pos_ok = 0;
   try {
-    my $tell = $self->_io->tell;
+    my $tell = $self->tell;
     if ($tell != $pos) {
-      $self->_logger->tracef('IO: Moving io position from %d to %d', $tell, $pos);
-      $self->_io->seek($pos, SEEK_SET);
-      if ($self->_io->tell != $pos) {
-        die sprintf('Failure setting position from %d to %d failure', $tell, $pos);
+      $self->seek($pos, SEEK_SET);
+      if ($self->tell != $pos) {
+        MarpaX::Languages::XML::Exception->throw(sprintf('Failure setting position from %d to %d failure', $tell, $pos));
       } else {
         $pos_ok = 1;
       }
     } else {
       $pos_ok = 1;
     }
-  } catch {
-    $self->_logger->tracef('IO: %s', "$_");
   };
   if (! $pos_ok) {
     #
     # Ah... not seekable perhaps
     # The only alternative is to reopen the stream
     #
-    $self->_logger->tracef('IO: Seek failure');
-
-    my $orig_block_size = $self->block_size;
-
-    $self->_logger->tracef('IO: Re-opening %s', $self->_source);
-    my $io = io($self->_source);
-    $self->_io($io);
-    $self->_binary;
-    $self->block_size($pos)->read;
+    my $orig_block_size = $self->block_size_value;
+    $self->close;
+    $self->open($self->_source);
+    $self->binary;
+    $self->block_size($pos);
+    $self->read;
     if ($self->length != $pos) {
       #
       # Really I do not know what else to do
@@ -175,14 +186,14 @@ sub pos {
     } else {
       #
       # Restore original io block size
-      $self->block_size($orig_block_size);
+      $self->block_size($self->block_size_value($orig_block_size));
     }
   }
 
   return $self;
 }
 
+with 'MooX::Role::Logger';
 with 'MarpaX::Languages::XML::Role::IO';
-extends 'MarpaX::Languages::XML::Impl::Logger';
 
 1;
