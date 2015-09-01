@@ -179,7 +179,7 @@ sub _encoding {
   # An XML processor SHOULD work with case-insensitive encoding name. So we uc()
   # (note: per def an encoding name contains only Latin1 character, i.e. uc() is ok)
   #
-  return ($bom_encoding, $guess_encoding, $found_encoding, $byte_start);
+  return $found_encoding;
 }
 
 #
@@ -755,8 +755,9 @@ sub parse {
     #
     # Guess the encoding
     #
+  retry_because_of_encoding:
     my $recursion_level = 0;
-    my ($bom_encoding, $guess_encoding, $orig_encoding, $byte_start) = $self->_encoding();
+    my $orig_encoding = $self->_encoding();
     $self->_logger->debugf('[%2d] BOM and/or guess gives encoding %s and byte offset %d', $recursion_level, $orig_encoding, $byte_start);
     #
     # We want to handle buffer direcly with no COW
@@ -773,12 +774,17 @@ sub parse {
     my %internal_events = (
                            'prolog$'       => { fixed_length => 0, end_of_grammar => 1, type => 'completed', symbol_name => 'prolog' },
                            );
+    my $encoding_ok = 1;
     my %switches = (
                     '_ENCNAME$'  => sub {
                       my ($self, $recursion_level, $encname) = @_;
 
                       $self->_logger->debugf('[%2d] XML says encoding %s', $recursion_level, $encname);
-                      1;
+                      if ($encname ne $orig_encoding) {
+                        $orig_encoding = $encname;
+                        $encoding_ok = 0;
+                      }
+                      return $encoding_ok;
                     }
                    );
     $self->_generic_parse(
@@ -798,6 +804,10 @@ sub parse {
                           \%switches,        # switches
                           $recursion_level   # recursion_level
                          );
+    if (! $encoding_ok) {
+      $self->_logger->debugf('[%2d] Redoing parse using encoding %s', $recursion_level, $orig_encoding);
+      goto retry_because_of_encoding;
+    }
   } catch {
     $self->_exception("$_");
     return;
