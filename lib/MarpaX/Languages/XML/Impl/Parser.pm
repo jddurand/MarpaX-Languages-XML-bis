@@ -588,7 +588,7 @@ sub _generic_parse {
         # Event callback ?
         #
         my $code = $switches_ref->{$_};
-        my $rc_switch = defined($code) ? $self->$code($recursion_level) : 1;
+        my $rc_switch = defined($code) ? $self->$code($recursion_level, $r) : 1;
         #
         # Any false return value mean immediate stop
         #
@@ -627,6 +627,23 @@ sub _generic_parse {
         foreach (@alternatives) {
           $self->_logger->debugf('[%2d] Lexeme alternative %s', $recursion_level, $_);
           $r->lexeme_alternative($_);
+          #
+          # If the caller want to have an event callback on lexeme completion he cannot: we reserved
+          # all of them to be predicted. So we fake such event.
+          #
+          my $code = $switches_ref->{"$_\$"};
+          my $rc_switch = defined($code) ? $self->$code($recursion_level, $data) : 1;
+          #
+          # Any false return value mean immediate stop
+          #
+          if (! $rc_switch) {
+            $self->_logger->debugf('[%2d] Event callback %s says to stop', $recursion_level, $_);
+            $stop = 1;
+            last;
+          }
+        }
+        if ($stop) {
+          last;
         }
         $self->_logger->debugf('[%2d] Lexeme complete of length %d', $recursion_level, $max_length);
         #
@@ -754,9 +771,15 @@ sub parse {
     # Go
     #
     my %internal_events = (
-                           'prolog$'  => { fixed_length => 0, end_of_grammar => 1, type => 'completed', symbol_name => 'prolog' },
+                           'prolog$'       => { fixed_length => 0, end_of_grammar => 1, type => 'completed', symbol_name => 'prolog' },
                            );
     my %switches = (
+                    '_ENCNAME$'  => sub {
+                      my ($self, $recursion_level, $encname) = @_;
+
+                      $self->_logger->debugf('[%2d] XML says encoding %s', $recursion_level, $encname);
+                      1;
+                    }
                    );
     $self->_generic_parse(
                           $buffer,           # buffer
