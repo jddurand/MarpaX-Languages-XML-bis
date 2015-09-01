@@ -6,9 +6,12 @@ use MarpaX::Languages::XML::Impl::Grammar;
 use MarpaX::Languages::XML::Impl::IO;
 use MarpaX::Languages::XML::Impl::Logger;
 use Moo;
+use MooX::HandlesVia;
 use MooX::late;
 use Scalar::Util qw/reftype/;
 use Try::Tiny;
+use Types::Standard qw/Int ConsumerOf InstanceOf HashRef/;
+use Types::Common::Numeric qw/PositiveOrZeroInt/;
 
 # ABSTRACT: MarpaX::Languages::XML::Role::parser implementation
 
@@ -18,10 +21,63 @@ use Try::Tiny;
 
 =head1 DESCRIPTION
 
-This module is a parser implementation of MarpaX::Languages::XML::Role::Parser.
+This module is an implementation of MarpaX::Languages::XML::Role::Parser.
 
 =cut
 
+#
+# Internal attributes
+# -------------------
+
+#
+# Offset position in the internal buffer
+#
+has _offset => (
+                is          => 'rw',
+                isa         => PositiveOrZeroInt,
+                default     => 0,
+                handles_via => 'Number',
+                handles     => {
+                                _set__offset => 'set',
+                                _add__offset => 'add',
+                               },
+            );
+
+has _grammars => (
+                  is          => 'rw',
+                  isa         => HashRef[InstanceOf['Marpa::R2::Scanless::G']],
+                  handles_via => 'Hash',
+                  default     => sub { {} },
+                  handles     => {
+                                  _exists__grammar => 'exists',
+                                  _get__grammar    => 'get',
+                                  _set__grammar    => 'set',
+                                 },
+                 );
+
+has _recce => (
+               is          => 'rw',
+               isa         => InstanceOf['Marpa::R2::Scanless::R'],
+              );
+#
+# Externalized attributes
+# -----------------------
+has io => (
+           is          => 'ro',
+           isa         => ConsumerOf['MarpaX::Languages::XML::Role::IO'],
+           writer      => '_set_io'
+          );
+
+has offset => (                                 # Global offset position
+            is => 'ro',
+            isa => PositiveOrZeroInt,
+            default => 0,
+            handles_via => 'Number',
+            handles     => {
+                            _set_offset => 'set',
+                            _add_offset => 'add',
+                           },
+           );
 our $MARPA_TRACE_FILE_HANDLE;
 our $MARPA_TRACE_BUFFER;
 
@@ -68,7 +124,7 @@ sub _open {
   # Read the first five bytes if any. Supported encodings at those
   # mentionned at https://en.wikipedia.org/wiki/Byte_order_mark
   #
-  my $io = MarpaX::Languages::XML::Impl::IO->new(source => $source);
+  my $io = $self->_set_io(MarpaX::Languages::XML::Impl::IO->new(source => $source));
   $io->block_size(1024)->read;
   if ($io->length <= 0) {
     $self->_exception('EOF when reading first bytes');
@@ -112,7 +168,7 @@ sub _open {
   # An XML processor SHOULD work with case-insensitive encoding name. So we uc()
   # (note: per def an encoding name contains only Latin1 character, i.e. uc() is ok)
   #
-  return ($io, $bom_encoding, $guess_encoding, $found_encoding, $byte_start);
+  return ($bom_encoding, $guess_encoding, $found_encoding, $byte_start);
 }
 
 #
@@ -365,33 +421,44 @@ our %LEXEME_DESCRIPTIONS = (
 #
 sub _generic_parse {
   #
-  # buffer is accessed using $_[2] for no COW
+  # buffer is accessed using $_[1] to avoid dereferencing $self->io->buffer everytime
   #
   my ($self,
-      $io, undef,
+      undef,
       $length,
       $pos, $global_pos,
       $line, $global_line,
       $column, $global_column,
-      $grammars_ref, $hash_ref, $parse_opts_ref, $start_symbol, $end_event_name, $internal_events_ref, $switches_ref, $recursion_level) = @_;
+      $hash_ref,
+      $parse_opts_ref,
+      $start_symbol, $end_event_name,
+      $internal_events_ref, $switches_ref,
+      $recursion_level) = @_;
 
   $recursion_level //= 0;
 
-  if (! defined($grammars_ref->{$start_symbol})) {
+  #
+  # Create grammar if necesssary
+  #
+  my $g;
+  if (! $self->_exists__grammar($start_symbol)) {
     my %internal_events = (%LEXEME_DESCRIPTIONS, %{$internal_events_ref});
-    $grammars_ref->{$start_symbol} //= MarpaX::Languages::XML::Impl::Grammar->new->compile(%{$hash_ref},
-                                                                                           start => $start_symbol,
-                                                                                           internal_events => \%internal_events
-                                                                                          );
+    $g = $self->_set__grammar($start_symbol, MarpaX::Languages::XML::Impl::Grammar->new->compile(%{$hash_ref},
+                                                                                                 start => $start_symbol,
+                                                                                                 internal_events => \%internal_events
+                                                                                                ));
+  } else {
+    $g = $self->_get__grammar($start_symbol);
   }
   #
   # Create a recognizer
   #
   $self->_logger->debugf('[%3d] Instanciating a %s recognizer', $recursion_level, $start_symbol);
   my $r = Marpa::R2::Scanless::R->new({%{$parse_opts_ref},
-                                       grammar => $grammars_ref->{$start_symbol},
+                                       grammar => $g,
                                        trace_file_handle => $MARPA_TRACE_FILE_HANDLE,
                                       });
+  $self->_recce($r);
   $self->_logger->debugf('[%3d] Buffer length: %d', $recursion_level, $length);
   my $remaining = $length - $pos;
   $self->_logger->debugf('[%3d] Remaining chars: %d', $recursion_level, $remaining);
@@ -425,9 +492,10 @@ sub _generic_parse {
 
     $self->_logger->debugf('[%3d] Events: %s', $recursion_level, \@event_names);
   manage_events:
+    # $self->_logger->debugf('[%3d] Data: %s', $recursion_level, substr($_[1], $pos));
     if ($remaining) {
     } else {
-      $self->_logger->debugf('[%3d] Data[%d..%d]: %s', $recursion_level, $pos, $length - 1, substr($_[2], $pos));
+      $self->_logger->debugf('[%3d] Data[%d..%d]: %s', $recursion_level, $pos, $length - 1, substr($_[1], $pos));
     }
     #
     # Predicted events always come first -;
@@ -447,7 +515,7 @@ sub _generic_parse {
         if ($LEXEME_DESCRIPTIONS{$_}->{min_chars} > $remaining) {
           my $old_remaining = $remaining;
           $self->_logger->debugf('[%3d] Lexeme %s requires %d chars > %d remaining for decidability', $recursion_level, $symbol_name, $LEXEME_DESCRIPTIONS{$_}->{min_chars}, $remaining);
-          $remaining = $length = $self->_reduceAndRead($io, $pos, $_[2], $length, $recursion_level, 0);
+          $remaining = $length = $self->_reduceAndRead($pos, $_[1], $length, $recursion_level, 0);
           $pos = 0;
           if ($remaining > $old_remaining) {
             #
@@ -461,9 +529,9 @@ sub _generic_parse {
         #
         # Check if this variable length lexeme is reaching the end of the buffer.
         #
-        pos($_[2]) = $pos;
-        if ($_[2] =~ $LEXEME_REGEXPS{$symbol_name}) {
-          my $matched_data = substr($_[2], $-[0], $+[0] - $-[0]);
+        pos($_[1]) = $pos;
+        if ($_[1] =~ $LEXEME_REGEXPS{$symbol_name}) {
+          my $matched_data = substr($_[1], $-[0], $+[0] - $-[0]);
           if (exists($LEXEME_EXCLUSIONS{$symbol_name}) && ($matched_data =~ $LEXEME_EXCLUSIONS{$symbol_name})) {
             $self->_logger->debugf('[%3d] Lexeme %s match excluded', $recursion_level, $symbol_name);
           } else {
@@ -471,7 +539,7 @@ sub _generic_parse {
               $self->_logger->debugf('[%3d] Lexeme %s match but end-of-buffer', $recursion_level, $symbol_name);
               my $old_remaining = $remaining;
               $self->_logger->debugf('[%3d] Lexeme %s is of unpredicted size and currently reaches end-of-buffer', $recursion_level, $symbol_name);
-              $remaining = $length = $self->_reduceAndRead($io, $pos, $_[2], $length, $recursion_level, 0);
+              $remaining = $length = $self->_reduceAndRead($pos, $_[1], $length, $recursion_level, 0);
               $pos = 0;
               if ($remaining > $old_remaining) {
                 #
@@ -565,7 +633,7 @@ sub _generic_parse {
 }
 
 sub _reduceAndRead {
-  my ($self, $io, $pos, undef, $length, $recursion_level, $eof_is_fatal) = @_;
+  my ($self, $pos, undef, $length, $recursion_level, $eof_is_fatal) = @_;
   #
   # Crunch previous data
   #
@@ -575,29 +643,29 @@ sub _reduceAndRead {
     #
     if ($pos >= $length) {
       $self->_logger->debugf('[%3d] Rolling-out buffer', $recursion_level);
-      $_[3] = '';
+      $_[2] = '';
     } else {
       $self->_logger->debugf('[%3d] Removing first %d characters', $recursion_level, $pos);
-      substr($_[3], 0, $pos, '');
+      substr($_[2], 0, $pos, '');
     }
   }
   #
   # Read more data
   #
   $self->_logger->debugf('[%3d] Reading data', $recursion_level);
-  $length = $self->_read($io, $recursion_level, $eof_is_fatal);
+  $length = $self->_read($recursion_level, $eof_is_fatal);
 
   return $length;
 }
 
 sub _read {
-  my ($self, $io, $recursion_level, $eof_is_fatal) = @_;
+  my ($self, $recursion_level, $eof_is_fatal) = @_;
 
   $eof_is_fatal //= 1;
 
-  $io->read;
+  $self->io->read;
   my $new_length;
-  if (($new_length = $io->length) <= 0) {
+  if (($new_length = $self->io->length) <= 0) {
     if ($eof_is_fatal) {
       $self->_exception(sprintf('[%3d] EOF', $recursion_level));
     } else {
@@ -663,17 +731,17 @@ sub parse {
     #
     # Guess the encoding
     #
-    my ($io, $bom_encoding, $guess_encoding, $orig_encoding, $byte_start) = $self->_open($source, $encoding);
+    my ($bom_encoding, $guess_encoding, $orig_encoding, $byte_start) = $self->_open($source, $encoding);
     $self->_logger->debugf('BOM and/or guess gives encoding %s and byte offset %d', $orig_encoding, $byte_start);
     #
     # We want to handle buffer direcly with no COW
     #
     my $buffer;
-    $io->buffer($buffer);
+    $self->io->buffer($buffer);
     #
     # Very initial block size and read
     #
-    $io->block_size($block_size)->read;
+    $self->io->block_size($block_size)->read;
     #
     # Go
     #
@@ -683,23 +751,21 @@ sub parse {
     my %switches = (
                    );
     $self->_generic_parse(
-                          $io,               # io
                           $buffer,           # buffer
-                          $io->length,       # buffer length
+                          $self->io->length, # buffer length
                           0,                 # start pos in buffer
                           0,                 # global_pos
                           0,                 # line
                           1,                 # global_line
                           0,                 # column
                           1,                 # global_column
-                          {},                # grammars_ref
                           \%hash,            # $hash_ref
                           $parse_opts_ref,   # parse_opts_ref
                           'prolog',          # start_symbol
                           'prolog$',         # end_event_name
                           \%internal_events, # internal_events_ref,
                           \%switches,        # switches
-                          0 # recursion_level
+                          0                  # recursion_level
                          );
   } catch {
     $self->_exception("$_");

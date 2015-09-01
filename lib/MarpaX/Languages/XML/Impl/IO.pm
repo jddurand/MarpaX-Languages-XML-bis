@@ -4,6 +4,7 @@ use IO::All;
 use IO::All::LWP;
 use MarpaX::Languages::XML::Exception;
 use MarpaX::Languages::XML::Impl::Logger;
+use MarpaX::Languages::XML::Role::IO;
 use Moo;
 use MooX::late;
 use Types::Standard qw/InstanceOf Str/;
@@ -22,14 +23,12 @@ This module is an implementation of MarpaX::Languages::XML::Role::IO. It provide
 =cut
 
 has _io => (
-            is => 'ro',
-            writer =>'_set_io',
+            is => 'rw',
             isa => InstanceOf['IO::All']
            );
 
 has _source => (
-            is => 'ro',
-            writer =>'_set_source',
+            is => 'rw',
             isa => Str
            );
 
@@ -49,12 +48,11 @@ sub BUILD {
   my $self = shift;
   my $args = shift;
 
-  my $source = $args->{source};
-  $self->_set_source($source);
+  $self->_logger->tracef('IO: Opening %s', $args->{source});
+  $self->_source($args->{source});
+  $self->_io(io($self->_source));
 
-  $self->_logger->tracef('IO: Opening %s', $self->_source);
-  my $io = io($self->_source);
-  $self->_set_io($io);
+  $self->_logger->tracef('IO: Setting binary mode');
   $self->_binary;
 }
 
@@ -166,7 +164,7 @@ sub pos {
 
     $self->_logger->tracef('IO: Re-opening %s', $self->_source);
     my $io = io($self->_source);
-    $self->_set_io($io);
+    $self->_io($io);
     $self->_binary;
     $self->block_size($pos)->read;
     if ($self->length != $pos) {
@@ -184,6 +182,7 @@ sub pos {
   return $self;
 }
 
+with 'MarpaX::Languages::XML::Role::IO';
 extends 'MarpaX::Languages::XML::Impl::Logger';
 
 1;
