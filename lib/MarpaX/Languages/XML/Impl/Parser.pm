@@ -432,8 +432,8 @@ sub _generic_parse {
   #
   my ($self,
       undef,
-      $length,
-      $pos, $global_posp,
+      $lengthp,
+      $posp, $global_posp,
       $global_linep,
       $global_columnp,
       $hash_ref,
@@ -444,12 +444,12 @@ sub _generic_parse {
 
   $recursion_level //= 0;
 
-  my $remaining = $length - $pos;
+  my $length = ${$lengthp};
+  my $pos = ${$posp};
   my $global_pos = ${$global_posp};
   my $global_line = ${$global_linep};
   my $global_column = ${$global_columnp};
-
-  $self->_logger->debugf('[%2d][%d:%d] Buffer length: %d, position: %d, remaining: %d', $recursion_level, $global_line, $global_column, $length, $pos, $remaining);
+  my $remaining = $length - $pos;
 
   #
   # Create grammar if necesssary
@@ -466,7 +466,6 @@ sub _generic_parse {
   #
   # Create a recognizer
   #
-  $self->_logger->debugf('[%2d][%d:%d] Instanciating a %s recognizer', $recursion_level, $global_line, $global_column, $start_symbol);
   my $r = Marpa::R2::Scanless::R->new({%{$parse_opts_ref},
                                        grammar => $g,
                                        trace_file_handle => $MARPA_TRACE_FILE_HANDLE,
@@ -513,7 +512,7 @@ sub _generic_parse {
         if ($LEXEME_DESCRIPTIONS{$_}->{min_chars} > $remaining) {
           my $old_remaining = $remaining;
           $self->_logger->debugf('[%2d][%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $recursion_level, $global_line, $global_column, $symbol_name, $LEXEME_DESCRIPTIONS{$_}->{min_chars}, $remaining);
-          $remaining = $length = $self->_reduceAndRead($pos, $_[1], $length, $recursion_level, 0, $global_line, $global_column);
+          $remaining = $length = ${$lengthp} = $self->_reduceAndRead($pos, $_[1], $length, $recursion_level, 0, $global_line, $global_column);
           $pos = 0;
           if ($remaining > $old_remaining) {
             #
@@ -537,7 +536,7 @@ sub _generic_parse {
               $self->_logger->debugf('[%2d][%d:%d] Lexeme %s match but end-of-buffer', $recursion_level, $global_line, $global_column, $symbol_name);
               my $old_remaining = $remaining;
               $self->_logger->debugf('[%2d][%d:%d] Lexeme %s is of unpredicted size and currently reaches end-of-buffer', $recursion_level, $global_line, $global_column, $symbol_name);
-              $remaining = $length = $self->_reduceAndRead($pos, $_[1], $length, $recursion_level, 0, $global_line, $global_column);
+              $remaining = $length = ${$lengthp} = $self->_reduceAndRead($pos, $_[1], $length, $recursion_level, 0, $global_line, $global_column);
               $pos = 0;
               if ($remaining > $old_remaining) {
                 #
@@ -579,7 +578,7 @@ sub _generic_parse {
         #
         if (! $rc_switch) {
           $self->_logger->debugf('[%2d][%d:%d] Event callback %s says to stop', $recursion_level, $global_line, $global_column, $_);
-          goto end;
+          return;
         }
       }
     }
@@ -608,7 +607,7 @@ sub _generic_parse {
           #
           if (! $rc_switch) {
             $self->_logger->debugf('[%2d][%d:%d] Event callback %s says to stop', $recursion_level, $global_line, $global_column, $_);
-            goto end;
+            return;
           }
         }
         $self->_logger->debugf('[%2d][%d:%d] Lexeme complete of length %d', $recursion_level, $global_line, $global_column, $max_length);
@@ -626,7 +625,7 @@ sub _generic_parse {
         } else {
           $global_column = ${$global_columnp} += $max_length;
         }
-        $pos += $max_length;
+        ${$posp} = $pos += $max_length;
         $global_pos = ${$global_posp} += $max_length;
         $remaining -= $max_length;
         #
@@ -638,8 +637,8 @@ sub _generic_parse {
       }
     }
   }
- end:
-  return $pos;
+
+  return;
 }
 
 sub _reduceAndRead {
@@ -663,9 +662,7 @@ sub _reduceAndRead {
   # Read more data
   #
   $self->_logger->debugf('[%2d][%d:%d] Reading data', $recursion_level, $global_line, $global_column);
-  $length = $self->_read($recursion_level, $eof_is_fatal, $global_line, $global_column);
-
-  return $length;
+  return $self->_read($recursion_level, $eof_is_fatal, $global_line, $global_column);
 }
 
 sub _read {
@@ -783,21 +780,23 @@ sub parse {
                     }
                    );
     my $global_pos = $byte_start;
-    my $pos = $self->_generic_parse(
-                                    $buffer,           # buffer
-                                    $self->io->length, # buffer length
-                                    0,                 # pos
-                                    \$global_pos,      # global_posp
-                                    \$global_line,     # global_linep
-                                    \$global_column,   # global_columnp
-                                    $hash_ref,         # $hash_ref
-                                    $parse_opts_ref,   # parse_opts_ref
-                                    'prolog',          # start_symbol
-                                    'prolog$',         # end_event_name
-                                    \%internal_events, # internal_events_ref,
-                                    \%switches,        # switches
-                                    $recursion_level   # recursion_level
-                                   );
+    my $pos = 0;
+    my $length = $self->io->length;
+    $self->_generic_parse(
+                          $buffer,           # buffer
+                          \$length,          # buffer length
+                          \$pos,             # posp
+                          \$global_pos,      # global_posp
+                          \$global_line,     # global_linep
+                          \$global_column,   # global_columnp
+                          $hash_ref,         # $hash_ref
+                          $parse_opts_ref,   # parse_opts_ref
+                          'prolog',          # start_symbol
+                          'prolog$',         # end_event_name
+                          \%internal_events, # internal_events_ref,
+                          \%switches,        # switches
+                          $recursion_level   # recursion_level
+                         );
     if ($final_encoding ne $orig_encoding) {
       $self->_logger->debugf('[%2d][%d:%d] Redoing parse using encoding %s instead of %s', $recursion_level, $global_line, $global_column, $final_encoding, $orig_encoding);
       #
@@ -818,6 +817,12 @@ sub parse {
       } else {
         MarpaX::Languages::XML::Exception->throw("Two many retries because of encoding difference beween BOM, guess and XML");
       }
+      # -------------
+      # Parse element - we use a stack free implementation because perl is(was?) not very good at recursion performance
+      # -------------
+      my %internal_events = (
+                             'element$' => { fixed_length => 0, end_of_grammar => 1, type => 'completed', symbol_name => 'element' },
+                            );
     }
   } catch {
     $self->_exception("$_");
