@@ -483,18 +483,21 @@ sub _generic_parse {
        ;
        $pos < $length
        ;
+       #
+       # Resume will croak if grammar is exhausted. We handle this case ourself (absence of prediction + remaining chargs)
+       #
        $r->resume()
       ) {
     my $can_stop = 0;
     my @event_names = map { $_->[0] } @{$r->events()};
-    $self->_logger->debugf('[%2d][%d:%d] Events: %s', $recursion_level, $global_line, $global_column, \@event_names);
+    $self->_logger->tracef('[%2d][%d:%d] Events: %s', $recursion_level, $global_line, $global_column, \@event_names);
 
   manage_events:
-    $self->_logger->debugf('[%2d][%d:%d] Data: %s', $recursion_level, $global_line, $global_column, substr($_[1], $pos));
-    if ($remaining) {
-    } else {
-      $self->_logger->debugf('[%2d][%d:%d] Data[%d..%d]: %s', $recursion_level, $global_line, $global_column, $pos, $length - 1, substr($_[1], $pos));
-    }
+    # $self->_logger->tracef('[%2d][%d:%d] Data: %s', $recursion_level, $global_line, $global_column, substr($_[1], $pos));
+    # if ($remaining) {
+    # } else {
+    #   $self->_logger->tracef('[%2d][%d:%d] Data[%d..%d]: %s', $recursion_level, $global_line, $global_column, $pos, $length - 1, substr($_[1], $pos));
+    # }
     #
     # Predicted events always come first -;
     #
@@ -511,7 +514,7 @@ sub _generic_parse {
         #
         if ($LEXEME_DESCRIPTIONS{$_}->{min_chars} > $remaining) {
           my $old_remaining = $remaining;
-          $self->_logger->debugf('[%2d][%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $recursion_level, $global_line, $global_column, $symbol_name, $LEXEME_DESCRIPTIONS{$_}->{min_chars}, $remaining);
+          $self->_logger->tracef('[%2d][%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $recursion_level, $global_line, $global_column, $symbol_name, $LEXEME_DESCRIPTIONS{$_}->{min_chars}, $remaining);
           $remaining = $length = ${$lengthp} = $self->_reduceAndRead($pos, $_[1], $length, $recursion_level, 0, $global_line, $global_column);
           $pos = 0;
           if ($remaining > $old_remaining) {
@@ -530,12 +533,12 @@ sub _generic_parse {
         if ($_[1] =~ $LEXEME_REGEXPS{$symbol_name}) {
           my $matched_data = substr($_[1], $-[0], $+[0] - $-[0]);
           if (exists($LEXEME_EXCLUSIONS{$symbol_name}) && ($matched_data =~ $LEXEME_EXCLUSIONS{$symbol_name})) {
-            $self->_logger->debugf('[%2d][%d:%d] Lexeme %s match excluded', $recursion_level, $global_line, $global_column, $symbol_name);
+            $self->_logger->tracef('[%2d][%d:%d] Lexeme %s match excluded', $recursion_level, $global_line, $global_column, $symbol_name);
           } else {
             if (($+[0] >= $length) && ! $LEXEME_DESCRIPTIONS{$_}->{fixed_length}) {
-              $self->_logger->debugf('[%2d][%d:%d] Lexeme %s match but end-of-buffer', $recursion_level, $global_line, $global_column, $symbol_name);
+              $self->_logger->tracef('[%2d][%d:%d] Lexeme %s match but end-of-buffer', $recursion_level, $global_line, $global_column, $symbol_name);
               my $old_remaining = $remaining;
-              $self->_logger->debugf('[%2d][%d:%d] Lexeme %s is of unpredicted size and currently reaches end-of-buffer', $recursion_level, $global_line, $global_column, $symbol_name);
+              $self->_logger->tracef('[%2d][%d:%d] Lexeme %s is of unpredicted size and currently reaches end-of-buffer', $recursion_level, $global_line, $global_column, $symbol_name);
               $remaining = $length = ${$lengthp} = $self->_reduceAndRead($pos, $_[1], $length, $recursion_level, 0, $global_line, $global_column);
               $pos = 0;
               if ($remaining > $old_remaining) {
@@ -548,7 +551,7 @@ sub _generic_parse {
               }
             }
             $length{$symbol_name} = $+[0] - $-[0];
-            $self->_logger->debugf('[%2d][%d:%d] %s: match of length %d', $recursion_level, $global_line, $global_column, $symbol_name, $length{$symbol_name});
+            $self->_logger->tracef('[%2d][%d:%d] %s: match of length %d', $recursion_level, $global_line, $global_column, $symbol_name, $length{$symbol_name});
             if ((! $max_length) || ($length{$symbol_name} > $max_length)) {
               $data = $matched_data;
               $max_length = $length{$symbol_name};
@@ -593,8 +596,8 @@ sub _generic_parse {
         }
       } else {
         my @alternatives = grep { $length{$_} == $max_length } keys %length;
+        $self->_logger->debugf('[%2d][%d:%d] Lexeme alternative %s', $recursion_level, $global_line, $global_column, \@alternatives);
         foreach (@alternatives) {
-          $self->_logger->debugf('[%2d][%d:%d] Lexeme alternative %s', $recursion_level, $global_line, $global_column, $_);
           $r->lexeme_alternative($_);
           #
           # If the caller want to have an event callback on lexeme completion he cannot: we reserved
@@ -610,7 +613,7 @@ sub _generic_parse {
             return;
           }
         }
-        $self->_logger->debugf('[%2d][%d:%d] Lexeme complete of length %d', $recursion_level, $global_line, $global_column, $max_length);
+        $self->_logger->tracef('[%2d][%d:%d] Lexeme complete of length %d', $recursion_level, $global_line, $global_column, $max_length);
         #
         # Position 0 and length 1: the Marpa input buffer is virtual
         #
@@ -632,8 +635,18 @@ sub _generic_parse {
         # lexeme complete can generate new events: handle them before eventually resuming
         #
         @event_names = map { $_->[0] } @{$r->events()};
-        $self->_logger->debugf('[%2d][%d:%d] Events: %s', $recursion_level, $global_line, $global_column, \@event_names);
+        $self->_logger->tracef('[%2d][%d:%d] Events: %s', $recursion_level, $global_line, $global_column, \@event_names);
         goto manage_events;
+      }
+    } else {
+      #
+      # No prediction: this is ok only if grammar end_of_grammar flag is set
+      #
+      if ($can_stop) {
+        $self->_logger->tracef('[%2d][%d:%d] No prediction and grammar end flag is on', $recursion_level, $global_line, $global_column);
+        return;
+      } else {
+        $self->_exception(sprintf('[%2d][%d:%d] No prediction and grammar end flag is not set', $recursion_level, $global_line, $global_column));
       }
     }
   }
@@ -661,7 +674,7 @@ sub _reduceAndRead {
   #
   # Read more data
   #
-  $self->_logger->debugf('[%2d][%d:%d] Reading data', $recursion_level, $global_line, $global_column);
+  $self->_logger->tracef('[%2d][%d:%d] Reading data', $recursion_level, $global_line, $global_column);
   return $self->_read($recursion_level, $eof_is_fatal, $global_line, $global_column);
 }
 
