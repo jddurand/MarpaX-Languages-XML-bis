@@ -433,9 +433,9 @@ sub _generic_parse {
   my ($self,
       undef,
       $length,
-      $pos, $global_pos,
-      $line, $global_line,
-      $column, $global_column,
+      $pos, $global_posp,
+      $global_linep,
+      $global_columnp,
       $hash_ref,
       $parse_opts_ref,
       $start_symbol, $end_event_name,
@@ -445,7 +445,11 @@ sub _generic_parse {
   $recursion_level //= 0;
 
   my $remaining = $length - $pos;
-  $self->_logger->debugf('[%2d] Buffer length: %d, position: %d, remaining: %d', $recursion_level, $length, $pos, $remaining);
+  my $global_pos = ${$global_posp};
+  my $global_line = ${$global_linep};
+  my $global_column = ${$global_columnp};
+
+  $self->_logger->debugf('[%2d][%d:%d] Buffer length: %d, position: %d, remaining: %d', $recursion_level, $global_line, $global_column, $length, $pos, $remaining);
 
   #
   # Create grammar if necesssary
@@ -462,7 +466,7 @@ sub _generic_parse {
   #
   # Create a recognizer
   #
-  $self->_logger->debugf('[%2d] Instanciating a %s recognizer', $recursion_level, $start_symbol);
+  $self->_logger->debugf('[%2d][%d:%d] Instanciating a %s recognizer', $recursion_level, $global_line, $global_column, $start_symbol);
   my $r = Marpa::R2::Scanless::R->new({%{$parse_opts_ref},
                                        grammar => $g,
                                        trace_file_handle => $MARPA_TRACE_FILE_HANDLE,
@@ -472,39 +476,25 @@ sub _generic_parse {
   # Loop on input
   #
   for (
-       do {
-         $self->_logger->debugf('[%2d] Reading at (pos, line, column) = (%d, %d, %d), (global_pos, global_line, global_column) = (%d, %d, %d)',
-                                $recursion_level,
-                                $pos, $line, $column,
-                                $global_pos, $global_line, $global_column);
-         #
-         # The buffer for Marpa is not of importance here, but two bytes at least for the length to avoid exhaustion
-         #
-         $r->read(\'  ');
-       };
-       $pos < $length;
-       do {
-         $self->_logger->debugf('[%2d] Resuming at (pos, line, column) = (%d, %d, %d), (global_pos, global_line, global_column) = (%d, %d, %d)',
-                                $recursion_level,
-                                $pos, $line, $column,
-                                $global_pos, $global_line, $global_column);
-         $r->resume();
-       }
+       #
+       # The buffer for Marpa is not of importance here, but two bytes at least for the length to avoid exhaustion.
+       # Since we pause on everything, read() and resume() always never change position in the virtual buffer
+       #
+       $r->read(\'  ')
+       ;
+       $pos < $length
+       ;
+       $r->resume()
       ) {
-    $self->_logger->tracef('[%2d] Stopped at internal position %d, internal buffer length is %d, remaining chars is %d', $recursion_level, $pos, $length, $remaining);
-    $self->_logger->tracef('[%2d] Progress:', $recursion_level, $r->show_progress());
-    foreach (split(/\n/, $r->show_progress())) {
-      $self->_logger->tracef('[%2d] %s', $recursion_level, $_);
-    }
     my $can_stop = 0;
     my @event_names = map { $_->[0] } @{$r->events()};
-    $self->_logger->debugf('[%2d] Events: %s', $recursion_level, \@event_names);
+    $self->_logger->debugf('[%2d][%d:%d] Events: %s', $recursion_level, $global_line, $global_column, \@event_names);
 
   manage_events:
-    $self->_logger->debugf('[%2d] Data: %s', $recursion_level, substr($_[1], $pos));
+    $self->_logger->debugf('[%2d][%d:%d] Data: %s', $recursion_level, $global_line, $global_column, substr($_[1], $pos));
     if ($remaining) {
     } else {
-      $self->_logger->debugf('[%2d] Data[%d..%d]: %s', $recursion_level, $pos, $length - 1, substr($_[1], $pos));
+      $self->_logger->debugf('[%2d][%d:%d] Data[%d..%d]: %s', $recursion_level, $global_line, $global_column, $pos, $length - 1, substr($_[1], $pos));
     }
     #
     # Predicted events always come first -;
@@ -522,8 +512,8 @@ sub _generic_parse {
         #
         if ($LEXEME_DESCRIPTIONS{$_}->{min_chars} > $remaining) {
           my $old_remaining = $remaining;
-          $self->_logger->debugf('[%2d] Lexeme %s requires %d chars > %d remaining for decidability', $recursion_level, $symbol_name, $LEXEME_DESCRIPTIONS{$_}->{min_chars}, $remaining);
-          $remaining = $length = $self->_reduceAndRead($pos, $_[1], $length, $recursion_level, 0);
+          $self->_logger->debugf('[%2d][%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $recursion_level, $global_line, $global_column, $symbol_name, $LEXEME_DESCRIPTIONS{$_}->{min_chars}, $remaining);
+          $remaining = $length = $self->_reduceAndRead($pos, $_[1], $length, $recursion_level, 0, $global_line, $global_column);
           $pos = 0;
           if ($remaining > $old_remaining) {
             #
@@ -531,7 +521,7 @@ sub _generic_parse {
             #
             goto manage_events;
           } else {
-            $self->_logger->debugf('[%2d] Nothing more read', $recursion_level);
+            $self->_logger->debugf('[%2d][%d:%d] Nothing more read', $recursion_level, $global_line, $global_column);
           }
         }
         #
@@ -541,13 +531,13 @@ sub _generic_parse {
         if ($_[1] =~ $LEXEME_REGEXPS{$symbol_name}) {
           my $matched_data = substr($_[1], $-[0], $+[0] - $-[0]);
           if (exists($LEXEME_EXCLUSIONS{$symbol_name}) && ($matched_data =~ $LEXEME_EXCLUSIONS{$symbol_name})) {
-            $self->_logger->debugf('[%2d] Lexeme %s match excluded', $recursion_level, $symbol_name);
+            $self->_logger->debugf('[%2d][%d:%d] Lexeme %s match excluded', $recursion_level, $global_line, $global_column, $symbol_name);
           } else {
             if (($+[0] >= $length) && ! $LEXEME_DESCRIPTIONS{$_}->{fixed_length}) {
-              $self->_logger->debugf('[%2d] Lexeme %s match but end-of-buffer', $recursion_level, $symbol_name);
+              $self->_logger->debugf('[%2d][%d:%d] Lexeme %s match but end-of-buffer', $recursion_level, $global_line, $global_column, $symbol_name);
               my $old_remaining = $remaining;
-              $self->_logger->debugf('[%2d] Lexeme %s is of unpredicted size and currently reaches end-of-buffer', $recursion_level, $symbol_name);
-              $remaining = $length = $self->_reduceAndRead($pos, $_[1], $length, $recursion_level, 0);
+              $self->_logger->debugf('[%2d][%d:%d] Lexeme %s is of unpredicted size and currently reaches end-of-buffer', $recursion_level, $global_line, $global_column, $symbol_name);
+              $remaining = $length = $self->_reduceAndRead($pos, $_[1], $length, $recursion_level, 0, $global_line, $global_column);
               $pos = 0;
               if ($remaining > $old_remaining) {
                 #
@@ -555,29 +545,29 @@ sub _generic_parse {
                 #
                 goto manage_events;
               } else {
-                $self->_logger->debugf('[%2d] Nothing more read', $recursion_level);
+                $self->_logger->debugf('[%2d][%d:%d] Nothing more read', $recursion_level, $global_line, $global_column);
               }
             }
             $length{$symbol_name} = $+[0] - $-[0];
-            $self->_logger->debugf('[%2d] %s: match of length %d', $recursion_level, $symbol_name, $length{$symbol_name});
+            $self->_logger->debugf('[%2d][%d:%d] %s: match of length %d', $recursion_level, $global_line, $global_column, $symbol_name, $length{$symbol_name});
             if ((! $max_length) || ($length{$symbol_name} > $max_length)) {
               $data = $matched_data;
               $max_length = $length{$symbol_name};
             }
           }
         } else {
-          $self->_logger->tracef('[%2d] %s: no match', $recursion_level, $symbol_name);
+          $self->_logger->tracef('[%2d][%d:%d] %s: no match', $recursion_level, $global_line, $global_column, $symbol_name);
         }
       } else {
         #
         # Sanity check - code to be removed OOTD
         #
         if (substr($_, 0, 1) eq '^') {
-          $self->_logger->warnf('[%2d] Unknown internal event %s', $recursion_level, $_);
+          $self->_logger->warnf('[%2d][%d:%d] Unknown internal event %s', $recursion_level, $global_line, $global_column, $_);
         }
         if ($_ eq $end_event_name) {
           $can_stop = 1;
-          $self->_logger->debugf('[%2d] Grammar end event %s', $recursion_level, $_);
+          $self->_logger->debugf('[%2d][%d:%d] Grammar end event %s', $recursion_level, $global_line, $global_column, $_);
         }
         #
         # Event callback ?
@@ -588,35 +578,24 @@ sub _generic_parse {
         # Any false return value mean immediate stop
         #
         if (! $rc_switch) {
-          $self->_logger->debugf('[%2d] Event callback %s says to stop', $recursion_level, $_);
-          return;
+          $self->_logger->debugf('[%2d][%d:%d] Event callback %s says to stop', $recursion_level, $global_line, $global_column, $_);
+          goto end;
         }
       }
     }
-    $self->_logger->tracef('[%2d] have_prediction %d can_stop %d length %s', $recursion_level, $have_prediction, $can_stop, \%length);
+    $self->_logger->tracef('[%2d][%d:%d] have_prediction %d can_stop %d length %s', $recursion_level, $global_line, $global_column, $have_prediction, $can_stop, \%length);
     if ($have_prediction) {
       if (! $max_length) {
         if ($can_stop) {
-          $self->_exception(sprintf('[%2d] No predicted lexeme found but grammar end flag is on', $recursion_level));
+          $self->_exception(sprintf('[%2d][%d:%d] No predicted lexeme found but grammar end flag is on', $recursion_level, $global_line, $global_column));
           last;
         } else {
-          $self->_exception(sprintf('[%2d] No predicted lexeme found', $recursion_level));
+          $self->_exception(sprintf('[%2d][%d:%d] No predicted lexeme found', $recursion_level, $global_line, $global_column));
         }
       } else {
-        #
-        # Count lines and columns
-        #
-        my $linebreaks = () = $data =~ /\R/g;
-        if ($linebreaks) {
-          $line += $linebreaks;
-          $column = 1;
-        } else {
-          $column += $max_length;
-        }
-        $self->_logger->tracef('[%2d] Selecting matches of length %d (linebreaks %d)', $recursion_level, $max_length, $linebreaks);
         my @alternatives = grep { $length{$_} == $max_length } keys %length;
         foreach (@alternatives) {
-          $self->_logger->debugf('[%2d] Lexeme alternative %s', $recursion_level, $_);
+          $self->_logger->debugf('[%2d][%d:%d] Lexeme alternative %s', $recursion_level, $global_line, $global_column, $_);
           $r->lexeme_alternative($_);
           #
           # If the caller want to have an event callback on lexeme completion he cannot: we reserved
@@ -628,30 +607,43 @@ sub _generic_parse {
           # Any false return value mean immediate stop
           #
           if (! $rc_switch) {
-            $self->_logger->debugf('[%2d] Event callback %s says to stop', $recursion_level, $_);
-            return;
+            $self->_logger->debugf('[%2d][%d:%d] Event callback %s says to stop', $recursion_level, $global_line, $global_column, $_);
+            goto end;
           }
         }
-        $self->_logger->debugf('[%2d] Lexeme complete of length %d', $recursion_level, $max_length);
+        $self->_logger->debugf('[%2d][%d:%d] Lexeme complete of length %d', $recursion_level, $global_line, $global_column, $max_length);
         #
         # Position 0 and length 1: the Marpa input buffer is virtual
         #
         $r->lexeme_complete(0, 1);
+        #
+        # Update position and remaining chars in internal buffer, global line and column numbers
+        #
+        my $linebreaks = () = $data =~ /\R/g;
+        if ($linebreaks) {
+          $global_line = ${$global_linep} += $linebreaks;
+          $global_column = ${$global_columnp} = 1;
+        } else {
+          $global_column = ${$global_columnp} += $max_length;
+        }
         $pos += $max_length;
+        $global_pos = ${$global_posp} += $max_length;
         $remaining -= $max_length;
         #
         # lexeme complete can generate new events: handle them before eventually resuming
         #
         @event_names = map { $_->[0] } @{$r->events()};
-        $self->_logger->debugf('[%2d] Events: %s', $recursion_level, \@event_names);
+        $self->_logger->debugf('[%2d][%d:%d] Events: %s', $recursion_level, $global_line, $global_column, \@event_names);
         goto manage_events;
       }
     }
   }
+ end:
+  return $pos;
 }
 
 sub _reduceAndRead {
-  my ($self, $pos, undef, $length, $recursion_level, $eof_is_fatal) = @_;
+  my ($self, $pos, undef, $length, $recursion_level, $eof_is_fatal, $global_line, $global_column) = @_;
   #
   # Crunch previous data
   #
@@ -660,24 +652,24 @@ sub _reduceAndRead {
     # Faster like this -;
     #
     if ($pos >= $length) {
-      $self->_logger->debugf('[%2d] Rolling-out buffer', $recursion_level);
+      $self->_logger->debugf('[%2d][%d:%d] Rolling-out buffer', $recursion_level, $global_line, $global_column);
       $_[2] = '';
     } else {
-      $self->_logger->debugf('[%2d] Removing first %d characters', $recursion_level, $pos);
+      $self->_logger->debugf('[%2d][%d:%d] Removing first %d characters', $recursion_level, $global_line, $global_column, $pos);
       substr($_[2], 0, $pos, '');
     }
   }
   #
   # Read more data
   #
-  $self->_logger->debugf('[%2d] Reading data', $recursion_level);
-  $length = $self->_read($recursion_level, $eof_is_fatal);
+  $self->_logger->debugf('[%2d][%d:%d] Reading data', $recursion_level, $global_line, $global_column);
+  $length = $self->_read($recursion_level, $eof_is_fatal, $global_line, $global_column);
 
   return $length;
 }
 
 sub _read {
-  my ($self, $recursion_level, $eof_is_fatal) = @_;
+  my ($self, $recursion_level, $eof_is_fatal, $global_line, $global_column) = @_;
 
   $eof_is_fatal //= 1;
 
@@ -685,9 +677,9 @@ sub _read {
   my $new_length;
   if (($new_length = $self->io->length) <= 0) {
     if ($eof_is_fatal) {
-      $self->_exception(sprintf('[%2d] EOF', $recursion_level));
+      $self->_exception(sprintf('[%2d][%d:%d] EOF', $recursion_level, $global_line, $global_column));
     } else {
-      $self->_logger->debugf('[%2d] EOF', $recursion_level);
+      $self->_logger->debugf('[%2d][%d:%d] EOF', $recursion_level, $global_line, $global_column);
     }
   }
   return $new_length;
@@ -739,13 +731,22 @@ sub parse {
   }
 
   try {
+    # ------------------
+    # "Global variables"
+    # ------------------
     my $recursion_level = 0;
+    my $global_line = 1;
+    my $global_column = 1;
+    #
+    # ------------
+    # Parse prolog
+    # ------------
     #
     # Encoding object instance
     #
     my $encoding = MarpaX::Languages::XML::Impl::Encoding->new();
     my ($bom_encoding, $guess_encoding, $orig_encoding, $byte_start)  = $self->_encoding($encoding);
-    $self->_logger->debugf('[%2d] BOM and/or guess gives encoding %s and byte offset %d', $recursion_level, $orig_encoding, $byte_start);
+    $self->_logger->debugf('[%2d][%d:%d] BOM and/or guess gives encoding %s and byte offset %d', $recursion_level, $global_line, $global_column, $orig_encoding, $byte_start);
     my $nb_retry_because_of_encoding = 0;
   retry_because_of_encoding:
     #
@@ -772,7 +773,7 @@ sub parse {
                       # Encoding is composed only of ASCII codepoints, so uc is ok
                       #
                       my $xml_encoding = uc($encname);
-                      $self->_logger->debugf('[%2d] XML says encoding %s', $recursion_level, $xml_encoding);
+                      $self->_logger->debugf('[%2d][%d:%d] XML says encoding %s', $recursion_level, $global_line, $global_column, $xml_encoding);
                       #
                       # Check eventual encoding v.s. endianness. Algorithm vaguely taken from
                       # https://blogs.oracle.com/tucu/entry/detecting_xml_charset_encoding_again
@@ -781,25 +782,24 @@ sub parse {
                       return ($final_encoding eq $orig_encoding);
                     }
                    );
-    $self->_generic_parse(
-                          $buffer,           # buffer
-                          $self->io->length, # buffer length
-                          0,                 # start pos in buffer
-                          0,                 # global_pos
-                          0,                 # line
-                          1,                 # global_line
-                          0,                 # column
-                          1,                 # global_column
-                          $hash_ref,         # $hash_ref
-                          $parse_opts_ref,   # parse_opts_ref
-                          'prolog',          # start_symbol
-                          'prolog$',         # end_event_name
-                          \%internal_events, # internal_events_ref,
-                          \%switches,        # switches
-                          $recursion_level   # recursion_level
-                         );
+    my $global_pos = $byte_start;
+    my $pos = $self->_generic_parse(
+                                    $buffer,           # buffer
+                                    $self->io->length, # buffer length
+                                    0,                 # pos
+                                    \$global_pos,      # global_posp
+                                    \$global_line,     # global_linep
+                                    \$global_column,   # global_columnp
+                                    $hash_ref,         # $hash_ref
+                                    $parse_opts_ref,   # parse_opts_ref
+                                    'prolog',          # start_symbol
+                                    'prolog$',         # end_event_name
+                                    \%internal_events, # internal_events_ref,
+                                    \%switches,        # switches
+                                    $recursion_level   # recursion_level
+                                   );
     if ($final_encoding ne $orig_encoding) {
-      $self->_logger->debugf('[%2d] Redoing parse using encoding %s instead of %s', $recursion_level, $final_encoding, $orig_encoding);
+      $self->_logger->debugf('[%2d][%d:%d] Redoing parse using encoding %s instead of %s', $recursion_level, $global_line, $global_column, $final_encoding, $orig_encoding);
       #
       # Set encoding
       #
