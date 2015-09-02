@@ -432,15 +432,15 @@ sub _generic_parse {
   #
   my ($self,
       undef,
+      $recursion_level,
+      $start_symbol, $end_event_name,
       $lengthp,
       $posp, $global_posp,
       $global_linep,
       $global_columnp,
       $hash_ref,
       $parse_opts_ref,
-      $start_symbol, $end_event_name,
-      $internal_events_ref, $switches_ref,
-      $recursion_level) = @_;
+      $internal_events_ref, $switches_ref) = @_;
 
   $recursion_level //= 0;
 
@@ -586,8 +586,8 @@ sub _generic_parse {
     if ($have_prediction) {
       if (! $max_length) {
         if ($can_stop) {
-          $self->_exception(sprintf('[%2d][%d:%d] No predicted lexeme found but grammar end flag is on', $recursion_level, $global_line, $global_column));
-          last;
+          $self->_logger->tracef('[%2d][%d:%d] No predicted lexeme found but grammar end flag is on', $recursion_level, $global_line, $global_column);
+          return;
         } else {
           $self->_exception(sprintf('[%2d][%d:%d] No predicted lexeme found', $recursion_level, $global_line, $global_column));
         }
@@ -782,20 +782,27 @@ sub parse {
     my $global_pos = $byte_start;
     my $pos = 0;
     my $length = $self->io->length;
+    #
+    # From now on, there are a lot of arguments that are always the same. Make it an array
+    # for readability.
+    #
+    my @generic_parse_common_args = (
+                                     \$length,          # buffer length
+                                     \$pos,             # posp
+                                     \$global_pos,      # global_posp
+                                     \$global_line,     # global_linep
+                                     \$global_column,   # global_columnp
+                                     $hash_ref,         # $hash_ref
+                                     $parse_opts_ref,   # parse_opts_ref
+                                     \%internal_events, # internal_events_ref,
+                                     \%switches,        # switches
+                                    );
     $self->_generic_parse(
                           $buffer,           # buffer
-                          \$length,          # buffer length
-                          \$pos,             # posp
-                          \$global_pos,      # global_posp
-                          \$global_line,     # global_linep
-                          \$global_column,   # global_columnp
-                          $hash_ref,         # $hash_ref
-                          $parse_opts_ref,   # parse_opts_ref
+                          $recursion_level,  # recursion_level
                           'prolog',          # start_symbol
                           'prolog$',         # end_event_name
-                          \%internal_events, # internal_events_ref,
-                          \%switches,        # switches
-                          $recursion_level   # recursion_level
+                          @generic_parse_common_args
                          );
     if ($final_encoding ne $orig_encoding) {
       $self->_logger->debugf('[%2d][%d:%d] Redoing parse using encoding %s instead of %s', $recursion_level, $global_line, $global_column, $final_encoding, $orig_encoding);
@@ -817,13 +824,20 @@ sub parse {
       } else {
         MarpaX::Languages::XML::Exception->throw("Two many retries because of encoding difference beween BOM, guess and XML");
       }
-      # -------------
-      # Parse element - we use a stack free implementation because perl is(was?) not very good at recursion performance
-      # -------------
-      my %internal_events = (
-                             'element$' => { fixed_length => 0, end_of_grammar => 1, type => 'completed', symbol_name => 'element' },
-                            );
     }
+    # -------------
+    # Parse element - we use a stack free implementation because perl is(was?) not very good at recursion performance
+    # -------------
+    %internal_events = (
+                        'element$' => { fixed_length => 0, end_of_grammar => 1, type => 'completed', symbol_name => 'element' },
+                       );
+    $self->_generic_parse(
+                          $buffer,           # buffer
+                          $recursion_level,  # recursion_level
+                          'element',         # start_symbol
+                          'element$',        # end_event_name
+                          @generic_parse_common_args
+                         );
   } catch {
     $self->_exception("$_");
     return;
