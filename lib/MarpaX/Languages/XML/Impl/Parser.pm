@@ -575,7 +575,7 @@ sub _generic_parse {
         # Event callback ?
         #
         my $code = $switches_ref->{$_};
-        my $rc_switch = defined($code) ? $self->$code($recursion_level, $r) : 1;
+        my $rc_switch = defined($code) ? $self->$code() : 1;
         #
         # Any false return value mean immediate stop
         #
@@ -775,7 +775,7 @@ sub parse {
     my $final_encoding = $orig_encoding;
     my %internal_events = (
                            'prolog$'       => { fixed_length => 0, end_of_grammar => 1, type => 'completed', symbol_name => 'prolog' },
-                           );
+                          );
     my %switches = (
                     '_ENCNAME$'  => sub {
                       my ($self, $recursion_level, $encname) = @_;
