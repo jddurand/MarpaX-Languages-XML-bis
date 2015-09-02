@@ -168,7 +168,7 @@ sub guess {
 }
 
 sub final {
-  my ($self, $bom_encoding, $guess_encoding, $xml_encoding, $orig_encodingp) = @_;
+  my ($self, $bom_encoding, $guess_encoding, $xml_encoding) = @_;
 
   $self->_logger->tracef('[Encoding] BOM says \'%s\', guess says \'%s\', XML says \'%s\'', $bom_encoding, $guess_encoding, $xml_encoding);
 

@@ -777,7 +777,7 @@ sub parse {
                       # Check eventual encoding v.s. endianness. Algorithm vaguely taken from
                       # https://blogs.oracle.com/tucu/entry/detecting_xml_charset_encoding_again
                       #
-                      $final_encoding = $encoding->final($bom_encoding, $guess_encoding, $xml_encoding, $orig_encoding);
+                      $final_encoding = $encoding->final($bom_encoding, $guess_encoding, $xml_encoding);
                       return ($final_encoding eq $orig_encoding);
                     }
                    );
