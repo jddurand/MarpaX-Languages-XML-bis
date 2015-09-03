@@ -3,7 +3,6 @@ use Marpa::R2;
 use MarpaX::Languages::XML::Exception;
 use MarpaX::Languages::XML::Impl::Encoding;
 use MarpaX::Languages::XML::Impl::Grammar;
-use MarpaX::Languages::XML::Impl::IO;
 use MarpaX::Languages::XML::Impl::Logger;
 use Moo;
 use MooX::HandlesVia;
