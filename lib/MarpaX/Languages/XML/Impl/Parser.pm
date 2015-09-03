@@ -722,6 +722,17 @@ sub _get_line_column {
   return $lexeme ? $self->_get_lexeme_line_column($r) : $self->_get_literal_line_column($r, $non_terminal);
 }
 
+sub _start_document {
+  my ($self, $user_code, $recursion_level, $global_line, $global_column, @args) = @_;
+
+  $self->_logger->debugf('[%2d][%d:%d] SAX event start_document', $recursion_level, $global_line, $global_column);
+  #
+  # No argument for start_document
+  #
+  $self->$user_code(@args);
+  return 1;
+}
+
 sub parse {
   my ($self, $hash_ref) = @_;
 
@@ -738,6 +749,11 @@ sub parse {
   my $parse_opts_ref = $hash_ref->{parse_opts} || {};
   if ((reftype($parse_opts_ref) || '') ne 'HASH') {
     $self->_exception('parse_opts must be a ref to HASH');
+  }
+
+  my $sax_handlers_ref = $hash_ref->{sax_handlers} || {};
+  if ((reftype($sax_handlers_ref) || '') ne 'HASH') {
+    $self->_exception('SAX handlers must be a ref to HASH');
   }
 
   try {
@@ -774,7 +790,7 @@ sub parse {
     #
     my $final_encoding = $orig_encoding;
     my %internal_events = (
-                           'prolog$'       => { fixed_length => 0, end_of_grammar => 1, type => 'completed', symbol_name => 'prolog' },
+                           'prolog$'         => { fixed_length => 0, end_of_grammar => 1, type => 'completed', symbol_name => 'prolog' },
                           );
     my %switches = (
                     '_ENCNAME$'  => sub {
@@ -792,6 +808,24 @@ sub parse {
                       return ($final_encoding eq $orig_encoding);
                     }
                    );
+    #
+    # Add events and internal switches for SAX events
+    #
+    foreach (keys %{$sax_handlers_ref}) {
+      my $user_code = $sax_handlers_ref->{$_};
+      #
+      # At this step only start_document is supported
+      #
+      if ($_ eq 'start_document') {
+        $switches{$_} = sub {
+          my ($self) = @_;
+          #
+          # No argument for start_document
+          #
+          return $self->_start_document($user_code, $recursion_level, $global_line, $global_column);
+        };
+      }
+    }
     my $global_pos = $byte_start;
     my $pos = 0;
     my $length = $self->io->length;
@@ -813,7 +847,7 @@ sub parse {
     $self->_generic_parse(
                           $buffer,           # buffer
                           $recursion_level,  # recursion_level
-                          'prolog',          # start_symbol
+                          'document',        # start_symbol
                           'prolog$',         # end_event_name
                           @generic_parse_common_args
                          );
