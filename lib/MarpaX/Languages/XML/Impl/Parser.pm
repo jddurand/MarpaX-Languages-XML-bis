@@ -303,7 +303,7 @@ our %LEXEME_REGEXPS = (
                 NOTATIONDECL_END              => qr{\G>},
                );
 
-our %LEXEME_DESCRIPTIONS = (
+our %G1_DESCRIPTIONS = (
                        #
                        # These are the lexemes of unknown size
                        #
@@ -458,7 +458,7 @@ sub _generic_parse {
     :
     $self->_set__grammar($start_symbol, MarpaX::Languages::XML::Impl::Grammar->new->compile(%{$hash_ref},
                                                                                             start => $start_symbol,
-                                                                                            internal_events => {%LEXEME_DESCRIPTIONS, %{$internal_events_ref}}
+                                                                                            internal_events => {%G1_DESCRIPTIONS, %{$internal_events_ref}}
                                                                                            ));
   ;
 
@@ -505,15 +505,15 @@ sub _generic_parse {
     my %length = ();
     my $max_length = 0;
     foreach (@event_names) {
-      if (exists($LEXEME_DESCRIPTIONS{$_})) {
+      if (exists($G1_DESCRIPTIONS{$_})) {
         $have_prediction = 1;
-        my $symbol_name = $LEXEME_DESCRIPTIONS{$_}->{symbol_name};
+        my $symbol_name = $G1_DESCRIPTIONS{$_}->{symbol_name};
         #
         # Check if the decision about this lexeme can be done
         #
-        if ($LEXEME_DESCRIPTIONS{$_}->{min_chars} > $remaining) {
+        if ($G1_DESCRIPTIONS{$_}->{min_chars} > $remaining) {
           my $old_remaining = $remaining;
-          $self->_logger->tracef('[%2d][%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $recursion_level, $global_line, $global_column, $symbol_name, $LEXEME_DESCRIPTIONS{$_}->{min_chars}, $remaining);
+          $self->_logger->tracef('[%2d][%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $recursion_level, $global_line, $global_column, $symbol_name, $G1_DESCRIPTIONS{$_}->{min_chars}, $remaining);
           $remaining = $length = ${$lengthp} = $self->_reduceAndRead($pos, $_[1], $length, $recursion_level, 0, $global_line, $global_column);
           $pos = 0;
           if ($remaining > $old_remaining) {
@@ -534,7 +534,7 @@ sub _generic_parse {
           if (exists($LEXEME_EXCLUSIONS{$symbol_name}) && ($matched_data =~ $LEXEME_EXCLUSIONS{$symbol_name})) {
             $self->_logger->tracef('[%2d][%d:%d] Lexeme %s match excluded', $recursion_level, $global_line, $global_column, $symbol_name);
           } else {
-            if (($+[0] >= $length) && ! $LEXEME_DESCRIPTIONS{$_}->{fixed_length}) {
+            if (($+[0] >= $length) && ! $G1_DESCRIPTIONS{$_}->{fixed_length}) {
               $self->_logger->tracef('[%2d][%d:%d] Lexeme %s match but end-of-buffer', $recursion_level, $global_line, $global_column, $symbol_name);
               my $old_remaining = $remaining;
               $self->_logger->tracef('[%2d][%d:%d] Lexeme %s is of unpredicted size and currently reaches end-of-buffer', $recursion_level, $global_line, $global_column, $symbol_name);
@@ -549,11 +549,12 @@ sub _generic_parse {
                 $self->_logger->debugf('[%2d][%d:%d] Nothing more read', $recursion_level, $global_line, $global_column);
               }
             }
-            $length{$symbol_name} = $+[0] - $-[0];
-            $self->_logger->tracef('[%2d][%d:%d] %s: match of length %d', $recursion_level, $global_line, $global_column, $symbol_name, $length{$symbol_name});
-            if ((! $max_length) || ($length{$symbol_name} > $max_length)) {
+            my $lexeme_name = '_' . $symbol_name;
+            $length{$lexeme_name} = $+[0] - $-[0];
+            $self->_logger->tracef('[%2d][%d:%d] %s: match of length %d', $recursion_level, $global_line, $global_column, $symbol_name, $length{$lexeme_name});
+            if ((! $max_length) || ($length{$lexeme_name} > $max_length)) {
               $data = $matched_data;
-              $max_length = $length{$symbol_name};
+              $max_length = $length{$lexeme_name};
             }
           }
         } else {
