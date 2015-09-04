@@ -43,7 +43,9 @@ sub open {
 
   $self->_source($source);
 
-  $self->_logger->tracef('[IO] Opening %s %s', $self->_source, \@_);
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    $self->_logger->tracef('[IO] Opening %s %s', $self->_source, \@_);
+  }
   $self->_io(io($self->_source));
   $self->_io->open(@_);
 
@@ -53,7 +55,9 @@ sub open {
 sub close {
   my $self = shift;
 
-  $self->_logger->tracef('[IO] Closing %s', $self->_source);
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    $self->_logger->tracef('[IO] Closing %s', $self->_source);
+  }
   $self->_io->close();
 
   return $self;
@@ -70,8 +74,10 @@ sub block_size {
 sub block_size_value {
   my $self = shift;
 
-  my $rc;
-  $self->_logger->tracef('[IO] %s block-size %s %s', @_ ? 'Setting' : 'Getting', @_ ? '->' : '<-', $rc = $self->_block_size_value(@_));
+  my $rc = $self->_block_size_value(@_);
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    $self->_logger->tracef('[IO] %s block-size %s %s', @_ ? 'Setting' : 'Getting', @_ ? '->' : '<-', $rc);
+  }
 
   return $rc;
 }
@@ -79,7 +85,9 @@ sub block_size_value {
 sub binary {
   my $self = shift;
 
-  $self->_logger->tracef('[IO] Setting binary');
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    $self->_logger->tracef('[IO] Setting binary');
+  }
   $self->_io->binary();
 
   return $self;
@@ -89,14 +97,18 @@ sub length {
   my $self = shift;
 
   my $rc = $self->_io->length(@_);
-  $self->_logger->tracef('[IO] Getting length -> %s', $rc);
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    $self->_logger->tracef('[IO] Getting length -> %s', $rc);
+  }
   return $rc;
 }
 
 sub buffer {
   my $self = shift;
 
-  $self->_logger->tracef('[IO] %s buffer', @_ ? 'Setting' : 'Getting');
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    $self->_logger->tracef('[IO] %s buffer', @_ ? 'Setting' : 'Getting');
+  }
   return $self->_io->buffer(@_);
 }
 
@@ -106,7 +118,9 @@ sub buffer {
   sub read {
     my $self = shift;
 
-    $self->_logger->tracef('[IO] Reading %d units', $self->_block_size_value);
+    if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+      $self->_logger->tracef('[IO] Reading %d units', $self->_block_size_value);
+    }
     $self->_io->read;
 
     return $self;
@@ -116,7 +130,9 @@ sub buffer {
 sub clear {
   my $self = shift;
 
-  $self->_logger->tracef('[IO] Clearing buffer');
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    $self->_logger->tracef('[IO] Clearing buffer');
+  }
   $self->_io->clear;
 
   return $self;
@@ -126,14 +142,18 @@ sub tell {
   my $self = shift;
 
   my $rc = $self->_io->tell;
-  $self->_logger->tracef('[IO] Tell -> %s', $rc);
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    $self->_logger->tracef('[IO] Tell -> %s', $rc);
+  }
   return $rc;
 }
 
 sub seek {
   my $self = shift;
 
-  $self->_logger->tracef('[IO] Seek %s', \@_);
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    $self->_logger->tracef('[IO] Seek %s', \@_);
+  }
   $self->_io->seek(@_);
 
   return $self;
@@ -143,7 +163,9 @@ sub encoding {
   my $self = shift;
   my $encoding = shift;
 
-  $self->_logger->tracef('[IO] Setting encoding %s', $encoding);
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    $self->_logger->tracef('[IO] Setting encoding %s', $encoding);
+  }
   $self->_io->encoding($encoding);
 
   return $self;

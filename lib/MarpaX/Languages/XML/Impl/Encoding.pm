@@ -89,10 +89,12 @@ sub bom {
     $bom_size = 2;
   }
 
-  if (length($bom) > 0) {
-    $self->_logger->tracef('[Encoding] BOM says: \'%s\' using %d bytes', $bom, $bom_size);
-  } else {
-    $self->_logger->tracef('[Encoding] No information from BOM');
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    if (length($bom) > 0) {
+      $self->_logger->tracef('[Encoding] BOM says: \'%s\' using %d bytes', $bom, $bom_size);
+    } else {
+      $self->_logger->tracef('[Encoding] No information from BOM');
+    }
   }
 
   return ($bom, $bom_size);
@@ -124,7 +126,9 @@ sub guess {
   if (! $name) {
     my $is_ebcdic = $Config{'ebcdic'} || '';
     if ($is_ebcdic eq 'define') {
-      $self->_logger->tracef('[Encoding] Encode::Guess not supported on EBCDIC platform');
+      if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+        $self->_logger->tracef('[Encoding] Encode::Guess not supported on EBCDIC platform');
+      }
       return;
     }
 
@@ -146,7 +150,9 @@ sub guess {
       }
       $name = uc($enc->name || '');
     } catch {
-      $self->_logger->tracef('[Encoding] %s', $_);
+      if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+        $self->_logger->tracef('[Encoding] %s', $_);
+      }
     };
   }
 
@@ -154,14 +160,18 @@ sub guess {
     #
     # Ok, ascii is UTF-8 compatible. Let's say UTF-8.
     #
-    $self->_logger->tracef('[Encoding] Revisiting %s guess to UTF-8', $name);
+    if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+      $self->_logger->tracef('[Encoding] Revisiting %s guess to UTF-8', $name);
+    }
     $name = 'UTF-8';
   }
 
-  if (length($name) > 0) {
-    $self->_logger->tracef('[Encoding] Guess: \'%s\'', $name);
-  } else {
-    $self->_logger->tracef('[Encoding] No guess');
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    if (length($name) > 0) {
+      $self->_logger->tracef('[Encoding] Guess: \'%s\'', $name);
+    } else {
+      $self->_logger->tracef('[Encoding] No guess');
+    }
   }
 
   return $name;
@@ -170,7 +180,9 @@ sub guess {
 sub final {
   my ($self, $bom_encoding, $guess_encoding, $xml_encoding) = @_;
 
-  $self->_logger->tracef('[Encoding] BOM says \'%s\', guess says \'%s\', XML says \'%s\'', $bom_encoding, $guess_encoding, $xml_encoding);
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    $self->_logger->tracef('[Encoding] BOM says \'%s\', guess says \'%s\', XML says \'%s\'', $bom_encoding, $guess_encoding, $xml_encoding);
+  }
 
   my $final_encoding;
   if (! $bom_encoding) {
@@ -211,7 +223,9 @@ sub final {
     $final_encoding = $bom_encoding;
   }
 
-  $self->_logger->tracef('[Encoding] Final value is \'%s\'', $final_encoding);
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    $self->_logger->tracef('[Encoding] Final value is \'%s\'', $final_encoding);
+  }
 
   return $final_encoding;
 }

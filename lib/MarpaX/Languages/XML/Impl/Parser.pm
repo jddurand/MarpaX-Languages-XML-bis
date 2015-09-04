@@ -107,7 +107,7 @@ sub _exception {
   my ($self, $message, $r) = @_;
 
   $message //= '';
-  if ($self->_logger->is_debug() && $r) {
+  if ($MarpaX::Languages::XML::Impl::Parser::is_debug && $r) {
     $message .= "\n" . $r->show_progress();
   }
 
@@ -136,7 +136,9 @@ sub _encoding {
   if (length($found_encoding) <= 0) {
     $found_encoding = $encoding->guess($buffer);
     if (length($found_encoding) <= 0) {
-      $self->_logger->debugf('Assuming relaxed (perl) utf8 encoding');
+      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+        $self->_logger->debugf('Assuming relaxed (perl) utf8 encoding');
+      }
       $found_encoding = 'UTF8';  # == utf8 == perl relaxed unicode
     } else {
       $guess_encoding = uc($found_encoding);
@@ -419,6 +421,7 @@ our %G1_DESCRIPTIONS = (
                       '^NOTATIONDECL_START'            => { fixed_length => 1, type => 'predicted', min_chars => 10, symbol_name => 'NOTATIONDECL_START', lexeme_name => '_NOTATIONDECL_START' },
                       '^NOTATIONDECL_END'              => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'NOTATIONDECL_END', lexeme_name => '_NOTATIONDECL_END' },
                      );
+
 #
 # It is assumed that caller ONLY USE completed or nulled events
 # The predicted events are RESERVED for lexeme prediction.
@@ -429,7 +432,6 @@ sub _generic_parse {
   #
   my ($self,
       undef,
-      $recursion_level,
       $start_symbol, $end_event_name,
       $lengthp,
       $posp, $global_posp,
@@ -438,8 +440,6 @@ sub _generic_parse {
       $hash_ref,
       $parse_opts_ref,
       $internal_events_ref, $switches_ref) = @_;
-
-  $recursion_level //= 0;
 
   my $length = ${$lengthp};
   my $pos = ${$posp};
@@ -495,14 +495,11 @@ sub _generic_parse {
       ) {
     my $can_stop = 0;
     my @event_names = map { $_->[0] } @{$r->events()};
-    $self->_logger->tracef('[%2d][%d:%d] Events: %s', $recursion_level, $global_line, $global_column, \@event_names);
+    if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+      $self->_logger->tracef('[%d:%d] Events: %s', $global_line, $global_column, \@event_names);
+    }
 
   manage_events:
-    # $self->_logger->tracef('[%2d][%d:%d] Data: %s', $recursion_level, $global_line, $global_column, substr($_[1], $pos));
-    # if ($remaining) {
-    # } else {
-    #   $self->_logger->tracef('[%2d][%d:%d] Data[%d..%d]: %s', $recursion_level, $global_line, $global_column, $pos, $length - 1, substr($_[1], $pos));
-    # }
     #
     # Predicted events always come first -;
     #
@@ -522,8 +519,10 @@ sub _generic_parse {
         #
         if ($G1_DESCRIPTIONS{$_}->{min_chars} > $remaining) {
           my $old_remaining = $remaining;
-          $self->_logger->tracef('[%2d][%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $recursion_level, $global_line, $global_column, $lexeme_name, $G1_DESCRIPTIONS{$_}->{min_chars}, $remaining);
-          $remaining = $length = ${$lengthp} = $self->_reduceAndRead($pos, $_[1], $length, $recursion_level, 0, $global_line, $global_column);
+          if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+            $self->_logger->tracef('[%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $global_line, $global_column, $lexeme_name, $G1_DESCRIPTIONS{$_}->{min_chars}, $remaining);
+          }
+          $remaining = $length = ${$lengthp} = $self->_reduceAndRead($pos, $_[1], $length, 0, $global_line, $global_column);
           $pos = 0;
           if ($remaining > $old_remaining) {
             #
@@ -531,7 +530,9 @@ sub _generic_parse {
             #
             goto manage_events;
           } else {
-            $self->_logger->debugf('[%2d][%d:%d] Nothing more read', $recursion_level, $global_line, $global_column);
+            if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+              $self->_logger->debugf('[%d:%d] Nothing more read', $global_line, $global_column);
+            }
           }
         }
         #
@@ -541,13 +542,16 @@ sub _generic_parse {
         if ($_[1] =~ $LEXEME_REGEXPS{$lexeme_name}) {
           my $matched_data = substr($_[1], $-[0], $+[0] - $-[0]);
           if (exists($LEXEME_EXCLUSIONS{$lexeme_name}) && ($matched_data =~ $LEXEME_EXCLUSIONS{$lexeme_name})) {
-            $self->_logger->tracef('[%2d][%d:%d] Lexeme %s match excluded', $recursion_level, $global_line, $global_column, $lexeme_name);
+            if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+              $self->_logger->tracef('[%d:%d] Lexeme %s match excluded', $global_line, $global_column, $lexeme_name);
+            }
           } else {
             if (($+[0] >= $length) && ! $G1_DESCRIPTIONS{$_}->{fixed_length}) {
-              $self->_logger->tracef('[%2d][%d:%d] Lexeme %s match but end-of-buffer', $recursion_level, $global_line, $global_column, $lexeme_name);
+              if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+                $self->_logger->tracef('[%d:%d] Lexeme %s is of unpredicted size and currently reaches end-of-buffer', $global_line, $global_column, $lexeme_name);
+              }
               my $old_remaining = $remaining;
-              $self->_logger->tracef('[%2d][%d:%d] Lexeme %s is of unpredicted size and currently reaches end-of-buffer', $recursion_level, $global_line, $global_column, $lexeme_name);
-              $remaining = $length = ${$lengthp} = $self->_reduceAndRead($pos, $_[1], $length, $recursion_level, 0, $global_line, $global_column);
+              $remaining = $length = ${$lengthp} = $self->_reduceAndRead($pos, $_[1], $length, 0, $global_line, $global_column);
               $pos = 0;
               if ($remaining > $old_remaining) {
                 #
@@ -555,18 +559,24 @@ sub _generic_parse {
                 #
                 goto manage_events;
               } else {
-                $self->_logger->debugf('[%2d][%d:%d] Nothing more read', $recursion_level, $global_line, $global_column);
+                if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+                  $self->_logger->debugf('[%d:%d] Nothing more read', $global_line, $global_column);
+                }
               }
             }
             $length{$lexeme_name} = $+[0] - $-[0];
-            $self->_logger->tracef('[%2d][%d:%d] %s: match of length %d', $recursion_level, $global_line, $global_column, $lexeme_name, $length{$lexeme_name});
+            if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+              $self->_logger->tracef('[%d:%d] %s: match of length %d', $global_line, $global_column, $lexeme_name, $length{$lexeme_name});
+            }
             if ((! $max_length) || ($length{$lexeme_name} > $max_length)) {
               $data = $matched_data;
               $max_length = $length{$lexeme_name};
             }
           }
         } else {
-          $self->_logger->tracef('[%2d][%d:%d] %s: no match', $recursion_level, $global_line, $global_column, $lexeme_name);
+          if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+            $self->_logger->tracef('[%d:%d] %s: no match', $global_line, $global_column, $lexeme_name);
+          }
         }
       } else {
         #
@@ -574,7 +584,9 @@ sub _generic_parse {
         # ---------------
         if ($_ eq $end_event_name) {
           $can_stop = 1;
-          $self->_logger->debugf('[%2d][%d:%d] Grammar end event %s', $recursion_level, $global_line, $global_column, $_);
+          if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+            $self->_logger->debugf('[%d:%d] Grammar end event %s', $global_line, $global_column, $_);
+          }
         }
         #
         # Callback ?
@@ -585,23 +597,31 @@ sub _generic_parse {
         # Any false return value mean immediate stop
         #
         if (! $rc_switch) {
-          $self->_logger->debugf('[%2d][%d:%d] Event callback %s says to stop', $recursion_level, $global_line, $global_column, $_);
+          if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+            $self->_logger->debugf('[%d:%d] Event callback %s says to stop', $global_line, $global_column, $_);
+          }
           return;
         }
       }
     }
-    $self->_logger->tracef('[%2d][%d:%d] have_prediction %d can_stop %d length %s', $recursion_level, $global_line, $global_column, $have_prediction, $can_stop, \%length);
+    if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+      $self->_logger->tracef('[%d:%d] have_prediction %d can_stop %d length %s', $global_line, $global_column, $have_prediction, $can_stop, \%length);
+    }
     if ($have_prediction) {
       if (! $max_length) {
         if ($can_stop) {
-          $self->_logger->tracef('[%2d][%d:%d] No predicted lexeme found but grammar end flag is on', $recursion_level, $global_line, $global_column);
+          if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+            $self->_logger->tracef('[%d:%d] No predicted lexeme found but grammar end flag is on', $global_line, $global_column);
+          }
           return;
         } else {
-          $self->_exception(sprintf('[%2d][%d:%d] No predicted lexeme found', $recursion_level, $global_line, $global_column));
+          $self->_exception(sprintf('[%d:%d] No predicted lexeme found', $global_line, $global_column));
         }
       } else {
         my @alternatives = grep { $length{$_} == $max_length } keys %length;
-        $self->_logger->debugf('[%2d][%d:%d] Lexeme alternative %s', $recursion_level, $global_line, $global_column, \@alternatives);
+        if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+          $self->_logger->debugf('[%d:%d] Lexeme alternative %s', $global_line, $global_column, \@alternatives);
+        }
         my @lexeme_complete_events = ();
         my ($previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos) = ($global_line, $global_column, $global_pos, $pos);
         foreach (@alternatives) {
@@ -609,9 +629,11 @@ sub _generic_parse {
           # Callback on lexeme prediction
           #
           my $code = $switches_ref->{"^$_"};
-          my $rc_switch = defined($code) ? $self->$code($recursion_level, $data, $previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos, $global_line, $global_column, $global_pos, $pos) : 1;
+          my $rc_switch = defined($code) ? $self->$code($data, $previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos, $global_line, $global_column, $global_pos, $pos) : 1;
           if (! $rc_switch) {
-            $self->_logger->debugf('[%2d][%d:%d] Event callback %s says to stop', $recursion_level, $global_line, $global_column, "^$_");
+            if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+              $self->_logger->debugf('[%d:%d] Event callback %s says to stop', $global_line, $global_column, "^$_");
+            }
             return;
           }
           #
@@ -624,7 +646,9 @@ sub _generic_parse {
           #
           push(@lexeme_complete_events, "$_\$");
         }
-        $self->_logger->tracef('[%2d][%d:%d] Lexeme complete of length %d', $recursion_level, $global_line, $global_column, $max_length);
+        if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+          $self->_logger->tracef('[%d:%d] Lexeme complete of length %d', $global_line, $global_column, $max_length);
+        }
         #
         # Position 0 and length 1: the Marpa input buffer is virtual
         #
@@ -647,9 +671,11 @@ sub _generic_parse {
         #
         foreach (@lexeme_complete_events) {
           my $code = $switches_ref->{$_};
-          my $rc_switch = defined($code) ? $self->$code($recursion_level, $data, $previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos, $global_line, $global_column, $global_pos, $pos) : 1;
+          my $rc_switch = defined($code) ? $self->$code($data, $previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos, $global_line, $global_column, $global_pos, $pos) : 1;
           if (! $rc_switch) {
-            $self->_logger->debugf('[%2d][%d:%d] Event callback %s says to stop', $recursion_level, $global_line, $global_column, $_);
+            if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+              $self->_logger->debugf('[%d:%d] Event callback %s says to stop', $global_line, $global_column, $_);
+            }
             return;
           }
         }
@@ -657,7 +683,9 @@ sub _generic_parse {
         # lexeme complete can generate new events: handle them before eventually resuming
         #
         @event_names = map { $_->[0] } @{$r->events()};
-        $self->_logger->tracef('[%2d][%d:%d] Events: %s', $recursion_level, $global_line, $global_column, \@event_names);
+        if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+          $self->_logger->tracef('[%d:%d] Events: %s', $global_line, $global_column, \@event_names);
+        }
         goto manage_events;
       }
     } else {
@@ -665,10 +693,12 @@ sub _generic_parse {
       # No prediction: this is ok only if grammar end_of_grammar flag is set
       #
       if ($can_stop) {
-        $self->_logger->tracef('[%2d][%d:%d] No prediction and grammar end flag is on', $recursion_level, $global_line, $global_column);
+        if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+          $self->_logger->tracef('[%d:%d] No prediction and grammar end flag is on', $global_line, $global_column);
+        }
         return;
       } else {
-        $self->_exception(sprintf('[%2d][%d:%d] No prediction and grammar end flag is not set', $recursion_level, $global_line, $global_column));
+        $self->_exception(sprintf('[%d:%d] No prediction and grammar end flag is not set', $global_line, $global_column));
       }
     }
   }
@@ -677,7 +707,7 @@ sub _generic_parse {
 }
 
 sub _reduceAndRead {
-  my ($self, $pos, undef, $length, $recursion_level, $eof_is_fatal, $global_line, $global_column) = @_;
+  my ($self, $pos, undef, $length, $eof_is_fatal, $global_line, $global_column) = @_;
   #
   # Crunch previous data
   #
@@ -686,22 +716,28 @@ sub _reduceAndRead {
     # Faster like this -;
     #
     if ($pos >= $length) {
-      $self->_logger->debugf('[%2d][%d:%d] Rolling-out buffer', $recursion_level, $global_line, $global_column);
+      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+        $self->_logger->debugf('[%d:%d] Rolling-out buffer', $global_line, $global_column);
+      }
       $_[2] = '';
     } else {
-      $self->_logger->debugf('[%2d][%d:%d] Removing first %d characters', $recursion_level, $global_line, $global_column, $pos);
+      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+        $self->_logger->debugf('[%d:%d] Rolling-out %d characters', $global_line, $global_column, $pos);
+      }
       substr($_[2], 0, $pos, '');
     }
   }
   #
   # Read more data
   #
-  $self->_logger->tracef('[%2d][%d:%d] Reading data', $recursion_level, $global_line, $global_column);
-  return $self->_read($recursion_level, $eof_is_fatal, $global_line, $global_column);
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    $self->_logger->tracef('[%d:%d] Reading data', $global_line, $global_column);
+  }
+  return $self->_read($eof_is_fatal, $global_line, $global_column);
 }
 
 sub _read {
-  my ($self, $recursion_level, $eof_is_fatal, $global_line, $global_column) = @_;
+  my ($self, $eof_is_fatal, $global_line, $global_column) = @_;
 
   $eof_is_fatal //= 1;
 
@@ -709,45 +745,22 @@ sub _read {
   my $new_length;
   if (($new_length = $self->io->length) <= 0) {
     if ($eof_is_fatal) {
-      $self->_exception(sprintf('[%2d][%d:%d] EOF', $recursion_level, $global_line, $global_column));
+      $self->_exception(sprintf('[%d:%d] EOF', $global_line, $global_column));
     } else {
-      $self->_logger->debugf('[%2d][%d:%d] EOF', $recursion_level, $global_line, $global_column);
+      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+        $self->_logger->debugf('[%d:%d] EOF', $global_line, $global_column);
+      }
     }
   }
   return $new_length;
 }
 
-sub _get_literal {
-  my ($self, $r, $non_terminal) = @_;
-
-  my ($start, $length) = $r->last_completed_span($non_terminal);
-  return $r->literal($start, $length);
-}
-
-sub _get_lexeme_line_column {
-  my ($self, $r) = @_;
-
-  my ($start, $length) = $r->pause_span();
-  return $r->line_column($start);
-}
-
-sub _get_literal_line_column {
-  my ($self, $r, $non_terminal) = @_;
-
-  my ($start, $length) = $r->last_completed_span($non_terminal);
-  return $r->line_column($start);
-}
-
-sub _get_line_column {
-  my ($self, $r, $lexeme, $non_terminal) = @_;
-
-  return $lexeme ? $self->_get_lexeme_line_column($r) : $self->_get_literal_line_column($r, $non_terminal);
-}
-
 sub _start_document {
-  my ($self, $user_code, $recursion_level, $global_line, $global_column, @args) = @_;
+  my ($self, $user_code, $global_line, $global_column, @args) = @_;
 
-  $self->_logger->debugf('[%2d][%d:%d] SAX event start_document', $recursion_level, $global_line, $global_column);
+  if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+    $self->_logger->debugf('[%d:%d] SAX event start_document', $global_line, $global_column);
+  }
   #
   # No argument for start_document
   #
@@ -757,6 +770,13 @@ sub _start_document {
 
 sub parse {
   my ($self, $hash_ref) = @_;
+
+  #
+  # Localized variables
+  #
+  local $MarpaX::Languages::XML::Impl::Parser::is_trace = $self->_logger->is_trace;
+  local $MarpaX::Languages::XML::Impl::Parser::is_debug = $self->_logger->is_debug;
+  local $MarpaX::Languages::XML::Impl::Parser::is_warn  = $self->_logger->is_warn;
 
   $hash_ref //= {};
 
@@ -782,7 +802,6 @@ sub parse {
     # ------------------
     # "Global variables"
     # ------------------
-    my $recursion_level = 0;
     my $pos = 0;
     my $global_pos = 0;
     my $global_line = 1;
@@ -796,7 +815,9 @@ sub parse {
     #
     my $encoding = MarpaX::Languages::XML::Impl::Encoding->new();
     my ($bom_encoding, $guess_encoding, $orig_encoding, $byte_start)  = $self->_encoding($encoding);
-    $self->_logger->debugf('[%2d][%d:%d] BOM and/or guess gives encoding %s and byte offset %d', $recursion_level, $global_line, $global_column, $orig_encoding, $byte_start);
+    if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+      $self->_logger->debugf('[%d:%d] BOM and/or guess gives encoding %s and byte offset %d', $global_line, $global_column, $orig_encoding, $byte_start);
+    }
     my $nb_retry_because_of_encoding = 0;
   retry_because_of_encoding:
     #
@@ -823,12 +844,14 @@ sub parse {
                           );
     my %switches = (
                     '_ENCNAME$'  => sub {
-                      my ($self, $recursion_level, $data, $previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos, $outer_global_line, $outer_global_column, $outer_global_pos, $outer_pos) = @_;
+                      my ($self, $data, $previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos, $outer_global_line, $outer_global_column, $outer_global_pos, $outer_pos) = @_;
                       #
                       # Encoding is composed only of ASCII codepoints, so uc is ok
                       #
                       my $xml_encoding = uc($data);
-                      $self->_logger->debugf('[%2d][%d:%d] XML says encoding %s', $recursion_level, $outer_global_line, $outer_global_column, $xml_encoding);
+                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+                        $self->_logger->debugf('[%d:%d] XML says encoding %s', $outer_global_line, $outer_global_column, $xml_encoding);
+                      }
                       #
                       # Check eventual encoding v.s. endianness. Algorithm vaguely taken from
                       # https://blogs.oracle.com/tucu/entry/detecting_xml_charset_encoding_again
@@ -837,21 +860,25 @@ sub parse {
                       return ($final_encoding eq $orig_encoding);
                     },
                     '^_ELEMENT_START'  => sub {
-                      my ($self, $recursion_level, $data, $previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos, $outer_global_line, $outer_global_column, $outer_global_pos, $outer_pos) = @_;
+                      my ($self, $data, $previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos, $outer_global_line, $outer_global_column, $outer_global_pos, $outer_pos) = @_;
                       #
                       # We want to continue with element grammar at previous position.
                       # Our internal engine guarantees that the internal data will not rolled out at this stage
                       #
-                      $self->_logger->debugf('[%2d][%d:%d->%d:%d] ELEMENT_START lexeme prediction event', $recursion_level, $previous_global_line, $previous_global_column, $outer_global_line, $outer_global_column);
+                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+                        $self->_logger->debugf('[%d:%d->%d:%d] ELEMENT_START lexeme prediction event', $previous_global_line, $previous_global_column, $outer_global_line, $outer_global_column);
+                      }
                       return 0;
                     },
                     '_ELEMENT_START$'  => sub {
-                      my ($self, $recursion_level, $data, $previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos, $outer_global_line, $outer_global_column, $outer_global_pos, $outer_pos) = @_;
+                      my ($self, $data, $previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos, $outer_global_line, $outer_global_column, $outer_global_pos, $outer_pos) = @_;
                       #
                       # We want to continue with element grammar at previous position.
                       # Our internal engine guarantees that the internal data will not rolled out at this stage
                       #
-                      $self->_logger->debugf('[%2d][%d:%d->%d:%d] ELEMENT_START lexeme completion event', $recursion_level, $previous_global_line, $previous_global_column, $outer_global_line, $outer_global_column);
+                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+                        $self->_logger->debugf('[%d:%d->%d:%d] ELEMENT_START lexeme completion event', $previous_global_line, $previous_global_column, $outer_global_line, $outer_global_column);
+                      }
                       $pos           = $previous_pos;
                       $global_line   = $previous_global_line;
                       $global_pos    = $previous_global_pos;
@@ -873,7 +900,7 @@ sub parse {
           #
           # No argument for start_document
           #
-          return $self->_start_document($user_code, $recursion_level, $global_line, $global_column);
+          return $self->_start_document($user_code, $global_line, $global_column);
         };
       }
     }
@@ -896,13 +923,14 @@ sub parse {
                                     );
     $self->_generic_parse(
                           $buffer,           # buffer
-                          $recursion_level,  # recursion_level
                           'document',        # start_symbol
                           'prolog$',         # end_event_name
                           @generic_parse_common_args
                          );
     if ($final_encoding ne $orig_encoding) {
-      $self->_logger->debugf('[%2d][%d:%d] Redoing parse using encoding %s instead of %s', $recursion_level, $global_line, $global_column, $final_encoding, $orig_encoding);
+      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+        $self->_logger->debugf('[%d:%d] Redoing parse using encoding %s instead of %s', $global_line, $global_column, $final_encoding, $orig_encoding);
+      }
       #
       # Set encoding
       #
@@ -935,7 +963,6 @@ sub parse {
     %switches = ();
     $self->_generic_parse(
                           $buffer,           # buffer
-                          $recursion_level,  # recursion_level
                           'element',         # start_symbol
                           'element$',        # end_event_name
                           @generic_parse_common_args
@@ -946,374 +973,6 @@ sub parse {
   };
 
 }
-
-sub orig_parse {
-  my ($self, %hash) = @_;
-
-  my $value;
-
-  #
-  # Sanity checks
-  #
-  my $source = $hash{source} || '';
-  if (reftype($source)) {
-    $self->_exception('source must be a SCALAR');
-  }
-
-  my $block_size = $hash{block_size} || 11;
-  if (reftype($block_size)) {
-    $self->_exception('block_size must be a SCALAR');
-  }
-
-  my $parse_opts = $hash{parse_opts} || {};
-  if ((reftype($parse_opts) || '') ne 'HASH') {
-    $self->_exception('parse_opts must be a ref to HASH');
-  }
-
-  #
-  # Get grammars
-  #
-  my $document = MarpaX::Languages::XML::Impl::Grammar->new->compile(%hash,
-                                                                     start => 'document',
-                                                                     internal_events =>
-                                                                     {
-                                                                      G1 =>
-                                                                      {
-                                                                       EncodingDecl => { type => 'completed', name => 'EncodingDecl$' }
-                                                                      },
-                                                                      L0 =>
-                                                                      {
-                                                                       STAG_START => { type => 'before', name => '^STAG_START' }
-                                                                      }
-                                                                     }
-                                                                    );
-  my $misc_any = MarpaX::Languages::XML::Impl::Grammar->new->compile(%hash,
-                                                                     start => 'MiscAny',
-                                                                     internal_events =>
-                                                                     {
-                                                                     }
-                                                                    );
-
-  my $encoding = MarpaX::Languages::XML::Impl::Encoding->new();
-
-  try {
-    #
-    # Guess the encoding
-    #
-    my ($bom_encoding, $guess_encoding, $orig_encoding, $byte_start) = $self->_open($source, $encoding);
-    #
-    # Very initial block size
-    #
-    $self->io->block_size($block_size);
-    #
-    # $xml_encoding will hold the encoding as per the XML itself
-    #
-    my $xml_encoding = '';
-    my $root_element_pos = -1;
-    my $root_line;
-    my $root_column;
-    my $nb_first_read = 0;
-    my $pos;
-    my @events;
-    my $r;
-    #
-    # We prefer to have a direct access to the buffer
-    #
-    my $buffer = '';
-    $self->io->buffer($buffer);
-    #
-    # First the prolog.
-    #
-    $self->io->read;
-    if ($self->io->length <= 0) {
-      $self->_exception('EOF when parsing prolog');
-    }
-  parse_prolog:
-    do {
-      $self->_logger->debugf('Instanciating a document recognizer');
-      $r = Marpa::R2::Scanless::R->new({%{$parse_opts},
-                                        grammar => $document,
-                                        trace_file_handle => $MARPA_TRACE_FILE_HANDLE,
-                                       });
-      #
-      # We accept a failure if buffer is too small
-      #
-      try {
-        $self->_logger->debugf('Parsing buffer');
-        $pos = $r->read(\$buffer);
-      };
-      @events = map { $_->[0] } @{$r->events()};
-      #
-      # We expect either ^STAG_START or EncodingDecl$.
-      # Why ^STAG_START ? Because an XML document must have at least one element.
-      #
-      if (! @events) {
-        $self->_logger->debugf('No event');
-        $block_size *= 2;
-        my $previous_length = $self->io->length;
-        $self->io->block_size($block_size);
-        $self->io->read;
-        if ($self->io->length <= $previous_length) {
-          #
-          # Nothing more to read: prolog is buggy.
-          #
-          $self->_exception('EOF when parsing prolog', $r);
-        }
-      } else {
-        foreach (@events) {
-          $self->_logger->debugf('Got parse event \'%s\' at position %d', $_, $pos);
-          if ($_ eq 'EncodingDecl$') {
-            #
-            # Remember encoding as given in the XML
-            #
-            $xml_encoding = uc($self->_get_literal($r, 'EncName'));
-            $self->_logger->debugf('XML says encoding is: \'%s\'', $xml_encoding);
-          }
-          elsif ($_ eq '^STAG_START') {
-            $root_element_pos = $pos;
-            ($root_line, $root_column) = $self->_get_lexeme_line_column($r);
-          }
-        }
-      }
-    } while ((! $xml_encoding) && ($root_element_pos < 0));
-    #
-    # Check eventual encoding v.s. endianness. Algorithm vaguely taken from
-    # https://blogs.oracle.com/tucu/entry/detecting_xml_charset_encoding_again
-    #
-    my $final_encoding = $encoding->final($bom_encoding, $guess_encoding, $xml_encoding, $orig_encoding);
-    if ($final_encoding ne $orig_encoding) {
-      $self->_logger->debugf('Encoding is \'%s\' != \'%s\': redo initial read', $final_encoding, $orig_encoding);
-      #
-      # We have to retry. Per def we will (should) not enter again in this if block.
-      #
-      $self->io->encoding($final_encoding);
-      $self->io->clear;
-      $self->io->pos($byte_start);
-      $orig_encoding = $final_encoding;
-      $self->io->read;
-      if ($self->io->length <= 0) {
-        $self->_exception('EOF when parsing prolog', $r);
-      }
-      goto parse_prolog;
-    } else {
-      $self->_logger->debugf('Encoding match on \'%s\': continuing', $final_encoding);
-    }
-    #
-    # At this point the the root element may not have been reached. In such a case, force it.
-    # This will croak if prolog is buggy or if there is no root element, or if initial buffer
-    # is too small.
-    #
-    if ($root_element_pos < 0) {
-      $self->_logger->debugf('Resuming document regonizer at position %d', $pos);
-      @events = ();
-      try {
-        $pos = $r->resume($pos);
-        @events = map { $_->[0] } @{$r->events()};
-      };
-      foreach (@events) {
-        $self->_logger->debugf('Got parse event \'%s\' at position %d', $_, $pos);
-        if ($_ eq '^STAG_START') {
-          $root_element_pos = $pos;
-          my ($start, $length) = $r->pause_span();
-          ($root_line, $root_column) = $r->line_column($start);
-        }
-      }
-      if ($root_element_pos < 0) {
-        #
-        # Bad luck
-        #
-        $self->_logger->debugf('No tag start');
-        $block_size *= 2;
-        my $previous_length = $self->io->length;
-        $self->io->block_size($block_size);
-        $self->io->clear;
-        $self->io->pos($byte_start);
-        $self->io->read;
-        if ($self->io->length <= $previous_length) {
-          #
-          # Nothing more to read: prolog is buggy.
-          #
-          $self->_exception('EOF when parsing prolog', $r);
-        }
-        goto parse_prolog;
-      }
-    }
-    #
-    # From now on we can loop on element grammar.
-    # It is assumed that the block_size is enough to catch at least one element
-    # up to parsing failure or exhaustion. If that is not the case, we re-read
-    # until EOF.
-    # Buffer itself is circular and move as parsing is moving.
-    # Note that the grammar guarantees that end_element event is always set.
-    #
-    $pos = $self->_element_loop($block_size, $parse_opts, \%hash, $buffer, $root_element_pos, $root_line, $root_column);
-    #
-    # document rule is:
-    # document ::= (start_document) prolog element MiscAny
-    #
-    # and we have parsed element. So we continue at MiscAny
-    #
-
-    my $ambiguous = $r->ambiguous();
-    if ($ambiguous) {
-      $self->_exception("Parse of the input is ambiguous: $ambiguous", $r);
-    }
-    my $value_ref = $r->value || $self->_exception('No parse', $r);
-    $value = ${$value_ref} || $self->_exception('No parse value', $r);
-  } catch {
-    #
-    # We do "$_" to force an eventual stringification
-    #
-    $self->_exception("$_");
-    return;                          # Will never be executed
-  };
-
-  return $value;
-}
-
-sub _element_loop {
-  #
-  # We will INTENTIONNALLY use $_[5] to manipulate $buffer, in order to avoid COW
-  #
-  my ($self, $block_size, $parse_opts, $hash_ref, undef, $pos, $line, $column, $element) = @_;
-
-  $self->_logger->debugf('Parsing element at line %d column %d', $line, $column);
-  if ($pos > 0) {
-    substr($_[5], 0, $pos, '');
-  }
-
-  $element //= MarpaX::Languages::XML::Impl::Grammar->new->compile(%{$hash_ref},
-                                                                   start => 'element',
-                                                                   internal_events =>
-                                                                   {
-                                                                    G1 =>
-                                                                    {
-                                                                     Attribute => { type => 'completed', name => 'Attribute$' },
-                                                                     element => { type => 'completed', name => 'element$' }
-                                                                    },
-                                                                    L0 =>
-                                                                    {
-                                                                     STAG_START => { type => 'before', name => '^STAG_START' },
-                                                                     STAG_END   => { type => 'after', name => 'STAG_END$' }
-                                                                    }
-                                                                   }
-                                                                  );
-
-parse_element:
-  my $r;
-  my @events;
-  my %attributes;
-  do {
-    $self->_logger->debugf('Instanciating an element recognizer');
-    $r = Marpa::R2::Scanless::R->new({%{$parse_opts},
-                                      grammar => $element,
-                                      exhaustion => 'event',
-                                      trace_file_handle => $MARPA_TRACE_FILE_HANDLE,
-                                     });
-    #
-    # Very first character is always predictable we guarantee that it is the lexeme STAG_START
-    #
-    $self->_logger->debugf('Disabling %s event', '^STAG_START');
-    $r->activate('^STAG_START', 0);
-    $self->_logger->debugf('Doing first read');
-    #
-    # Implicitely starting at position 0
-    #
-    $pos = $r->read(\$_[5]);
-    $self->_logger->debugf('Enabling %s event', '^STAG_START');
-    $r->activate('^STAG_START', 1);
-    #
-    # After the first read, we expect to be paused by either:
-    # - ^STAG_START : a new element
-    # - STAG_END$   : end of current element
-    # - Attribute$  : end of an attribute in current element
-    # - 'exhausted  : parsing exhausted
-    #
-    @events = map { $_->[0] } @{$r->events()};
-    if (! @events) {
-      $self->_logger->debugf('No event');
-      my $previous_length = $self->io->length;
-      $block_size *= 2;
-      $self->io->block_size($block_size)->read;
-      if ($self->io->length <= $previous_length) {
-        #
-        # Nothing more to read: element is buggy.
-        #
-        $self->_exception('EOF when parsing element');
-      }
-    }
-  } while (! @events);
-
-  while (1) {
-    my $completed;
-    foreach (@events) {
-      $self->_logger->debugf('Got parse event \'%s\' at position %d', $_, $pos);
-      if ($_ eq '^STAG_START') {
-        my ($line, $column) = $self->_get_lexeme_line_column($r);
-        $pos = $self->_element_loop($self->io, $block_size, $parse_opts, $hash_ref, $_[5], $pos, $line, $column);
-      }
-      elsif ($_ eq 'Attribute$') {
-        my $name  = $self->_get_literal($r, 'AttributeName');
-        my $value = $self->_get_literal($r, 'AttValue');
-        $self->_logger->debugf('Got attribute: %s = %s', $name, $value);
-        #
-        # Per def AttValue is quoted (single or double)
-        #
-        substr($value,  0, 1, '');
-        substr($value, -1, 1, '');
-        $attributes{$name} = $value;
-      }
-      elsif ($_ eq 'element$') {
-        $completed = 1;
-        last;
-      }
-      elsif ($_ eq '\'exhausted') {
-        my $previous_length = $self->io->length;
-        $block_size *= 2;
-        $self->io->block_size($block_size)->read;
-        if ($self->io->length <= $previous_length) {
-          #
-          # Nothing more to read: element is buggy.
-          #
-          $self->_exception('EOF when parsing element');
-        }
-        goto parse_element;
-      }
-    }
-    if ($completed) {
-      last;
-    }
-    #
-    # Here we guarantee that STAG_END was not reached
-    # We do not want to have a resume failure because this will
-    # end the recognizer.
-    #
-    my $resume_ok = 0;
-    try {
-      $self->_logger->debugf('Resuming element recognizer at position %d', $pos);
-      $pos = $r->resume($pos);
-      @events = map { $_->[0] } @{$r->events()};
-    } catch {
-      $self->_logger->debugf('%s', "$_");
-    };
-    if (! @events) {
-      $self->_logger->debugf('No event');
-      my $previous_length = $self->io->length;
-      $block_size *= 2;
-      $self->io->block_size($block_size)->read;
-      if ($self->io->length <= $previous_length) {
-        #
-        # Nothing more to read: element is buggy.
-        #
-        $self->_exception('EOF when parsing element');
-      }
-      goto parse_element;
-    };
-  }
-
-  return $pos;
-}
-
 
 extends 'MarpaX::Languages::XML::Impl::Logger';
 with 'MarpaX::Languages::XML::Role::Parser';
