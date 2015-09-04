@@ -279,7 +279,7 @@ contentUnitAny                ::= contentUnit*
 content                       ::= CharDataMaybe contentUnitAny
 EmptyElemTagUnit              ::= S Attribute
 EmptyElemTagUnitAny           ::= EmptyElemTagUnit*
-EmptyElemTag                  ::= EMPTYELEM_START Name EmptyElemTagUnitAny SMaybe EMPTYELEM_END # [WFC: Unique Att Spec]
+EmptyElemTag                  ::= ELEMENT_START Name EmptyElemTagUnitAny SMaybe EMPTYELEM_END # [WFC: Unique Att Spec]
 elementdecl                   ::= ELEMENTDECL_START S Name S contentspec SMaybe ELEMENTDECL_END # [VC: Unique Element Type Declaration]
 contentspec                   ::= EMPTY | ANY | Mixed | children
 ChoiceOrSeq                   ::= choice | seq
@@ -409,7 +409,6 @@ _ELEMENT_START ~ __ANYTHING
 _ELEMENT_END ~ __ANYTHING
 _ETAG_START ~ __ANYTHING
 _ETAG_END ~ __ANYTHING
-_EMPTYELEM_START ~ __ANYTHING
 _EMPTYELEM_END ~ __ANYTHING
 _ELEMENTDECL_START ~ __ANYTHING
 _ELEMENTDECL_END ~ __ANYTHING
@@ -520,7 +519,6 @@ ELEMENT_START ::= _ELEMENT_START
 ELEMENT_END ::= _ELEMENT_END
 ETAG_START ::= _ETAG_START
 ETAG_END ::= _ETAG_END
-EMPTYELEM_START ::= _EMPTYELEM_START
 EMPTYELEM_END ::= _EMPTYELEM_END
 ELEMENTDECL_START ::= _ELEMENTDECL_START
 ELEMENTDECL_END ::= _ELEMENTDECL_END

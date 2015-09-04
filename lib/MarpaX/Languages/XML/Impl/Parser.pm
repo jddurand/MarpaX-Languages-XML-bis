@@ -236,7 +236,6 @@ our %LEXEME_REGEXPS = (
                 _ELEMENT_END                   => qr{\G>},
                 _ETAG_START                    => qr{\G</},
                 _ETAG_END                      => qr{\G>},
-                _EMPTYELEM_START               => qr{\G<},
                 _EMPTYELEM_END                 => qr{\G/>},
                 _ELEMENTDECL_START             => qr{\G<!ELEMENT},
                 _ELEMENTDECL_END               => qr{\G>},
@@ -305,121 +304,120 @@ our %LEXEME_REGEXPS = (
 
 our %G1_DESCRIPTIONS = (
                        #
-                       # These are the lexemes of unknown size
+                       # These G1 events are lexemes predictions, but BEFORE the input stream is tentatively read by Marpa
                        #
-                      '^NAME'                          => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'NAME' },
-                      '^NMTOKENMANY'                   => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'NMTOKENMANY' },
-                      '^ENTITYVALUEINTERIORDQUOTEUNIT' => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'ENTITYVALUEINTERIORDQUOTEUNIT' },
-                      '^ENTITYVALUEINTERIORSQUOTEUNIT' => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'ENTITYVALUEINTERIORSQUOTEUNIT' },
-                      '^ATTVALUEINTERIORDQUOTEUNIT'    => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'ATTVALUEINTERIORDQUOTEUNIT' },
-                      '^ATTVALUEINTERIORSQUOTEUNIT'    => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'ATTVALUEINTERIORSQUOTEUNIT' },
-                      '^NOT_DQUOTEMANY'                => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'NOT_DQUOTEMANY' },
-                      '^NOT_SQUOTEMANY'                => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'NOT_SQUOTEMANY' },
-                      '^PUBIDCHARDQUOTE'               => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'PUBIDCHARDQUOTE' },
-                      '^PUBIDCHARSQUOTE'               => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'PUBIDCHARSQUOTE' },
-                      '^CHARDATAMANY'                  => { fixed_length => 0, type => 'predicted', min_chars =>  3, symbol_name => 'CHARDATAMANY' },    # [^<&]+ without ']]>'
-                      '^COMMENTCHARMANY'               => { fixed_length => 0, type => 'predicted', min_chars =>  2, symbol_name => 'COMMENTCHARMANY' }, # Char* without '--'
-                      '^PITARGET'                      => { fixed_length => 0, type => 'predicted', min_chars =>  3, symbol_name => 'PITARGET' },        # NAME but /xml/i
-                      '^CDATAMANY'                     => { fixed_length => 0, type => 'predicted', min_chars =>  3, symbol_name => 'CDATAMANY' },       # Char* minus ']]>'
-                      '^PICHARDATAMANY'                => { fixed_length => 0, type => 'predicted', min_chars =>  2, symbol_name => 'PICHARDATAMANY' },  # Char* minus '?>'
-                      '^IGNOREMANY'                    => { fixed_length => 0, type => 'predicted', min_chars =>  3, symbol_name => 'IGNOREMANY' },      # Char minus* ('<![' or ']]>')
-                      '^DIGITMANY'                     => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'DIGITMANY' },
-                      '^ALPHAMANY'                     => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'ALPHAMANY' },
-                      '^ENCNAME'                       => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'ENCNAME' },
-                      '^S'                             => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'S' },
+                      '^NAME'                          => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'NAME', lexeme_name => '_NAME' },
+                      '^NMTOKENMANY'                   => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'NMTOKENMANY', lexeme_name => '_NMTOKENMANY' },
+                      '^ENTITYVALUEINTERIORDQUOTEUNIT' => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'ENTITYVALUEINTERIORDQUOTEUNIT', lexeme_name => '_ENTITYVALUEINTERIORDQUOTEUNIT' },
+                      '^ENTITYVALUEINTERIORSQUOTEUNIT' => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'ENTITYVALUEINTERIORSQUOTEUNIT', lexeme_name => '_ENTITYVALUEINTERIORSQUOTEUNIT' },
+                      '^ATTVALUEINTERIORDQUOTEUNIT'    => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'ATTVALUEINTERIORDQUOTEUNIT', lexeme_name => '_ATTVALUEINTERIORDQUOTEUNIT' },
+                      '^ATTVALUEINTERIORSQUOTEUNIT'    => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'ATTVALUEINTERIORSQUOTEUNIT', lexeme_name => '_ATTVALUEINTERIORSQUOTEUNIT' },
+                      '^NOT_DQUOTEMANY'                => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'NOT_DQUOTEMANY', lexeme_name => '_NOT_DQUOTEMANY' },
+                      '^NOT_SQUOTEMANY'                => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'NOT_SQUOTEMANY', lexeme_name => '_NOT_SQUOTEMANY' },
+                      '^PUBIDCHARDQUOTE'               => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'PUBIDCHARDQUOTE', lexeme_name => '_PUBIDCHARDQUOTE' },
+                      '^PUBIDCHARSQUOTE'               => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'PUBIDCHARSQUOTE', lexeme_name => '_PUBIDCHARSQUOTE' },
+                      '^CHARDATAMANY'                  => { fixed_length => 0, type => 'predicted', min_chars =>  3, symbol_name => 'CHARDATAMANY', lexeme_name => '_CHARDATAMANY' },    # [^<&]+ without ']]>'
+                      '^COMMENTCHARMANY'               => { fixed_length => 0, type => 'predicted', min_chars =>  2, symbol_name => 'COMMENTCHARMANY', lexeme_name => '_COMMENTCHARMANY' }, # Char* without '--'
+                      '^PITARGET'                      => { fixed_length => 0, type => 'predicted', min_chars =>  3, symbol_name => 'PITARGET', lexeme_name => '_PITARGET' },        # NAME but /xml/i
+                      '^CDATAMANY'                     => { fixed_length => 0, type => 'predicted', min_chars =>  3, symbol_name => 'CDATAMANY', lexeme_name => '_CDATAMANY' },       # Char* minus ']]>'
+                      '^PICHARDATAMANY'                => { fixed_length => 0, type => 'predicted', min_chars =>  2, symbol_name => 'PICHARDATAMANY', lexeme_name => '_PICHARDATAMANY' },  # Char* minus '?>'
+                      '^IGNOREMANY'                    => { fixed_length => 0, type => 'predicted', min_chars =>  3, symbol_name => 'IGNOREMANY', lexeme_name => '_IGNOREMANY' },      # Char minus* ('<![' or ']]>')
+                      '^DIGITMANY'                     => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'DIGITMANY', lexeme_name => '_DIGITMANY' },
+                      '^ALPHAMANY'                     => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'ALPHAMANY', lexeme_name => '_ALPHAMANY' },
+                      '^ENCNAME'                       => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'ENCNAME', lexeme_name => '_ENCNAME' },
+                      '^S'                             => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'S', lexeme_name => '_S' },
                       #
                       # These are the lexemes of predicted size
                       #
-                      '^SPACE'                         => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'SPACE' },
-                      '^DQUOTE'                        => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'DQUOTE' },
-                      '^SQUOTE'                        => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'SQUOTE' },
-                      '^COMMENT_START'                 => { fixed_length => 1, type => 'predicted', min_chars =>  4, symbol_name => 'COMMENT_START' },
-                      '^COMMENT_END'                   => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'COMMENT_END' },
-                      '^PI_START'                      => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'PI_START' },
-                      '^PI_END'                        => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'PI_END' },
-                      '^CDATA_START'                   => { fixed_length => 1, type => 'predicted', min_chars =>  9, symbol_name => 'CDATA_START' },
-                      '^CDATA_END'                     => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'CDATA_END' },
-                      '^XMLDECL_START'                 => { fixed_length => 1, type => 'predicted', min_chars =>  5, symbol_name => 'XMLDECL_START' },
-                      '^XMLDECL_END'                   => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'XMLDECL_END' },
-                      '^VERSION'                       => { fixed_length => 1, type => 'predicted', min_chars =>  7, symbol_name => 'VERSION' },
-                      '^EQUAL'                         => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'EQUAL' },
-                      '^VERSIONNUM'                    => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'VERSIONNUM' },
-                      '^DOCTYPE_START'                 => { fixed_length => 1, type => 'predicted', min_chars =>  9, symbol_name => 'DOCTYPE_START' },
-                      '^DOCTYPE_END'                   => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'DOCTYPE_END' },
-                      '^LBRACKET'                      => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'LBRACKET' },
-                      '^RBRACKET'                      => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'RBRACKET' },
-                      '^STANDALONE'                    => { fixed_length => 1, type => 'predicted', min_chars => 10, symbol_name => 'STANDALONE' },
-                      '^YES'                           => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'YES' },
-                      '^NO'                            => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'NO' },
-                      '^ELEMENT_START'                 => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'ELEMENT_START' },
-                      '^ELEMENT_END'                   => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'ELEMENT_END' },
-                      '^ETAG_START'                    => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'ETAG_START' },
-                      '^ETAG_END'                      => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'ETAG_END' },
-                      '^EMPTYELEM_START'               => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'EMPTYELEM_START' },
-                      '^EMPTYELEM_END'                 => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'EMPTYELEM_END' },
-                      '^ELEMENTDECL_START'             => { fixed_length => 1, type => 'predicted', min_chars =>  9, symbol_name => 'ELEMENTDECL_START' },
-                      '^ELEMENTDECL_END'               => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'ELEMENTDECL_END' },
-                      '^EMPTY'                         => { fixed_length => 1, type => 'predicted', min_chars =>  5, symbol_name => 'EMPTY' },
-                      '^ANY'                           => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'ANY' },
-                      '^QUESTIONMARK'                  => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'QUESTIONMARK' },
-                      '^STAR'                          => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'STAR' },
-                      '^PLUS'                          => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'PLUS' },
-                      '^OR'                            => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'OR' },
-                      '^CHOICE_START'                  => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'CHOICE_START' },
-                      '^CHOICE_END'                    => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'CHOICE_END' },
-                      '^SEQ_START'                     => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'SEQ_START' },
-                      '^SEQ_END'                       => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'SEQ_END' },
-                      '^MIXED_START1'                  => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'MIXED_START1' },
-                      '^MIXED_END1'                    => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'MIXED_END1' },
-                      '^MIXED_START2'                  => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'MIXED_START2' },
-                      '^MIXED_END2'                    => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'MIXED_END2' },
-                      '^COMMA'                         => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'COMMA' },
-                      '^PCDATA'                        => { fixed_length => 1, type => 'predicted', min_chars =>  7, symbol_name => 'PCDATA' },
-                      '^ATTLIST_START'                 => { fixed_length => 1, type => 'predicted', min_chars =>  9, symbol_name => 'ATTLIST_START' },
-                      '^ATTLIST_END'                   => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'ATTLIST_END' },
-                      '^CDATA'                         => { fixed_length => 1, type => 'predicted', min_chars =>  5, symbol_name => 'CDATA' },
-                      '^ID'                            => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'ID' },
-                      '^IDREF'                         => { fixed_length => 1, type => 'predicted', min_chars =>  5, symbol_name => 'IDREF' },
-                      '^IDREFS'                        => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'IDREFS' },
-                      '^ENTITY'                        => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'ENTITY' },
-                      '^ENTITIES'                      => { fixed_length => 1, type => 'predicted', min_chars =>  8, symbol_name => 'ENTITIES' },
-                      '^NMTOKEN'                       => { fixed_length => 1, type => 'predicted', min_chars =>  7, symbol_name => 'NMTOKEN' },
-                      '^NMTOKENS'                      => { fixed_length => 1, type => 'predicted', min_chars =>  8, symbol_name => 'NMTOKENS' },
-                      '^NOTATION'                      => { fixed_length => 1, type => 'predicted', min_chars =>  8, symbol_name => 'NOTATION' },
-                      '^NOTATION_START'                => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'NOTATION_START' },
-                      '^NOTATION_END'                  => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'NOTATION_END' },
-                      '^ENUMERATION_START'             => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'ENUMERATION_START' },
-                      '^ENUMERATION_END'               => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'ENUMERATION_END' },
-                      '^REQUIRED'                      => { fixed_length => 1, type => 'predicted', min_chars =>  9, symbol_name => 'REQUIRED' },
-                      '^IMPLIED'                       => { fixed_length => 1, type => 'predicted', min_chars =>  8, symbol_name => 'IMPLIED' },
-                      '^FIXED'                         => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'FIXED' },
-                      '^INCLUDE'                       => { fixed_length => 1, type => 'predicted', min_chars =>  7, symbol_name => 'INCLUDE' },
-                      '^IGNORE'                        => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'IGNORE' },
-                      '^INCLUDESECT_START'             => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'INCLUDESECT_START' },
-                      '^INCLUDESECT_END'               => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'INCLUDESECT_END' },
-                      '^IGNORESECT_START'              => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'IGNORESECT_START' },
-                      '^IGNORESECT_END'                => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'IGNORESECT_END' },
-                      '^IGNORESECTCONTENTSUNIT_START'  => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'IGNORESECTCONTENTSUNIT_START' },
-                      '^IGNORESECTCONTENTSUNIT_END'    => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'IGNORESECTCONTENTSUNIT_END' },
-                      '^CHARREF_START1'                => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'CHARREF_START1' },
-                      '^CHARREF_END1'                  => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'CHARREF_END1' },
-                      '^CHARREF_START2'                => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'CHARREF_START2' },
-                      '^CHARREF_END2'                  => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'CHARREF_END2' },
-                      '^ENTITYREF_START'               => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'ENTITYREF_START' },
-                      '^ENTITYREF_END'                 => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'ENTITYREF_END' },
-                      '^PEREFERENCE_START'             => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'PEREFERENCE_START' },
-                      '^PEREFERENCE_END'               => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'PEREFERENCE_END' },
-                      '^ENTITY_START'                  => { fixed_length => 1, type => 'predicted', min_chars =>  8, symbol_name => 'ENTITY_START' },
-                      '^ENTITY_END'                    => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'ENTITY_END' },
-                      '^PERCENT'                       => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'PERCENT' },
-                      '^SYSTEM'                        => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'SYSTEM' },
-                      '^PUBLIC'                        => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'PUBLIC' },
-                      '^NDATA'                         => { fixed_length => 1, type => 'predicted', min_chars =>  5, symbol_name => 'NDATA' },
-                      '^TEXTDECL_START'                => { fixed_length => 1, type => 'predicted', min_chars =>  5, symbol_name => 'TEXTDECL_START' },
-                      '^TEXTDECL_END'                  => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'TEXTDECL_END' },
-                      '^ENCODING'                      => { fixed_length => 1, type => 'predicted', min_chars =>  8, symbol_name => 'ENCODING' },
-                      '^NOTATIONDECL_START'            => { fixed_length => 1, type => 'predicted', min_chars => 10, symbol_name => 'NOTATIONDECL_START' },
-                      '^NOTATIONDECL_END'              => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'NOTATIONDECL_END' },
+                      '^SPACE'                         => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'SPACE', lexeme_name => '_SPACE' },
+                      '^DQUOTE'                        => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'DQUOTE', lexeme_name => '_DQUOTE' },
+                      '^SQUOTE'                        => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'SQUOTE', lexeme_name => '_SQUOTE' },
+                      '^COMMENT_START'                 => { fixed_length => 1, type => 'predicted', min_chars =>  4, symbol_name => 'COMMENT_START', lexeme_name => '_COMMENT_START' },
+                      '^COMMENT_END'                   => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'COMMENT_END', lexeme_name => '_COMMENT_END' },
+                      '^PI_START'                      => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'PI_START', lexeme_name => '_PI_START' },
+                      '^PI_END'                        => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'PI_END', lexeme_name => '_PI_END' },
+                      '^CDATA_START'                   => { fixed_length => 1, type => 'predicted', min_chars =>  9, symbol_name => 'CDATA_START', lexeme_name => '_CDATA_START' },
+                      '^CDATA_END'                     => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'CDATA_END', lexeme_name => '_CDATA_END' },
+                      '^XMLDECL_START'                 => { fixed_length => 1, type => 'predicted', min_chars =>  5, symbol_name => 'XMLDECL_START', lexeme_name => '_XMLDECL_START' },
+                      '^XMLDECL_END'                   => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'XMLDECL_END', lexeme_name => '_XMLDECL_END' },
+                      '^VERSION'                       => { fixed_length => 1, type => 'predicted', min_chars =>  7, symbol_name => 'VERSION', lexeme_name => '_VERSION' },
+                      '^EQUAL'                         => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'EQUAL', lexeme_name => '_EQUAL' },
+                      '^VERSIONNUM'                    => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'VERSIONNUM', lexeme_name => '_VERSIONNUM' },
+                      '^DOCTYPE_START'                 => { fixed_length => 1, type => 'predicted', min_chars =>  9, symbol_name => 'DOCTYPE_START', lexeme_name => '_DOCTYPE_START' },
+                      '^DOCTYPE_END'                   => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'DOCTYPE_END', lexeme_name => '_DOCTYPE_END' },
+                      '^LBRACKET'                      => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'LBRACKET', lexeme_name => '_LBRACKET' },
+                      '^RBRACKET'                      => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'RBRACKET', lexeme_name => '_RBRACKET' },
+                      '^STANDALONE'                    => { fixed_length => 1, type => 'predicted', min_chars => 10, symbol_name => 'STANDALONE', lexeme_name => '_STANDALONE' },
+                      '^YES'                           => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'YES', lexeme_name => '_YES' },
+                      '^NO'                            => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'NO', lexeme_name => '_NO' },
+                      '^ELEMENT_START'                 => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'ELEMENT_START', lexeme_name => '_ELEMENT_START' },
+                      '^ELEMENT_END'                   => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'ELEMENT_END', lexeme_name => '_ELEMENT_END' },
+                      '^ETAG_START'                    => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'ETAG_START', lexeme_name => '_ETAG_START' },
+                      '^ETAG_END'                      => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'ETAG_END', lexeme_name => '_ETAG_END' },
+                      '^EMPTYELEM_END'                 => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'EMPTYELEM_END', lexeme_name => '_EMPTYELEM_END' },
+                      '^ELEMENTDECL_START'             => { fixed_length => 1, type => 'predicted', min_chars =>  9, symbol_name => 'ELEMENTDECL_START', lexeme_name => '_ELEMENTDECL_START' },
+                      '^ELEMENTDECL_END'               => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'ELEMENTDECL_END', lexeme_name => '_ELEMENTDECL_END' },
+                      '^EMPTY'                         => { fixed_length => 1, type => 'predicted', min_chars =>  5, symbol_name => 'EMPTY', lexeme_name => '_EMPTY' },
+                      '^ANY'                           => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'ANY', lexeme_name => '_ANY' },
+                      '^QUESTIONMARK'                  => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'QUESTIONMARK', lexeme_name => '_QUESTIONMARK' },
+                      '^STAR'                          => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'STAR', lexeme_name => '_STAR' },
+                      '^PLUS'                          => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'PLUS', lexeme_name => '_PLUS' },
+                      '^OR'                            => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'OR', lexeme_name => '_OR' },
+                      '^CHOICE_START'                  => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'CHOICE_START', lexeme_name => '_CHOICE_START' },
+                      '^CHOICE_END'                    => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'CHOICE_END', lexeme_name => '_CHOICE_END' },
+                      '^SEQ_START'                     => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'SEQ_START', lexeme_name => '_SEQ_START' },
+                      '^SEQ_END'                       => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'SEQ_END', lexeme_name => '_SEQ_END' },
+                      '^MIXED_START1'                  => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'MIXED_START1', lexeme_name => '_MIXED_START1' },
+                      '^MIXED_END1'                    => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'MIXED_END1', lexeme_name => '_MIXED_END1' },
+                      '^MIXED_START2'                  => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'MIXED_START2', lexeme_name => '_MIXED_START2' },
+                      '^MIXED_END2'                    => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'MIXED_END2', lexeme_name => '_MIXED_END2' },
+                      '^COMMA'                         => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'COMMA', lexeme_name => '_COMMA' },
+                      '^PCDATA'                        => { fixed_length => 1, type => 'predicted', min_chars =>  7, symbol_name => 'PCDATA', lexeme_name => '_PCDATA' },
+                      '^ATTLIST_START'                 => { fixed_length => 1, type => 'predicted', min_chars =>  9, symbol_name => 'ATTLIST_START', lexeme_name => '_ATTLIST_START' },
+                      '^ATTLIST_END'                   => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'ATTLIST_END', lexeme_name => '_ATTLIST_END' },
+                      '^CDATA'                         => { fixed_length => 1, type => 'predicted', min_chars =>  5, symbol_name => 'CDATA', lexeme_name => '_CDATA' },
+                      '^ID'                            => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'ID', lexeme_name => '_ID' },
+                      '^IDREF'                         => { fixed_length => 1, type => 'predicted', min_chars =>  5, symbol_name => 'IDREF', lexeme_name => '_IDREF' },
+                      '^IDREFS'                        => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'IDREFS', lexeme_name => '_IDREFS' },
+                      '^ENTITY'                        => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'ENTITY', lexeme_name => '_ENTITY' },
+                      '^ENTITIES'                      => { fixed_length => 1, type => 'predicted', min_chars =>  8, symbol_name => 'ENTITIES', lexeme_name => '_ENTITIES' },
+                      '^NMTOKEN'                       => { fixed_length => 1, type => 'predicted', min_chars =>  7, symbol_name => 'NMTOKEN', lexeme_name => '_NMTOKEN' },
+                      '^NMTOKENS'                      => { fixed_length => 1, type => 'predicted', min_chars =>  8, symbol_name => 'NMTOKENS', lexeme_name => '_NMTOKENS' },
+                      '^NOTATION'                      => { fixed_length => 1, type => 'predicted', min_chars =>  8, symbol_name => 'NOTATION', lexeme_name => '_NOTATION' },
+                      '^NOTATION_START'                => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'NOTATION_START', lexeme_name => '_NOTATION_START' },
+                      '^NOTATION_END'                  => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'NOTATION_END', lexeme_name => '_NOTATION_END' },
+                      '^ENUMERATION_START'             => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'ENUMERATION_START', lexeme_name => '_ENUMERATION_START' },
+                      '^ENUMERATION_END'               => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'ENUMERATION_END', lexeme_name => '_ENUMERATION_END' },
+                      '^REQUIRED'                      => { fixed_length => 1, type => 'predicted', min_chars =>  9, symbol_name => 'REQUIRED', lexeme_name => '_REQUIRED' },
+                      '^IMPLIED'                       => { fixed_length => 1, type => 'predicted', min_chars =>  8, symbol_name => 'IMPLIED', lexeme_name => '_IMPLIED' },
+                      '^FIXED'                         => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'FIXED', lexeme_name => '_FIXED' },
+                      '^INCLUDE'                       => { fixed_length => 1, type => 'predicted', min_chars =>  7, symbol_name => 'INCLUDE', lexeme_name => '_INCLUDE' },
+                      '^IGNORE'                        => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'IGNORE', lexeme_name => '_IGNORE' },
+                      '^INCLUDESECT_START'             => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'INCLUDESECT_START', lexeme_name => '_INCLUDESECT_START' },
+                      '^INCLUDESECT_END'               => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'INCLUDESECT_END', lexeme_name => '_INCLUDESECT_END' },
+                      '^IGNORESECT_START'              => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'IGNORESECT_START', lexeme_name => '_IGNORESECT_START' },
+                      '^IGNORESECT_END'                => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'IGNORESECT_END', lexeme_name => '_IGNORESECT_END' },
+                      '^IGNORESECTCONTENTSUNIT_START'  => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'IGNORESECTCONTENTSUNIT_START', lexeme_name => '_IGNORESECTCONTENTSUNIT_START' },
+                      '^IGNORESECTCONTENTSUNIT_END'    => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'IGNORESECTCONTENTSUNIT_END', lexeme_name => '_IGNORESECTCONTENTSUNIT_END' },
+                      '^CHARREF_START1'                => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'CHARREF_START1', lexeme_name => '_CHARREF_START1' },
+                      '^CHARREF_END1'                  => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'CHARREF_END1', lexeme_name => '_CHARREF_END1' },
+                      '^CHARREF_START2'                => { fixed_length => 1, type => 'predicted', min_chars =>  3, symbol_name => 'CHARREF_START2', lexeme_name => '_CHARREF_START2' },
+                      '^CHARREF_END2'                  => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'CHARREF_END2', lexeme_name => '_CHARREF_END2' },
+                      '^ENTITYREF_START'               => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'ENTITYREF_START', lexeme_name => '_ENTITYREF_START' },
+                      '^ENTITYREF_END'                 => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'ENTITYREF_END', lexeme_name => '_ENTITYREF_END' },
+                      '^PEREFERENCE_START'             => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'PEREFERENCE_START', lexeme_name => '_PEREFERENCE_START' },
+                      '^PEREFERENCE_END'               => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'PEREFERENCE_END', lexeme_name => '_PEREFERENCE_END' },
+                      '^ENTITY_START'                  => { fixed_length => 1, type => 'predicted', min_chars =>  8, symbol_name => 'ENTITY_START', lexeme_name => '_ENTITY_START' },
+                      '^ENTITY_END'                    => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'ENTITY_END', lexeme_name => '_ENTITY_END' },
+                      '^PERCENT'                       => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'PERCENT', lexeme_name => '_PERCENT' },
+                      '^SYSTEM'                        => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'SYSTEM', lexeme_name => '_SYSTEM' },
+                      '^PUBLIC'                        => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'PUBLIC', lexeme_name => '_PUBLIC' },
+                      '^NDATA'                         => { fixed_length => 1, type => 'predicted', min_chars =>  5, symbol_name => 'NDATA', lexeme_name => '_NDATA' },
+                      '^TEXTDECL_START'                => { fixed_length => 1, type => 'predicted', min_chars =>  5, symbol_name => 'TEXTDECL_START', lexeme_name => '_TEXTDECL_START' },
+                      '^TEXTDECL_END'                  => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'TEXTDECL_END', lexeme_name => '_TEXTDECL_END' },
+                      '^ENCODING'                      => { fixed_length => 1, type => 'predicted', min_chars =>  8, symbol_name => 'ENCODING', lexeme_name => '_ENCODING' },
+                      '^NOTATIONDECL_START'            => { fixed_length => 1, type => 'predicted', min_chars => 10, symbol_name => 'NOTATIONDECL_START', lexeme_name => '_NOTATIONDECL_START' },
+                      '^NOTATIONDECL_END'              => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'NOTATIONDECL_END', lexeme_name => '_NOTATIONDECL_END' },
                      );
 #
 # It is assumed that caller ONLY USE completed or nulled events
@@ -458,7 +456,10 @@ sub _generic_parse {
     :
     $self->_set__grammar($start_symbol, MarpaX::Languages::XML::Impl::Grammar->new->compile(%{$hash_ref},
                                                                                             start => $start_symbol,
-                                                                                            internal_events => {%G1_DESCRIPTIONS, %{$internal_events_ref}}
+                                                                                            #
+                                                                                            # G1_DESCRIPTIONS have priority over $internal_events_ref
+                                                                                            #
+                                                                                            internal_events => {%{$internal_events_ref}, %G1_DESCRIPTIONS}
                                                                                            ));
   ;
 
@@ -506,8 +507,11 @@ sub _generic_parse {
     my $max_length = 0;
     foreach (@event_names) {
       if (exists($G1_DESCRIPTIONS{$_})) {
+        #
+        # INTERNAL PREDICTION EVENTS
+        # --------------------------
         $have_prediction = 1;
-        my $lexeme_name = '_' . $G1_DESCRIPTIONS{$_}->{symbol_name};
+        my $lexeme_name = $G1_DESCRIPTIONS{$_}->{lexeme_name};
         #
         # Check if the decision about this lexeme can be done
         #
@@ -561,17 +565,14 @@ sub _generic_parse {
         }
       } else {
         #
-        # Sanity check - code to be removed OOTD
-        #
-        if (substr($_, 0, 1) eq '^') {
-          $self->_logger->warnf('[%2d][%d:%d] Unknown internal event %s', $recursion_level, $global_line, $global_column, $_);
-        }
+        # ANY OTHER EVENT
+        # ---------------
         if ($_ eq $end_event_name) {
           $can_stop = 1;
           $self->_logger->debugf('[%2d][%d:%d] Grammar end event %s', $recursion_level, $global_line, $global_column, $_);
         }
         #
-        # Event callback ?
+        # Callback ?
         #
         my $code = $switches_ref->{$_};
         my $rc_switch = defined($code) ? $self->$code() : 1;
@@ -596,6 +597,7 @@ sub _generic_parse {
       } else {
         my @alternatives = grep { $length{$_} == $max_length } keys %length;
         $self->_logger->debugf('[%2d][%d:%d] Lexeme alternative %s', $recursion_level, $global_line, $global_column, \@alternatives);
+        my @lexeme_complete_events = ();
         foreach (@alternatives) {
           #
           # Callback on lexeme prediction
@@ -611,14 +613,10 @@ sub _generic_parse {
           #
           $r->lexeme_alternative($_);
           #
-          # Callback on lexeme completion
+          # Our stream is virtual, i.e. Marpa will never see the lexemes.
+          # So we handle ourself the callbacks on lexeme completion.
           #
-          $code = $switches_ref->{"$_\$"};
-          $rc_switch = defined($code) ? $self->$code($recursion_level, $data) : 1;
-          if (! $rc_switch) {
-            $self->_logger->debugf('[%2d][%d:%d] Event callback %s says to stop', $recursion_level, $global_line, $global_column, "$_\$");
-            return;
-          }
+          push(@lexeme_complete_events, "$_\$");
         }
         $self->_logger->tracef('[%2d][%d:%d] Lexeme complete of length %d', $recursion_level, $global_line, $global_column, $max_length);
         #
@@ -629,6 +627,7 @@ sub _generic_parse {
         # Update position and remaining chars in internal buffer, global line and column numbers
         #
         my $linebreaks = () = $data =~ /\R/g;
+        my ($previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos) = ($global_line, $global_column, $global_pos, $pos);
         if ($linebreaks) {
           $global_line = ${$global_linep} += $linebreaks;
           $global_column = ${$global_columnp} = 1;
@@ -638,6 +637,17 @@ sub _generic_parse {
         ${$posp} = $pos += $max_length;
         $global_pos = ${$global_posp} += $max_length;
         $remaining -= $max_length;
+        #
+        # Fake the lexeme completion events
+        #
+        foreach (@lexeme_complete_events) {
+          my $code = $switches_ref->{$_};
+          my $rc_switch = defined($code) ? $self->$code($recursion_level, $data, $previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos, $global_line, $global_column, $global_pos, $pos) : 1;
+          if (! $rc_switch) {
+            $self->_logger->debugf('[%2d][%d:%d] Event callback %s says to stop', $recursion_level, $global_line, $global_column, $_);
+            return;
+          }
+        }
         #
         # lexeme complete can generate new events: handle them before eventually resuming
         #
@@ -768,6 +778,8 @@ sub parse {
     # "Global variables"
     # ------------------
     my $recursion_level = 0;
+    my $pos = 0;
+    my $global_pos = 0;
     my $global_line = 1;
     my $global_column = 1;
     #
@@ -798,16 +810,19 @@ sub parse {
     my $final_encoding = $orig_encoding;
     my %internal_events = (
                            'prolog$'          => { end_of_grammar => 1, type => 'completed', symbol_name => 'prolog' },
-                           '^_ELEMENT_START'  => { end_of_grammar => 0, type => 'before', symbol_name => '_ELEMENT_START', lexeme => 1 },
+                           #
+                           # Detect successful element start lexeme (and not the SAX event start_element which is far later)
+                           #
+                           '_ELEMENT_START$'  => { end_of_grammar => 0, type => 'after', symbol_name => '_ELEMENT_START', lexeme => 1 },
                           );
     my %switches = (
                     '_ENCNAME$'  => sub {
-                      my ($self, $recursion_level, $encname) = @_;
+                      my ($self, $recursion_level, $data, $previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos, $outer_global_line, $outer_global_column, $outer_global_pos, $outer_pos) = @_;
                       #
                       # Encoding is composed only of ASCII codepoints, so uc is ok
                       #
-                      my $xml_encoding = uc($encname);
-                      $self->_logger->debugf('[%2d][%d:%d] XML says encoding %s', $recursion_level, $global_line, $global_column, $xml_encoding);
+                      my $xml_encoding = uc($data);
+                      $self->_logger->debugf('[%2d][%d:%d] XML says encoding %s', $recursion_level, $outer_global_line, $outer_global_column, $xml_encoding);
                       #
                       # Check eventual encoding v.s. endianness. Algorithm vaguely taken from
                       # https://blogs.oracle.com/tucu/entry/detecting_xml_charset_encoding_again
@@ -815,9 +830,19 @@ sub parse {
                       $final_encoding = $encoding->final($bom_encoding, $guess_encoding, $xml_encoding);
                       return ($final_encoding eq $orig_encoding);
                     },
-                    '^_ELEMENT_START'  => sub {
+                    '_ELEMENT_START$'  => sub {
+                      my ($self, $recursion_level, $data, $previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos, $outer_global_line, $outer_global_column, $outer_global_pos, $outer_pos) = @_;
+                      #
+                      # We want to continue with element grammar at previous position.
+                      # Our internal engine guarantees that the internal data will not rolled out at this stage
+                      #
+                      $self->_logger->debugf('[%2d][%d:%d->%d:%d] ELEMENT_START lexeme completion event', $recursion_level, $previous_global_line, $previous_global_column, $outer_global_line, $outer_global_column);
+                      $pos           = $previous_pos;
+                      $global_line   = $previous_global_line;
+                      $global_pos    = $previous_global_pos;
+                      $global_column = $previous_global_column;
                       return 0;
-                    }
+                    },
                    );
     #
     # Add events and internal switches for SAX events
@@ -837,8 +862,7 @@ sub parse {
         };
       }
     }
-    my $global_pos = $byte_start;
-    my $pos = 0;
+    $global_pos = $byte_start;
     my $length = $self->io->length;
     #
     # From now on, there are a lot of arguments that are always the same. Make it an array
@@ -878,6 +902,10 @@ sub parse {
       $self->io->pos($byte_start);
       if (++$nb_retry_because_of_encoding == 1) {
         $orig_encoding = $final_encoding;
+        $pos = 0;
+        $global_line = 1;
+        $global_column = 1;
+        $global_pos = $byte_start;
         goto retry_because_of_encoding;
       } else {
         MarpaX::Languages::XML::Exception->throw("Two many retries because of encoding difference beween BOM, guess and XML");
@@ -889,6 +917,7 @@ sub parse {
     %internal_events = (
                         'element$' => { fixed_length => 0, end_of_grammar => 1, type => 'completed', symbol_name => 'element' },
                        );
+    %switches = ();
     $self->_generic_parse(
                           $buffer,           # buffer
                           $recursion_level,  # recursion_level
