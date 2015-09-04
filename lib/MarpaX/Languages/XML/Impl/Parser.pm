@@ -188,119 +188,119 @@ our %LEXEME_REGEXPS = (
                 #
                 # These are the lexemes of unknown size
                 #
-                NAME                          => qr{\G[:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}][:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]*},
-                NMTOKENMANY                   => qr{\G[:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]+},
-                ENTITYVALUEINTERIORDQUOTEUNIT => qr{\G[^%&"]+},
-                ENTITYVALUEINTERIORSQUOTEUNIT => qr{\G[^%&']+},
-                ATTVALUEINTERIORDQUOTEUNIT    => qr{\G[^<&"]+},
-                ATTVALUEINTERIORSQUOTEUNIT    => qr{\G[^<&']+},
-                NOT_DQUOTEMANY                => qr{\G[^"]+},
-                NOT_SQUOTEMANY                => qr{\G[^']+},
-                PUBIDCHARDQUOTE               => qr{\G[a-zA-Z0-9\-'()+,./:=?;!*#@\$_%\x{20}\x{D}\x{A}]},
-                PUBIDCHARSQUOTE               => qr{\G[a-zA-Z0-9\-()+,./:=?;!*#@\$_%\x{20}\x{D}\x{A}]},
-                CHARDATAMANY                  => qr{\G(?:[^<&\]]|(?:\](?!\]>)))+}, # [^<&]+ without ']]>'
-                COMMENTCHARMANY               => qr{\G(?:[\x{9}\x{A}\x{D}\x{20}-\x{2C}\x{2E}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]|(?:\-(?!\-)))+},  # Char* without '--'
-                PITARGET                      => qr{\G[:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}][:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]*},  # NAME but /xml/i
-                CDATAMANY                     => qr{\G(?:[\x{9}\x{A}\x{D}\x{20}-\x{5C}\x{5E}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]|(?:\](?!\]>)))+},  # Char* minus ']]>'
-                PICHARDATAMANY                => qr{\G(?:[\x{9}\x{A}\x{D}\x{20}-\x{3E}\x{40}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]|(?:\?(?!>)))+},  # Char* minus '?>'
-                IGNOREMANY                    => qr{\G(?:[\x{9}\x{A}\x{D}\x{20}-\x{3B}\x{3D}-\x{5C}\x{5E}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]|(?:<(?!!\[))|(?:\](?!\]>)))+},  # Char minus* ('<![' or ']]>')
-                DIGITMANY                     => qr{\G[0-9]+},
-                ALPHAMANY                     => qr{\G[0-9a-fA-F]+},
-                ENCNAME                       => qr{\G[A-Za-z][A-Za-z0-9._\-]*},
-                S                             => qr{\G[\x{20}\x{9}\x{D}\x{A}]+},
+                _NAME                          => qr{\G[:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}][:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]*},
+                _NMTOKENMANY                   => qr{\G[:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]+},
+                _ENTITYVALUEINTERIORDQUOTEUNIT => qr{\G[^%&"]+},
+                _ENTITYVALUEINTERIORSQUOTEUNIT => qr{\G[^%&']+},
+                _ATTVALUEINTERIORDQUOTEUNIT    => qr{\G[^<&"]+},
+                _ATTVALUEINTERIORSQUOTEUNIT    => qr{\G[^<&']+},
+                _NOT_DQUOTEMANY                => qr{\G[^"]+},
+                _NOT_SQUOTEMANY                => qr{\G[^']+},
+                _PUBIDCHARDQUOTE               => qr{\G[a-zA-Z0-9\-'()+,./:=?;!*#@\$_%\x{20}\x{D}\x{A}]},
+                _PUBIDCHARSQUOTE               => qr{\G[a-zA-Z0-9\-()+,./:=?;!*#@\$_%\x{20}\x{D}\x{A}]},
+                _CHARDATAMANY                  => qr{\G(?:[^<&\]]|(?:\](?!\]>)))+}, # [^<&]+ without ']]>'
+                _COMMENTCHARMANY               => qr{\G(?:[\x{9}\x{A}\x{D}\x{20}-\x{2C}\x{2E}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]|(?:\-(?!\-)))+},  # Char* without '--'
+                _PITARGET                      => qr{\G[:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}][:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]*},  # NAME but /xml/i
+                _CDATAMANY                     => qr{\G(?:[\x{9}\x{A}\x{D}\x{20}-\x{5C}\x{5E}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]|(?:\](?!\]>)))+},  # Char* minus ']]>'
+                _PICHARDATAMANY                => qr{\G(?:[\x{9}\x{A}\x{D}\x{20}-\x{3E}\x{40}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]|(?:\?(?!>)))+},  # Char* minus '?>'
+                _IGNOREMANY                    => qr{\G(?:[\x{9}\x{A}\x{D}\x{20}-\x{3B}\x{3D}-\x{5C}\x{5E}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]|(?:<(?!!\[))|(?:\](?!\]>)))+},  # Char minus* ('<![' or ']]>')
+                _DIGITMANY                     => qr{\G[0-9]+},
+                _ALPHAMANY                     => qr{\G[0-9a-fA-F]+},
+                _ENCNAME                       => qr{\G[A-Za-z][A-Za-z0-9._\-]*},
+                _S                             => qr{\G[\x{20}\x{9}\x{D}\x{A}]+},
                 #
                 # These are the lexemes of predicted size
                 #
-                SPACE                         => qr{\G\x{20}},
-                DQUOTE                        => qr{\G"},
-                SQUOTE                        => qr{\G'},
-                COMMENT_START                 => qr{\G<!\-\-},
-                COMMENT_END                   => qr{\G\-\->},
-                PI_START                      => qr{\G<\?},
-                PI_END                        => qr{\G\?>},
-                CDATA_START                   => qr{\G<!\[CDATA\[},
-                CDATA_END                     => qr{\G\]\]>},
-                XMLDECL_START                 => qr{\G<\?xml},
-                XMLDECL_END                   => qr{\G\?>},
-                VERSION                       => qr{\Gversion},
-                EQUAL                         => qr{\G=},
-                VERSIONNUM                    => qr{\G1\.0},
-                DOCTYPE_START                 => qr{\G<!DOCTYPE},
-                DOCTYPE_END                   => qr{\G>},
-                LBRACKET                      => qr{\G\[},
-                RBRACKET                      => qr{\G\]},
-                STANDALONE                    => qr{\Gstandalone},
-                YES                           => qr{\Gyes},
-                NO                            => qr{\Gno},
-                ELEMENT_START                 => qr{\G<},
-                ELEMENT_END                   => qr{\G>},
-                ETAG_START                    => qr{\G</},
-                ETAG_END                      => qr{\G>},
-                EMPTYELEM_START               => qr{\G<},
-                EMPTYELEM_END                 => qr{\G/>},
-                ELEMENTDECL_START             => qr{\G<!ELEMENT},
-                ELEMENTDECL_END               => qr{\G>},
-                EMPTY                         => qr{\GEMPTY},
-                ANY                           => qr{\GANY},
-                QUESTIONMARK                  => qr{\G\?},
-                STAR                          => qr{\G\*},
-                PLUS                          => qr{\G\+},
-                OR                            => qr{\G\|},
-                CHOICE_START                  => qr{\G\(},
-                CHOICE_END                    => qr{\G\)},
-                SEQ_START                     => qr{\G\(},
-                SEQ_END                       => qr{\G\)},
-                MIXED_START1                  => qr{\G\(},
-                MIXED_END1                    => qr{\G\)\*},
-                MIXED_START2                  => qr{\G\(},
-                MIXED_END2                    => qr{\G\)},
-                COMMA                         => qr{\G,},
-                PCDATA                        => qr{\G#PCDATA},
-                ATTLIST_START                 => qr{\G<!ATTLIST},
-                ATTLIST_END                   => qr{\G>},
-                CDATA                         => qr{\GCDATA},
-                ID                            => qr{\GID},
-                IDREF                         => qr{\GIDREF},
-                IDREFS                        => qr{\GIDREFS},
-                ENTITY                        => qr{\GENTITY},
-                ENTITIES                      => qr{\GENTITIES},
-                NMTOKEN                       => qr{\GNMTOKEN},
-                NMTOKENS                      => qr{\GNMTOKENS},
-                NOTATION                      => qr{\GNOTATION},
-                NOTATION_START                => qr{\G\(},
-                NOTATION_END                  => qr{\G\)},
-                ENUMERATION_START             => qr{\G\(},
-                ENUMERATION_END               => qr{\G\)},
-                REQUIRED                      => qr{\G#REQUIRED},
-                IMPLIED                       => qr{\G#IMPLIED},
-                FIXED                         => qr{\G#FIXED},
-                INCLUDE                       => qr{\GINCLUDE},
-                IGNORE                        => qr{\GIGNORE},
-                INCLUDESECT_START             => qr{\G<!\[},
-                INCLUDESECT_END               => qr{\G\]\]>},
-                IGNORESECT_START              => qr{\G<!\[},
-                IGNORESECT_END                => qr{\G\]\]>},
-                IGNORESECTCONTENTSUNIT_START  => qr{\G<!\[},
-                IGNORESECTCONTENTSUNIT_END    => qr{\G\]\]>},
-                CHARREF_START1                => qr{\G&#},
-                CHARREF_END1                  => qr{\G;},
-                CHARREF_START2                => qr{\G&#x},
-                CHARREF_END2                  => qr{\G;},
-                ENTITYREF_START               => qr{\G&},
-                ENTITYREF_END                 => qr{\G;},
-                PEREFERENCE_START             => qr{\G%},
-                PEREFERENCE_END               => qr{\G;},
-                ENTITY_START                  => qr{\G<!ENTITY},
-                ENTITY_END                    => qr{\G>},
-                PERCENT                       => qr{\G%},
-                SYSTEM                        => qr{\GSYSTEM},
-                PUBLIC                        => qr{\GPUBLIC},
-                NDATA                         => qr{\GNDATA},
-                TEXTDECL_START                => qr{\G<\?xml},
-                TEXTDECL_END                  => qr{\G?>},
-                ENCODING                      => qr{\Gencoding},
-                NOTATIONDECL_START            => qr{\G<!NOTATION},
-                NOTATIONDECL_END              => qr{\G>},
+                _SPACE                         => qr{\G\x{20}},
+                _DQUOTE                        => qr{\G"},
+                _SQUOTE                        => qr{\G'},
+                _COMMENT_START                 => qr{\G<!\-\-},
+                _COMMENT_END                   => qr{\G\-\->},
+                _PI_START                      => qr{\G<\?},
+                _PI_END                        => qr{\G\?>},
+                _CDATA_START                   => qr{\G<!\[CDATA\[},
+                _CDATA_END                     => qr{\G\]\]>},
+                _XMLDECL_START                 => qr{\G<\?xml},
+                _XMLDECL_END                   => qr{\G\?>},
+                _VERSION                       => qr{\Gversion},
+                _EQUAL                         => qr{\G=},
+                _VERSIONNUM                    => qr{\G1\.0},
+                _DOCTYPE_START                 => qr{\G<!DOCTYPE},
+                _DOCTYPE_END                   => qr{\G>},
+                _LBRACKET                      => qr{\G\[},
+                _RBRACKET                      => qr{\G\]},
+                _STANDALONE                    => qr{\Gstandalone},
+                _YES                           => qr{\Gyes},
+                _NO                            => qr{\Gno},
+                _ELEMENT_START                 => qr{\G<},
+                _ELEMENT_END                   => qr{\G>},
+                _ETAG_START                    => qr{\G</},
+                _ETAG_END                      => qr{\G>},
+                _EMPTYELEM_START               => qr{\G<},
+                _EMPTYELEM_END                 => qr{\G/>},
+                _ELEMENTDECL_START             => qr{\G<!ELEMENT},
+                _ELEMENTDECL_END               => qr{\G>},
+                _EMPTY                         => qr{\GEMPTY},
+                _ANY                           => qr{\GANY},
+                _QUESTIONMARK                  => qr{\G\?},
+                _STAR                          => qr{\G\*},
+                _PLUS                          => qr{\G\+},
+                _OR                            => qr{\G\|},
+                _CHOICE_START                  => qr{\G\(},
+                _CHOICE_END                    => qr{\G\)},
+                _SEQ_START                     => qr{\G\(},
+                _SEQ_END                       => qr{\G\)},
+                _MIXED_START1                  => qr{\G\(},
+                _MIXED_END1                    => qr{\G\)\*},
+                _MIXED_START2                  => qr{\G\(},
+                _MIXED_END2                    => qr{\G\)},
+                _COMMA                         => qr{\G,},
+                _PCDATA                        => qr{\G#PCDATA},
+                _ATTLIST_START                 => qr{\G<!ATTLIST},
+                _ATTLIST_END                   => qr{\G>},
+                _CDATA                         => qr{\GCDATA},
+                _ID                            => qr{\GID},
+                _IDREF                         => qr{\GIDREF},
+                _IDREFS                        => qr{\GIDREFS},
+                _ENTITY                        => qr{\GENTITY},
+                _ENTITIES                      => qr{\GENTITIES},
+                _NMTOKEN                       => qr{\GNMTOKEN},
+                _NMTOKENS                      => qr{\GNMTOKENS},
+                _NOTATION                      => qr{\GNOTATION},
+                _NOTATION_START                => qr{\G\(},
+                _NOTATION_END                  => qr{\G\)},
+                _ENUMERATION_START             => qr{\G\(},
+                _ENUMERATION_END               => qr{\G\)},
+                _REQUIRED                      => qr{\G#REQUIRED},
+                _IMPLIED                       => qr{\G#IMPLIED},
+                _FIXED                         => qr{\G#FIXED},
+                _INCLUDE                       => qr{\GINCLUDE},
+                _IGNORE                        => qr{\GIGNORE},
+                _INCLUDESECT_START             => qr{\G<!\[},
+                _INCLUDESECT_END               => qr{\G\]\]>},
+                _IGNORESECT_START              => qr{\G<!\[},
+                _IGNORESECT_END                => qr{\G\]\]>},
+                _IGNORESECTCONTENTSUNIT_START  => qr{\G<!\[},
+                _IGNORESECTCONTENTSUNIT_END    => qr{\G\]\]>},
+                _CHARREF_START1                => qr{\G&#},
+                _CHARREF_END1                  => qr{\G;},
+                _CHARREF_START2                => qr{\G&#x},
+                _CHARREF_END2                  => qr{\G;},
+                _ENTITYREF_START               => qr{\G&},
+                _ENTITYREF_END                 => qr{\G;},
+                _PEREFERENCE_START             => qr{\G%},
+                _PEREFERENCE_END               => qr{\G;},
+                _ENTITY_START                  => qr{\G<!ENTITY},
+                _ENTITY_END                    => qr{\G>},
+                _PERCENT                       => qr{\G%},
+                _SYSTEM                        => qr{\GSYSTEM},
+                _PUBLIC                        => qr{\GPUBLIC},
+                _NDATA                         => qr{\GNDATA},
+                _TEXTDECL_START                => qr{\G<\?xml},
+                _TEXTDECL_END                  => qr{\G?>},
+                _ENCODING                      => qr{\Gencoding},
+                _NOTATIONDECL_START            => qr{\G<!NOTATION},
+                _NOTATIONDECL_END              => qr{\G>},
                );
 
 our %G1_DESCRIPTIONS = (
@@ -507,13 +507,13 @@ sub _generic_parse {
     foreach (@event_names) {
       if (exists($G1_DESCRIPTIONS{$_})) {
         $have_prediction = 1;
-        my $symbol_name = $G1_DESCRIPTIONS{$_}->{symbol_name};
+        my $lexeme_name = '_' . $G1_DESCRIPTIONS{$_}->{symbol_name};
         #
         # Check if the decision about this lexeme can be done
         #
         if ($G1_DESCRIPTIONS{$_}->{min_chars} > $remaining) {
           my $old_remaining = $remaining;
-          $self->_logger->tracef('[%2d][%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $recursion_level, $global_line, $global_column, $symbol_name, $G1_DESCRIPTIONS{$_}->{min_chars}, $remaining);
+          $self->_logger->tracef('[%2d][%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $recursion_level, $global_line, $global_column, $lexeme_name, $G1_DESCRIPTIONS{$_}->{min_chars}, $remaining);
           $remaining = $length = ${$lengthp} = $self->_reduceAndRead($pos, $_[1], $length, $recursion_level, 0, $global_line, $global_column);
           $pos = 0;
           if ($remaining > $old_remaining) {
@@ -529,15 +529,15 @@ sub _generic_parse {
         # Check if this variable length lexeme is reaching the end of the buffer.
         #
         pos($_[1]) = $pos;
-        if ($_[1] =~ $LEXEME_REGEXPS{$symbol_name}) {
+        if ($_[1] =~ $LEXEME_REGEXPS{$lexeme_name}) {
           my $matched_data = substr($_[1], $-[0], $+[0] - $-[0]);
-          if (exists($LEXEME_EXCLUSIONS{$symbol_name}) && ($matched_data =~ $LEXEME_EXCLUSIONS{$symbol_name})) {
-            $self->_logger->tracef('[%2d][%d:%d] Lexeme %s match excluded', $recursion_level, $global_line, $global_column, $symbol_name);
+          if (exists($LEXEME_EXCLUSIONS{$lexeme_name}) && ($matched_data =~ $LEXEME_EXCLUSIONS{$lexeme_name})) {
+            $self->_logger->tracef('[%2d][%d:%d] Lexeme %s match excluded', $recursion_level, $global_line, $global_column, $lexeme_name);
           } else {
             if (($+[0] >= $length) && ! $G1_DESCRIPTIONS{$_}->{fixed_length}) {
-              $self->_logger->tracef('[%2d][%d:%d] Lexeme %s match but end-of-buffer', $recursion_level, $global_line, $global_column, $symbol_name);
+              $self->_logger->tracef('[%2d][%d:%d] Lexeme %s match but end-of-buffer', $recursion_level, $global_line, $global_column, $lexeme_name);
               my $old_remaining = $remaining;
-              $self->_logger->tracef('[%2d][%d:%d] Lexeme %s is of unpredicted size and currently reaches end-of-buffer', $recursion_level, $global_line, $global_column, $symbol_name);
+              $self->_logger->tracef('[%2d][%d:%d] Lexeme %s is of unpredicted size and currently reaches end-of-buffer', $recursion_level, $global_line, $global_column, $lexeme_name);
               $remaining = $length = ${$lengthp} = $self->_reduceAndRead($pos, $_[1], $length, $recursion_level, 0, $global_line, $global_column);
               $pos = 0;
               if ($remaining > $old_remaining) {
@@ -549,16 +549,15 @@ sub _generic_parse {
                 $self->_logger->debugf('[%2d][%d:%d] Nothing more read', $recursion_level, $global_line, $global_column);
               }
             }
-            my $lexeme_name = '_' . $symbol_name;
             $length{$lexeme_name} = $+[0] - $-[0];
-            $self->_logger->tracef('[%2d][%d:%d] %s: match of length %d', $recursion_level, $global_line, $global_column, $symbol_name, $length{$lexeme_name});
+            $self->_logger->tracef('[%2d][%d:%d] %s: match of length %d', $recursion_level, $global_line, $global_column, $lexeme_name, $length{$lexeme_name});
             if ((! $max_length) || ($length{$lexeme_name} > $max_length)) {
               $data = $matched_data;
               $max_length = $length{$lexeme_name};
             }
           }
         } else {
-          $self->_logger->tracef('[%2d][%d:%d] %s: no match', $recursion_level, $global_line, $global_column, $symbol_name);
+          $self->_logger->tracef('[%2d][%d:%d] %s: no match', $recursion_level, $global_line, $global_column, $lexeme_name);
         }
       } else {
         #
