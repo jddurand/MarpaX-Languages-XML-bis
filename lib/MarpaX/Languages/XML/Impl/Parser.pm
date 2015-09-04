@@ -624,6 +624,20 @@ sub _generic_parse {
         }
         my @lexeme_complete_events = ();
         my ($previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos) = ($global_line, $global_column, $global_pos, $pos);
+        #
+        # Update position and remaining chars in internal buffer, global line and column numbers. Wou might think it is too early, but
+        # this is to have the expected next positions when doing predicted lexeme callbacks.
+        #
+        my $linebreaks = () = $data =~ /\R/g;
+        if ($linebreaks) {
+          $global_line = ${$global_linep} += $linebreaks;
+          $global_column = ${$global_columnp} = 1;
+        } else {
+          $global_column = ${$global_columnp} += $max_length;
+        }
+        ${$posp} = $pos += $max_length;
+        $global_pos = ${$global_posp} += $max_length;
+        $remaining -= $max_length;
         foreach (@alternatives) {
           #
           # Callback on lexeme prediction
@@ -632,7 +646,7 @@ sub _generic_parse {
           my $rc_switch = defined($code) ? $self->$code($data, $previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos, $global_line, $global_column, $global_pos, $pos) : 1;
           if (! $rc_switch) {
             if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-              $self->_logger->debugf('[%d:%d] Event callback %s says to stop', $global_line, $global_column, "^$_");
+              $self->_logger->debugf('[%d:%d] Event callback %s says to stop', $previous_global_line, $previous_global_column, "^$_");
             }
             return;
           }
@@ -647,25 +661,12 @@ sub _generic_parse {
           push(@lexeme_complete_events, "$_\$");
         }
         if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-          $self->_logger->tracef('[%d:%d] Lexeme complete of length %d', $global_line, $global_column, $max_length);
+          $self->_logger->tracef('[%d:%d->%d:%d] Lexeme complete of length %d', $previous_global_line, $previous_global_column, $global_line, $global_column, $max_length);
         }
         #
         # Position 0 and length 1: the Marpa input buffer is virtual
         #
         $r->lexeme_complete(0, 1);
-        #
-        # Update position and remaining chars in internal buffer, global line and column numbers
-        #
-        my $linebreaks = () = $data =~ /\R/g;
-        if ($linebreaks) {
-          $global_line = ${$global_linep} += $linebreaks;
-          $global_column = ${$global_columnp} = 1;
-        } else {
-          $global_column = ${$global_columnp} += $max_length;
-        }
-        ${$posp} = $pos += $max_length;
-        $global_pos = ${$global_posp} += $max_length;
-        $remaining -= $max_length;
         #
         # Fake the lexeme completion events
         #
@@ -836,11 +837,6 @@ sub parse {
     my $final_encoding = $orig_encoding;
     my %internal_events = (
                            'prolog$'          => { end_of_grammar => 1, type => 'completed', symbol_name => 'prolog' },
-                           #
-                           # Detect successful element start lexeme (and not the SAX event start_element which is far later)
-                           #
-                           # '^_ELEMENT_START'  => { end_of_grammar => 0, type => 'before', symbol_name => '_ELEMENT_START', lexeme => 1 },
-                           # '_ELEMENT_START$'  => { end_of_grammar => 0, type => 'after', symbol_name => '_ELEMENT_START', lexeme => 1 },
                           );
     my %switches = (
                     '_ENCNAME$'  => sub {
@@ -868,21 +864,6 @@ sub parse {
                       if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
                         $self->_logger->debugf('[%d:%d->%d:%d] ELEMENT_START lexeme prediction event', $previous_global_line, $previous_global_column, $outer_global_line, $outer_global_column);
                       }
-                      return 0;
-                    },
-                    '_ELEMENT_START$'  => sub {
-                      my ($self, $data, $previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos, $outer_global_line, $outer_global_column, $outer_global_pos, $outer_pos) = @_;
-                      #
-                      # We want to continue with element grammar at previous position.
-                      # Our internal engine guarantees that the internal data will not rolled out at this stage
-                      #
-                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-                        $self->_logger->debugf('[%d:%d->%d:%d] ELEMENT_START lexeme completion event', $previous_global_line, $previous_global_column, $outer_global_line, $outer_global_column);
-                      }
-                      $pos           = $previous_pos;
-                      $global_line   = $previous_global_line;
-                      $global_pos    = $previous_global_pos;
-                      $global_column = $previous_global_column;
                       return 0;
                     },
                    );
@@ -955,7 +936,7 @@ sub parse {
       }
     }
     # -------------
-    # Parse element - we use a stack free implementation because perl is(was?) not very good at recursion performance
+    # Parse element - we use a stack free implementation because perl is(was?) not very good at recursion
     # -------------
     %internal_events = (
                         'element$' => { fixed_length => 0, end_of_grammar => 1, type => 'completed', symbol_name => 'element' },
