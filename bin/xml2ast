@@ -21,10 +21,17 @@ use Try::Tiny;
 # AUTHORITY
 
 my $help = 0;
-my $loglevel = 'WARN';
+my $loglevel = 'INFO';
 my $logstderr = 0;
 my $block_size = 0;
 my @sax = ();
+
+our %SAX_HANDLERS = (
+                     start_document => \&_start_document,
+                     start_element  => \&_start_element,
+                     end_element    => \&_end_element,
+                     end_document   => \&_end_document,
+                    );
 
 GetOptions ('help!' => \$help,
             'loglevel=s' => \$loglevel,
@@ -41,7 +48,11 @@ GetOptions ('help!' => \$help,
 __PACKAGE__->_init($loglevel, $logstderr);
 
 @sax = split(/,/,join(',',@sax));
-my %sax_handlers = map { $_ => \&_info } @sax;
+my %sax_handlers = (grep { $_ eq 'all' } @sax)
+  ?
+  %SAX_HANDLERS
+  :
+  map { $_ => $SAX_HANDLERS{$_} } grep { exists($SAX_HANDLERS{$_}) } @sax;
 
 foreach (@ARGV) {
     my $source = $_;
@@ -75,7 +86,22 @@ DEFAULT_LOG4PERL_CONF
    Log::Any::Adapter->set('Log4perl');
 }
 
-sub _info {
-    my $self = shift;
-    $self->_logger->infof('SAX Event: %s', \@_);
+sub _start_document {
+  my $self = shift;
+  $self->_logger->infof('[SAX] start_document');
+}
+
+sub _start_element {
+  my $self = shift;
+  $self->_logger->infof('[SAX] start_element %s', \@_);
+}
+
+sub _end_element {
+  my $self = shift;
+  $self->_logger->infof('[SAX] end_element');
+}
+
+sub _end_document {
+  my $self = shift;
+  $self->_logger->infof('[SAX] end_document');
 }
