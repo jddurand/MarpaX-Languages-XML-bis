@@ -457,9 +457,14 @@ sub _generic_parse {
     $self->_set__grammar($start_symbol, MarpaX::Languages::XML::Impl::Grammar->new->compile(%{$hash_ref},
                                                                                             start => $start_symbol,
                                                                                             #
-                                                                                            # G1_DESCRIPTIONS have priority over $internal_events_ref
+                                                                                            # G1_DESCRIPTIONS have priority over $internal_events_ref:
+                                                                                            # If $internal_events_ref is using a lexeme prediction event
+                                                                                            # we will fake it
                                                                                             #
-                                                                                            internal_events => {%{$internal_events_ref}, %G1_DESCRIPTIONS}
+                                                                                            internal_events => {
+                                                                                                                %G1_DESCRIPTIONS,
+                                                                                                                map { $_ => $internal_events_ref->{$_} } grep {! exists($G1_DESCRIPTIONS{$_})} keys %{$internal_events_ref}
+                                                                                                               }
                                                                                            ));
   ;
 
@@ -598,12 +603,13 @@ sub _generic_parse {
         my @alternatives = grep { $length{$_} == $max_length } keys %length;
         $self->_logger->debugf('[%2d][%d:%d] Lexeme alternative %s', $recursion_level, $global_line, $global_column, \@alternatives);
         my @lexeme_complete_events = ();
+        my ($previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos) = ($global_line, $global_column, $global_pos, $pos);
         foreach (@alternatives) {
           #
           # Callback on lexeme prediction
           #
           my $code = $switches_ref->{"^$_"};
-          my $rc_switch = defined($code) ? $self->$code($recursion_level, $data) : 1;
+          my $rc_switch = defined($code) ? $self->$code($recursion_level, $data, $previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos, $global_line, $global_column, $global_pos, $pos) : 1;
           if (! $rc_switch) {
             $self->_logger->debugf('[%2d][%d:%d] Event callback %s says to stop', $recursion_level, $global_line, $global_column, "^$_");
             return;
@@ -627,7 +633,6 @@ sub _generic_parse {
         # Update position and remaining chars in internal buffer, global line and column numbers
         #
         my $linebreaks = () = $data =~ /\R/g;
-        my ($previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos) = ($global_line, $global_column, $global_pos, $pos);
         if ($linebreaks) {
           $global_line = ${$global_linep} += $linebreaks;
           $global_column = ${$global_columnp} = 1;
@@ -813,7 +818,8 @@ sub parse {
                            #
                            # Detect successful element start lexeme (and not the SAX event start_element which is far later)
                            #
-                           '_ELEMENT_START$'  => { end_of_grammar => 0, type => 'after', symbol_name => '_ELEMENT_START', lexeme => 1 },
+                           # '^_ELEMENT_START'  => { end_of_grammar => 0, type => 'before', symbol_name => '_ELEMENT_START', lexeme => 1 },
+                           # '_ELEMENT_START$'  => { end_of_grammar => 0, type => 'after', symbol_name => '_ELEMENT_START', lexeme => 1 },
                           );
     my %switches = (
                     '_ENCNAME$'  => sub {
@@ -829,6 +835,15 @@ sub parse {
                       #
                       $final_encoding = $encoding->final($bom_encoding, $guess_encoding, $xml_encoding);
                       return ($final_encoding eq $orig_encoding);
+                    },
+                    '^_ELEMENT_START'  => sub {
+                      my ($self, $recursion_level, $data, $previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos, $outer_global_line, $outer_global_column, $outer_global_pos, $outer_pos) = @_;
+                      #
+                      # We want to continue with element grammar at previous position.
+                      # Our internal engine guarantees that the internal data will not rolled out at this stage
+                      #
+                      $self->_logger->debugf('[%2d][%d:%d->%d:%d] ELEMENT_START lexeme prediction event', $recursion_level, $previous_global_line, $previous_global_column, $outer_global_line, $outer_global_column);
+                      return 0;
                     },
                     '_ELEMENT_START$'  => sub {
                       my ($self, $recursion_level, $data, $previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos, $outer_global_line, $outer_global_column, $outer_global_pos, $outer_pos) = @_;
