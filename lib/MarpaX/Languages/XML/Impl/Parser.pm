@@ -9,7 +9,7 @@ use MooX::HandlesVia;
 use MooX::late;
 use Scalar::Util qw/reftype/;
 use Try::Tiny;
-use Types::Standard qw/Int ConsumerOf InstanceOf HashRef/;
+use Types::Standard qw/Int Str ConsumerOf InstanceOf HashRef/;
 use Types::Common::Numeric qw/PositiveOrZeroInt/;
 
 # ABSTRACT: MarpaX::Languages::XML::Role::parser implementation
@@ -29,18 +29,18 @@ This module is an implementation of MarpaX::Languages::XML::Role::Parser.
 # -------------------
 
 #
-# Offset position in the internal buffer
+# Last lexemes
 #
-has _offset => (
-                is          => 'rw',
-                isa         => PositiveOrZeroInt,
-                default     => 0,
-                handles_via => 'Number',
-                handles     => {
-                                _set__offset => 'set',
-                                _add__offset => 'add',
-                               },
-            );
+has _last_lexeme => (
+                     is          => 'rw',
+                     isa         => HashRef[Str],
+                     default     => sub { {} },
+                     handles_via => 'Hash',
+                     handles     => {
+                                     _get_last_lexeme => 'get',
+                                     _set_last_lexeme => 'set',
+                                    },
+                    );
 
 #
 # Grammars (cached because of element recursivity)
@@ -58,22 +58,14 @@ has _grammars => (
                  );
 #
 # External attributes
-#
+# -------------------
+
 has io => (
            is          => 'rw',
            isa         => ConsumerOf['MarpaX::Languages::XML::Role::IO'],
+           required    => 1
           );
 
-has offset => (                                 # Global offset position
-            is => 'ro',
-            isa => PositiveOrZeroInt,
-            default => 0,
-            handles_via => 'Number',
-            handles     => {
-                            _set_offset => 'set',
-                            _add_offset => 'add',
-                           },
-           );
 our $MARPA_TRACE_FILE_HANDLE;
 our $MARPA_TRACE_BUFFER;
 
@@ -486,7 +478,6 @@ sub _generic_parse {
        #
        $r->read(\'  ')
        ;
-       $pos < $length
        ;
        #
        # Resume will croak if grammar is exhausted. We handle this case ourself (absence of prediction + remaining chargs)
@@ -523,7 +514,7 @@ sub _generic_parse {
             $self->_logger->tracef('[%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $global_line, $global_column, $lexeme_name, $G1_DESCRIPTIONS{$_}->{min_chars}, $remaining);
           }
           $remaining = $length = ${$lengthp} = $self->_reduceAndRead($pos, $_[1], $length, 0, $global_line, $global_column);
-          $pos = 0;
+          ${$posp} = $pos = 0;
           if ($remaining > $old_remaining) {
             #
             # Something was read
@@ -552,7 +543,7 @@ sub _generic_parse {
               }
               my $old_remaining = $remaining;
               $remaining = $length = ${$lengthp} = $self->_reduceAndRead($pos, $_[1], $length, 0, $global_line, $global_column);
-              $pos = 0;
+              ${$posp} = $pos = 0;
               if ($remaining > $old_remaining) {
                 #
                 # Something was read
@@ -654,6 +645,7 @@ sub _generic_parse {
           # Push alternative
           #
           $r->lexeme_alternative($_);
+          $self->_set_last_lexeme($_, $data);
           #
           # Our stream is virtual, i.e. Marpa will never see the lexemes.
           # So we handle ourself the callbacks on lexeme completion.
@@ -857,10 +849,6 @@ sub parse {
                     },
                     '^_ELEMENT_START'  => sub {
                       my ($self, $data, $previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos, $outer_global_line, $outer_global_column, $outer_global_pos, $outer_pos) = @_;
-                      #
-                      # We want to continue with element grammar at previous position.
-                      # Our internal engine guarantees that the internal data will not rolled out at this stage
-                      #
                       if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
                         $self->_logger->debugf('[%d:%d->%d:%d] ELEMENT_START lexeme prediction event', $previous_global_line, $previous_global_column, $outer_global_line, $outer_global_column);
                       }
@@ -935,13 +923,25 @@ sub parse {
         MarpaX::Languages::XML::Exception->throw("Two many retries because of encoding difference beween BOM, guess and XML");
       }
     }
+
     # -------------
     # Parse element - we use a stack free implementation because perl is(was?) not very good at recursion
     # -------------
     %internal_events = (
                         'element$' => { fixed_length => 0, end_of_grammar => 1, type => 'completed', symbol_name => 'element' },
                        );
-    %switches = ();
+    %switches = (
+                 '^_ELEMENT_START'  => sub {
+                   my ($self, $data, $previous_global_line, $previous_global_column, $previous_global_pos, $previous_pos, $outer_global_line, $outer_global_column, $outer_global_pos, $outer_pos) = @_;
+                   #
+                   # Inner element -> new recognizer
+                   #
+                   if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+                     $self->_logger->debugf('[%d:%d->%d:%d] ELEMENT_START lexeme prediction event', $previous_global_line, $previous_global_column, $outer_global_line, $outer_global_column);
+                   }
+                   return 0;
+                 }
+                );
     $self->_generic_parse(
                           $buffer,           # buffer
                           'element',         # start_symbol
