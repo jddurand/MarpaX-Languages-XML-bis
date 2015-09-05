@@ -601,7 +601,7 @@ sub _generic_parse {
       } else {
         my @alternatives = grep { $length{$_} == $max_length } keys %length;
         if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-          $self->_logger->debugf('[%d:%d] Lexeme alternative %s', $self->LineNumber, $self->ColumnNumber, \@alternatives);
+          $self->_logger->debugf('[%d:%d] Lexeme alternatives %s', $self->LineNumber, $self->ColumnNumber, \@alternatives);
         }
         my @lexeme_complete_events = ();
         my ($next_global_line, $next_global_column, $next_global_pos, $next_pos) = ($self->LineNumber, $self->ColumnNumber, $global_pos, $pos);
