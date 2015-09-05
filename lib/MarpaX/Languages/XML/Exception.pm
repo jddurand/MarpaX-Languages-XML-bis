@@ -2,7 +2,7 @@ package MarpaX::Languages::XML::Exception;
 use XML::SAX::Exception;
 use Moo;
 
-# ABSTRACT: XML::SAX::Exception extension with Marpa progress report
+# ABSTRACT: XML::SAX::Exception extension with Marpa progress report and expected terminals
 
 # VERSION
 
