@@ -96,6 +96,7 @@ sub _exception {
              );
   if ($MarpaX::Languages::XML::Impl::Parser::is_trace && $r) {
     $hash{Progress} = $r->show_progress();
+    $hash{TerminalsExpected} = $r->terminals_expected();
   }
 
   MarpaX::Languages::XML::Exception->throw(%hash);
@@ -595,7 +596,7 @@ sub _generic_parse {
           }
           return;
         } else {
-          $self->_exception(sprintf('No predicted lexeme found: %s', join(', ', @predicted_lexemes)), $r);
+          $self->_exception('No predicted lexeme found', $r);
         }
       } else {
         my @alternatives = grep { $length{$_} == $max_length } keys %length;
@@ -779,172 +780,166 @@ sub parse {
     $self->_exception('SAX handlers must be a ref to HASH');
   }
 
-  try {
-    # ------------------
-    # "Global variables"
-    # ------------------
-    my $pos = 0;
-    my $global_pos = 0;
+  # ------------------
+  # "Global variables"
+  # ------------------
+  my $pos = 0;
+  my $global_pos = 0;
+  #
+  # ------------
+  # Parse prolog
+  # ------------
+  #
+  # Encoding object instance
+  #
+  my $encoding = MarpaX::Languages::XML::Impl::Encoding->new();
+  my ($bom_encoding, $guess_encoding, $orig_encoding, $byte_start)  = $self->_encoding($encoding);
+  if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+    $self->_logger->debugf('[%d:%d] BOM and/or guess gives encoding %s and byte offset %d', $self->LineNumber, $self->ColumnNumber, $orig_encoding, $byte_start);
+  }
+  my $nb_retry_because_of_encoding = 0;
+ retry_because_of_encoding:
+  #
+  # We want to handle buffer direcly with no COW
+  #
+  my $buffer;
+  $self->io->buffer($buffer);
+  #
+  # Very initial block size and read
+  #
+  $self->io->block_size($block_size);
+  $self->io->read;
+  #
+  # Go
+  #
+  my $final_encoding = $orig_encoding;
+  my %internal_events = (
+                         'prolog$'          => { end_of_grammar => 1, type => 'completed', symbol_name => 'prolog' },
+                        );
+  my %switches = (
+                  '^_ENCNAME'  => sub {
+                    my ($self, $data, $global_pos, $pos, $next_global_line, $next_global_column, $next_global_pos, $next_pos) = @_;
+                    #
+                    # Encoding is composed only of ASCII codepoints, so uc is ok
+                    #
+                    my $xml_encoding = uc($data);
+                    if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+                      $self->_logger->debugf('[%d:%d] XML says encoding %s', $self->LineNumber, $self->ColumnNumber, $xml_encoding);
+                    }
+                    #
+                    # Check eventual encoding v.s. endianness. Algorithm vaguely taken from
+                    # https://blogs.oracle.com/tucu/entry/detecting_xml_charset_encoding_again
+                    #
+                    $final_encoding = $encoding->final($bom_encoding, $guess_encoding, $xml_encoding);
+                    return ($final_encoding eq $orig_encoding);
+                  },
+                  '^_ELEMENT_START'  => sub {
+                    my ($self, $data, $global_pos, $pos, $next_global_line, $next_global_column, $next_global_pos, $next_pos) = @_;
+                    if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+                      $self->_logger->debugf('[%d:%d->%d:%d] ELEMENT_START lexeme prediction event', $self->LineNumber, $self->ColumnNumber, $next_global_line, $next_global_column);
+                    }
+                    return 0;
+                  },
+                 );
+  #
+  # Add events and internal switches for SAX events
+  #
+  foreach (keys %{$sax_handlers_ref}) {
+    my $user_code = $sax_handlers_ref->{$_};
     #
-    # ------------
-    # Parse prolog
-    # ------------
+    # At this step only start_document is supported
     #
-    # Encoding object instance
-    #
-    my $encoding = MarpaX::Languages::XML::Impl::Encoding->new();
-    my ($bom_encoding, $guess_encoding, $orig_encoding, $byte_start)  = $self->_encoding($encoding);
-    if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-      $self->_logger->debugf('[%d:%d] BOM and/or guess gives encoding %s and byte offset %d', $self->LineNumber, $self->ColumnNumber, $orig_encoding, $byte_start);
+    if ($_ eq 'start_document') {
+      $switches{$_} = sub {
+        my ($self) = @_;
+        #
+        # No argument for start_document
+        #
+        return $self->_start_document($user_code);
+      };
     }
-    my $nb_retry_because_of_encoding = 0;
-  retry_because_of_encoding:
-    #
-    # We want to handle buffer direcly with no COW
-    #
-    my $buffer;
-    $self->io->buffer($buffer);
-    #
-    # Very initial block size and read
-    #
-    $self->io->block_size($block_size);
-    $self->io->read;
-    #
-    # Go
-    #
-    my $final_encoding = $orig_encoding;
-    my %internal_events = (
-                           'prolog$'          => { end_of_grammar => 1, type => 'completed', symbol_name => 'prolog' },
-                          );
-    my %switches = (
-                    '^_ENCNAME'  => sub {
-                      my ($self, $data, $global_pos, $pos, $next_global_line, $next_global_column, $next_global_pos, $next_pos) = @_;
-                      #
-                      # Encoding is composed only of ASCII codepoints, so uc is ok
-                      #
-                      my $xml_encoding = uc($data);
-                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-                        $self->_logger->debugf('[%d:%d] XML says encoding %s', $self->LineNumber, $self->ColumnNumber, $xml_encoding);
-                      }
-                      #
-                      # Check eventual encoding v.s. endianness. Algorithm vaguely taken from
-                      # https://blogs.oracle.com/tucu/entry/detecting_xml_charset_encoding_again
-                      #
-                      $final_encoding = $encoding->final($bom_encoding, $guess_encoding, $xml_encoding);
-                      return ($final_encoding eq $orig_encoding);
-                    },
-                    '^_ELEMENT_START'  => sub {
-                      my ($self, $data, $global_pos, $pos, $next_global_line, $next_global_column, $next_global_pos, $next_pos) = @_;
-                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-                        $self->_logger->debugf('[%d:%d->%d:%d] ELEMENT_START lexeme prediction event', $self->LineNumber, $self->ColumnNumber, $next_global_line, $next_global_column);
-                      }
-                      return 0;
-                    },
-                   );
-    #
-    # Add events and internal switches for SAX events
-    #
-    foreach (keys %{$sax_handlers_ref}) {
-      my $user_code = $sax_handlers_ref->{$_};
-      #
-      # At this step only start_document is supported
-      #
-      if ($_ eq 'start_document') {
-        $switches{$_} = sub {
-          my ($self) = @_;
-          #
-          # No argument for start_document
-          #
-          return $self->_start_document($user_code);
-        };
-      }
-    }
-    $global_pos = $byte_start;
-    my $length = $self->io->length;
-    #
-    # From now on, there are a lot of arguments that are always the same. Make it an array
-    # for readability.
-    #
-    my @generic_parse_common_args = (
-                                     \$length,          # buffer length
-                                     \$pos,             # posp
-                                     \$global_pos,      # global_posp
-                                     $hash_ref,         # $hash_ref
-                                     \%internal_events, # internal_events_ref,
-                                     \%switches,        # switches
-                                    );
-    $self->_generic_parse(
-                          $buffer,           # buffer
-                          'document',        # start_symbol
-                          'prolog$',         # end_event_name
-                          @generic_parse_common_args
-                         );
-    if ($final_encoding ne $orig_encoding) {
-      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-        $self->_logger->debugf('[%d:%d] Redoing parse using encoding %s instead of %s', $self->LineNumber, $self->ColumnNumber, $final_encoding, $orig_encoding);
-      }
-      #
-      # Set encoding
-      #
-      $self->io->encoding($final_encoding);
-      #
-      # Clear buffer
-      #
-      $self->io->clear;
-      #
-      # If there was a recognized BOM, maintain byte_start
-      #
-      $self->io->pos($byte_start);
-      if (++$nb_retry_because_of_encoding == 1) {
-        $orig_encoding = $final_encoding;
-        $pos = 0;
-        $self->_set_LineNumber(1);
-        $self->_set_ColumnNumber(1);
-        $global_pos = $byte_start;
-        goto retry_because_of_encoding;
-      } else {
-        MarpaX::Languages::XML::Exception->throw("Two many retries because of encoding difference beween BOM, guess and XML");
-      }
-    }
-
-    # -------------
-    # Parse element - we use a stack free implementation because perl is(was?) not very good at recursion
-    # -------------
-    %internal_events = (
-                        'element$'       => { fixed_length => 0, end_of_grammar => 1, type => 'completed', symbol_name => 'element' },
-                        'AttributeName$' => { fixed_length => 0, end_of_grammar => 0, type => 'completed', symbol_name => 'AttributeName' },
+  }
+  $global_pos = $byte_start;
+  my $length = $self->io->length;
+  #
+  # From now on, there are a lot of arguments that are always the same. Make it an array
+  # for readability.
+  #
+  my @generic_parse_common_args = (
+                                   \$length,          # buffer length
+                                   \$pos,             # posp
+                                   \$global_pos,      # global_posp
+                                   $hash_ref,         # $hash_ref
+                                   \%internal_events, # internal_events_ref,
+                                   \%switches,        # switches
+                                  );
+  $self->_generic_parse(
+                        $buffer,           # buffer
+                        'document',        # start_symbol
+                        'prolog$',         # end_event_name
+                        @generic_parse_common_args
                        );
-    %switches = (
-                 '^_ELEMENT_START'  => sub {
-                   my ($self, $data, $global_pos, $pos, $next_global_line, $next_global_column, $next_global_pos, $next_pos) = @_;
-                   #
-                   # Inner element -> new recognizer
-                   #
-                   if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-                     $self->_logger->debugf('[%d:%d->%d:%d] ELEMENT_START lexeme prediction event', $self->LineNumber, $self->ColumnNumber, $next_global_line, $next_global_column);
-                   }
-                   return 0;
-                 },
-                 'AttributeName$'  => sub {
-                   my ($self) = @_;
-                   my $AttributeName = $self->_get__last_lexeme('_NAME');
-                   if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-                     $self->_logger->debugf('[%d:%d] Attribute %s', $AttributeName);
-                   }
-                   return 1;
-                 }
-                );
-    $self->_generic_parse(
-                          $buffer,           # buffer
-                          'element',         # start_symbol
-                          'element$',        # end_event_name
-                          @generic_parse_common_args
-                         );
-  } catch {
-    $self->_exception("$_");
-    return;
-  };
+  if ($final_encoding ne $orig_encoding) {
+    if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+      $self->_logger->debugf('[%d:%d] Redoing parse using encoding %s instead of %s', $self->LineNumber, $self->ColumnNumber, $final_encoding, $orig_encoding);
+    }
+    #
+    # Set encoding
+    #
+    $self->io->encoding($final_encoding);
+    #
+    # Clear buffer
+    #
+    $self->io->clear;
+    #
+    # If there was a recognized BOM, maintain byte_start
+    #
+    $self->io->pos($byte_start);
+    if (++$nb_retry_because_of_encoding == 1) {
+      $orig_encoding = $final_encoding;
+      $pos = 0;
+      $self->_set_LineNumber(1);
+      $self->_set_ColumnNumber(1);
+      $global_pos = $byte_start;
+      goto retry_because_of_encoding;
+    } else {
+      MarpaX::Languages::XML::Exception->throw("Two many retries because of encoding difference beween BOM, guess and XML");
+    }
+  }
 
+  # -------------
+  # Parse element - we use a stack free implementation because perl is(was?) not very good at recursion
+  # -------------
+  %internal_events = (
+                      'element$'       => { fixed_length => 0, end_of_grammar => 1, type => 'completed', symbol_name => 'element' },
+                      'AttributeName$' => { fixed_length => 0, end_of_grammar => 0, type => 'completed', symbol_name => 'AttributeName' },
+                     );
+  %switches = (
+               '^_ELEMENT_START'  => sub {
+                 my ($self, $data, $global_pos, $pos, $next_global_line, $next_global_column, $next_global_pos, $next_pos) = @_;
+                 #
+                 # Inner element -> new recognizer
+                 #
+                 if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+                   $self->_logger->debugf('[%d:%d->%d:%d] ELEMENT_START lexeme prediction event', $self->LineNumber, $self->ColumnNumber, $next_global_line, $next_global_column);
+                 }
+                 return 0;
+               },
+               'AttributeName$'  => sub {
+                 my ($self) = @_;
+                 my $AttributeName = $self->_get__last_lexeme('_NAME');
+                 if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+                   $self->_logger->debugf('[%d:%d] Attribute %s', $AttributeName);
+                 }
+                 return 1;
+               }
+              );
+  $self->_generic_parse(
+                        $buffer,           # buffer
+                        'element',         # start_symbol
+                        'element$',        # end_event_name
+                        @generic_parse_common_args
+                       );
 }
 
 with 'MooX::Role::Logger';

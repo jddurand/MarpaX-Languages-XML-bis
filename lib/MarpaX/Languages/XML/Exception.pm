@@ -15,7 +15,10 @@ around stringify => sub {
 
   my $string = $self->$orig(@_);
   if ($self->{Progress}) {
-    $string .= "\nProgress:\n" . $self->{Progress} . "\n";
+    $string .= "\nGrammar progress:\n" . $self->{Progress};
+  }
+  if ($self->{TerminalsExpected}) {
+    $string .= "\nTerminals expected: " . join(', ', @{$self->{TerminalsExpected}});
   }
   return $string;
 };
