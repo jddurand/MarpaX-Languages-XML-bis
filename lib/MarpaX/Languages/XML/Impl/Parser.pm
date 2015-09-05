@@ -89,12 +89,16 @@ L<IO::All>, L<Marpa::R2>
 sub _exception {
   my ($self, $message, $r) = @_;
 
-  $message //= '';
-  if ($MarpaX::Languages::XML::Impl::Parser::is_debug && $r) {
-    $message .= "\n" . $r->show_progress();
+  my %hash = (
+              Message      => $message || '',
+              LineNumber   => $self->LineNumber,
+              ColumnNumber => $self->ColumnNumber
+             );
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace && $r) {
+    $hash{Progress} = $r->show_progress();
   }
 
-  MarpaX::Languages::XML::Exception->throw($message);
+  MarpaX::Languages::XML::Exception->throw(%hash);
 }
 
 sub _encoding {
@@ -481,6 +485,7 @@ sub _generic_parse {
     my $data;
     my %length = ();
     my $max_length = 0;
+    my @predicted_lexemes = ();
     foreach (@event_names) {
       if (exists($G1_DESCRIPTIONS{$_})) {
         #
@@ -488,6 +493,7 @@ sub _generic_parse {
         # --------------------------
         $have_prediction = 1;
         my $lexeme_name = $G1_DESCRIPTIONS{$_}->{lexeme_name};
+        push(@predicted_lexemes, $lexeme_name);
         #
         # Check if the decision about this lexeme can be done
         #
@@ -496,7 +502,7 @@ sub _generic_parse {
           if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
             $self->_logger->tracef('[%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $self->LineNumber, $self->ColumnNumber, $lexeme_name, $G1_DESCRIPTIONS{$_}->{min_chars}, $remaining);
           }
-          $remaining = $length = ${$lengthp} = $self->_reduceAndRead($pos, $_[1], $length, 0, $self->LineNumber, $self->ColumnNumber);
+          $remaining = $length = ${$lengthp} = $self->_reduceAndRead($pos, $_[1], $length, 0, $r);
           ${$posp} = $pos = 0;
           if ($remaining > $old_remaining) {
             #
@@ -525,7 +531,7 @@ sub _generic_parse {
                 $self->_logger->tracef('[%d:%d] Lexeme %s is of unpredicted size and currently reaches end-of-buffer', $self->LineNumber, $self->ColumnNumber, $lexeme_name);
               }
               my $old_remaining = $remaining;
-              $remaining = $length = ${$lengthp} = $self->_reduceAndRead($pos, $_[1], $length, 0, $self->LineNumber, $self->ColumnNumber);
+              $remaining = $length = ${$lengthp} = $self->_reduceAndRead($pos, $_[1], $length, 0, $r);
               ${$posp} = $pos = 0;
               if ($remaining > $old_remaining) {
                 #
@@ -589,7 +595,7 @@ sub _generic_parse {
           }
           return;
         } else {
-          $self->_exception(sprintf('[%d:%d] No predicted lexeme found', $self->LineNumber, $self->ColumnNumber));
+          $self->_exception(sprintf('No predicted lexeme found: %s', join(', ', @predicted_lexemes)), $r);
         }
       } else {
         my @alternatives = grep { $length{$_} == $max_length } keys %length;
@@ -678,7 +684,7 @@ sub _generic_parse {
         }
         return;
       } else {
-        $self->_exception(sprintf('[%d:%d] No prediction and grammar end flag is not set', $self->LineNumber, $self->ColumnNumber));
+        $self->_exception('No prediction and grammar end flag is not set', $r);
       }
     }
   }
@@ -687,7 +693,7 @@ sub _generic_parse {
 }
 
 sub _reduceAndRead {
-  my ($self, $pos, undef, $length, $eof_is_fatal) = @_;
+  my ($self, $pos, undef, $length, $eof_is_fatal, $r) = @_;
   #
   # Crunch previous data
   #
@@ -713,11 +719,11 @@ sub _reduceAndRead {
   if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
     $self->_logger->tracef('[%d:%d] Reading data', $self->LineNumber, $self->ColumnNumber);
   }
-  return $self->_read($eof_is_fatal);
+  return $self->_read($eof_is_fatal, $r);
 }
 
 sub _read {
-  my ($self, $eof_is_fatal) = @_;
+  my ($self, $eof_is_fatal, $r) = @_;
 
   $eof_is_fatal //= 1;
 
@@ -725,7 +731,7 @@ sub _read {
   my $new_length;
   if (($new_length = $self->io->length) <= 0) {
     if ($eof_is_fatal) {
-      $self->_exception(sprintf('[%d:%d] EOF', $self->LineNumber, $self->ColumnNumber));
+      $self->_exception('EOF', $r);
     } else {
       if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
         $self->_logger->debugf('[%d:%d] EOF', $self->LineNumber, $self->ColumnNumber);
