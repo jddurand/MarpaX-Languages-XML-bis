@@ -1,9 +1,9 @@
 package MarpaX::Languages::XML::Impl::Encoding;
 use Config;
 use Encode::Guess;
-use MarpaX::Languages::XML::Impl::Logger;
 use Moo;
 use MooX::late;
+use MooX::Role::Logger;
 use Try::Tiny;
 
 # ABSTRACT: MarpaX::Languages::XML::Role::Encoding implementation
@@ -230,6 +230,6 @@ sub final {
   return $final_encoding;
 }
 
-extends 'MarpaX::Languages::XML::Impl::Logger';
+with 'MooX::Role::Logger';
 
 1;

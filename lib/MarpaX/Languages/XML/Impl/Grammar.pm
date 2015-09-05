@@ -1,11 +1,10 @@
 package MarpaX::Languages::XML::Impl::Grammar;
 use Data::Section -setup;
 use Marpa::R2;
-use MarpaX::Languages::XML::Impl::Logger;
 use MarpaX::Languages::XML::Exception;
-use MarpaX::Languages::XML::Impl::Logger;
 use Moo;
 use MooX::late;
+use MooX::Role::Logger;
 use MooX::HandlesVia;
 use Scalar::Util qw/blessed reftype/;
 
@@ -161,7 +160,7 @@ L<Marpa::R2>, L<XML1.0|http://www.w3.org/TR/xml/>, L<XML1.1|http://www.w3.org/TR
 
 =cut
 
-extends 'MarpaX::Languages::XML::Impl::Logger';
+with 'MooX::Role::Logger';
 with 'MarpaX::Languages::XML::Role::Grammar';
 
 1;

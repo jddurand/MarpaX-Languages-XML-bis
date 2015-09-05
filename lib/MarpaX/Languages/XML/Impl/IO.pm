@@ -6,6 +6,7 @@ use MarpaX::Languages::XML::Exception;
 use MarpaX::Languages::XML::Role::IO;
 use Moo;
 use MooX::late;
+use MooX::Role::Logger;
 use Types::Standard qw/InstanceOf Str Int/;
 use Try::Tiny;
 

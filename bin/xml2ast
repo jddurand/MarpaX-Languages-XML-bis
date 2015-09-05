@@ -59,7 +59,6 @@ foreach (@ARGV) {
     try {
         MarpaX::Languages::XML->parse(io => MarpaX::Languages::XML::Impl::IO->new->open($source),
                                       block_size => $block_size,
-                                      parse_opts => { trace_terminals => $log->is_trace ? 1 : 0 },
                                       sax_handlers => \%sax_handlers
             );
     } catch {
