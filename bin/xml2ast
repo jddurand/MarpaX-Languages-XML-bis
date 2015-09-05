@@ -54,20 +54,22 @@ my %sax_handlers = (grep { $_ eq 'all' } @sax)
   :
   map { $_ => $SAX_HANDLERS{$_} } grep { exists($SAX_HANDLERS{$_}) } @sax;
 
+my $rc = EXIT_SUCCESS;
 foreach (@ARGV) {
-    my $source = $_;
-    try {
-        MarpaX::Languages::XML->parse(io => MarpaX::Languages::XML::Impl::IO->new->open($source),
-                                      block_size => $block_size,
-                                      sax_handlers => \%sax_handlers
-            );
-    } catch {
-        $log->errorf('%s', "$_");
-        return;
-    };
+  my $source = $_;
+  try {
+    MarpaX::Languages::XML->parse(io => MarpaX::Languages::XML::Impl::IO->new->open($source),
+                                  block_size => $block_size,
+                                  sax_handlers => \%sax_handlers
+                                 );
+  } catch {
+    $log->errorf('%s', "$_");
+    $rc = EXIT_FAILURE;
+    return;
+  };
 }
 
-exit(EXIT_SUCCESS);
+exit($rc);
 
 ##################################################"
 
