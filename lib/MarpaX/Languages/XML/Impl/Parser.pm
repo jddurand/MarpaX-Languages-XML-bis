@@ -599,11 +599,6 @@ sub _generic_parse {
           $self->_exception('No predicted lexeme found', $r);
         }
       } else {
-        my @alternatives = grep { $length{$_} == $max_length } keys %length;
-        if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-          $self->_logger->debugf('[%d:%d] Lexeme alternatives %s', $self->LineNumber, $self->ColumnNumber, \@alternatives);
-        }
-        my @lexeme_complete_events = ();
         my ($next_global_line, $next_global_column, $next_global_pos, $next_pos) = ($self->LineNumber, $self->ColumnNumber, $global_pos, $pos);
         #
         # Update position and remaining chars in internal buffer, global line and column numbers. Wou might think it is too early, but
@@ -618,6 +613,11 @@ sub _generic_parse {
         }
         $next_pos        += $max_length;
         $next_global_pos += $max_length;
+        my @alternatives = grep { $length{$_} == $max_length } keys %length;
+        if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+          $self->_logger->debugf('[%d:%d->%d:%d] Lexeme alternatives %s', $self->LineNumber, $self->ColumnNumber, $next_global_line, $next_global_column, \@alternatives);
+        }
+        my @lexeme_complete_events = ();
         foreach (@alternatives) {
           #
           # Callback on lexeme prediction
