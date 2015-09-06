@@ -7,6 +7,7 @@ use MooX::late;
 use MooX::Role::Logger;
 use MooX::HandlesVia;
 use Scalar::Util qw/blessed reftype/;
+use Types::Standard qw/InstanceOf HashRef RegexpRef/;
 
 # ABSTRACT: MarpaX::Languages::XML::Role::Grammar implementation
 
@@ -19,6 +20,28 @@ use Scalar::Util qw/blessed reftype/;
 This module is an implementation of MarpaX::Languages::XML::Role::Grammar. It provides Marpa::R2::Scanless::G's class attributes for XML versions 1.0 and 1.1.
 
 =cut
+
+has scanless => (
+                 is          => 'ro',
+                 isa         => InstanceOf['Marpa::R2::Scanless::G'],
+                 writer      => '_set_scanless'
+                );
+has lexeme_regexps => (
+                       is  => 'ro',
+                       isa => HashRef[RegexpRef],
+                       writer => '_set_lexeme_regexps'
+                      );
+has lexeme_exclusions => (
+                       is  => 'ro',
+                       isa => HashRef[RegexpRef],
+                       writer => '_set_lexeme_exclusions'
+                      );
+has g1_descriptions => (
+                        is  => 'ro',
+                        isa => HashRef[HashRef],
+                        writer => '_set_g1_descriptions'
+                       );
+
 our %XMLVERSION = (
                    '1.0' => __PACKAGE__->section_data('xml10'),
                    '1.1' => __PACKAGE__->section_data('xml10')
