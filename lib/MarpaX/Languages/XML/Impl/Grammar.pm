@@ -61,10 +61,10 @@ has start => (
               default => 'document'
              );
 
-our %XMLVERSION = (
-                   '1.0' => __PACKAGE__->section_data('xml10'),
-                   '1.1' => __PACKAGE__->section_data('xml10')
-                  );
+our %XMLBNF = (
+               '1.0' => __PACKAGE__->section_data('xml10'),
+               '1.1' => __PACKAGE__->section_data('xml10')
+              );
 #
 # C.f. comments in the grammar explaining why end_document and end_element are absent
 #
@@ -138,7 +138,7 @@ sub _grammar {
   #
   # Sanity checks
   #
-  if (! exists($XMLVERSION{$xmlversion})) {
+  if (! exists($XMLBNF{$xmlversion})) {
     MarpaX::Languages::XML::Exception->throw("Invalid grammar version: $xmlversion");
   }
   if (! reftype($sax_handlers) || reftype($sax_handlers) ne 'HASH') {
@@ -150,7 +150,7 @@ sub _grammar {
   #
   # Manipulate DATA section
   #
-  my $data = ${$XMLVERSION{$xmlversion}};
+  my $data = ${$XMLBNF{$xmlversion}};
   #
   # Revisit the start
   #
