@@ -2,6 +2,7 @@ package MarpaX::Languages::XML::Impl::Grammar;
 use Data::Section -setup;
 use Marpa::R2;
 use MarpaX::Languages::XML::Exception;
+use MarpaX::Languages::XML::Type::G1Description qw/G1Description/;
 use Moo;
 use MooX::late;
 use MooX::Role::Logger;
@@ -26,21 +27,21 @@ has scanless => (
                  isa         => InstanceOf['Marpa::R2::Scanless::G'],
                  writer      => '_set_scanless'
                 );
-has lexeme_regexps => (
+has lexeme_regexp => (
+                      is  => 'ro',
+                      isa => HashRef[RegexpRef],
+                      writer => '_set_lexeme_regexp'
+                     );
+has lexeme_exclusion => (
+                         is  => 'ro',
+                         isa => HashRef[RegexpRef],
+                         writer => '_set_lexeme_exclusion'
+                        );
+has g1_description => (
                        is  => 'ro',
-                       isa => HashRef[RegexpRef],
-                       writer => '_set_lexeme_regexps'
+                       isa => HashRef[G1Description],
+                       writer => '_set_g1_description'
                       );
-has lexeme_exclusions => (
-                       is  => 'ro',
-                       isa => HashRef[RegexpRef],
-                       writer => '_set_lexeme_exclusions'
-                      );
-has g1_descriptions => (
-                        is  => 'ro',
-                        isa => HashRef[HashRef],
-                        writer => '_set_g1_descriptions'
-                       );
 
 our %XMLVERSION = (
                    '1.0' => __PACKAGE__->section_data('xml10'),
