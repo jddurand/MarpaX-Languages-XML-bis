@@ -2,7 +2,7 @@ package MarpaX::Languages::XML::Impl::Grammar;
 use Data::Section -setup;
 use Marpa::R2;
 use MarpaX::Languages::XML::Exception;
-use MarpaX::Languages::XML::Type::GrammarDescription qw/GrammarDescription/;
+use MarpaX::Languages::XML::Type::GrammarEvents -all;
 use Moo;
 use MooX::late;
 use MooX::Role::Logger;
@@ -37,10 +37,10 @@ has lexeme_exclusion => (
                          isa => HashRef[RegexpRef],
                          writer => '_set_lexeme_exclusion'
                         );
-has grammardescription => (
+has grammarevents => (
                        is  => 'ro',
-                       isa => HashRef[GrammarDescription],
-                       writer => '_set_grammardescription'
+                       isa => HashRef[GrammarEvents],
+                       writer => '_set_grammarevents'
                       );
 
 has sax_handler => (

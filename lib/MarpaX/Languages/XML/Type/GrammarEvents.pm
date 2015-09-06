@@ -1,12 +1,12 @@
-package MarpaX::Languages::XML::Type::GrammarDescription;
+package MarpaX::Languages::XML::Type::GrammarEvents;
 use Type::Library
   -base,
-  -declare => qw/GrammarDescription/;
+  -declare => qw/GrammarEvents/;
 use Type::Utils -all;
 use Types::Standard -types;
 use Types::Common::Numeric qw/PositiveOrZeroInt/;
 
-declare GrammarDescription,
+declare GrammarEvents,
   as Dict[
           lexeme        => Bool,
           fixed_length  => Bool,
