@@ -6,6 +6,7 @@ use MarpaX::Languages::XML::Type::GrammarDescription qw/GrammarDescription/;
 use Moo;
 use MooX::late;
 use MooX::Role::Logger;
+use MooX::ClassAttribute;
 use MooX::HandlesVia;
 use Scalar::Util qw/blessed reftype/;
 use Types::Standard qw/InstanceOf HashRef RegexpRef CodeRef Str Enum/;
