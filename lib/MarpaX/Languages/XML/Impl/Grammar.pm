@@ -281,12 +281,16 @@ Attribute                     ::= AttributeName Eq AttValue  # [VC: Attribute Va
 ETag                          ::= ETAG_START Name SMaybe ETAG_END
 CharDataMaybe                 ::= CharData
 CharDataMaybe                 ::=
-contentUnit                   ::= element CharDataMaybe | Reference CharDataMaybe | CDSect CharDataMaybe | PI CharDataMaybe | Comment CharDataMaybe
+contentUnit                   ::= element CharDataMaybe
+                                | Reference CharDataMaybe
+                                | CDSect CharDataMaybe
+                                | PI CharDataMaybe
+                                | Comment CharDataMaybe
 contentUnitAny                ::= contentUnit*
 content                       ::= CharDataMaybe contentUnitAny
 EmptyElemTagUnit              ::= S Attribute
 EmptyElemTagUnitAny           ::= EmptyElemTagUnit*
-EmptyElemTag                  ::= ELEMENT_START Name EmptyElemTagUnitAny SMaybe EMPTYELEM_END # [WFC: Unique Att Spec]
+EmptyElemTag                  ::= ELEMENT_START Name EmptyElemTagUnitAny SMaybe EMPTYELEM_END   # [WFC: Unique Att Spec]
 elementdecl                   ::= ELEMENTDECL_START S Name S contentspec SMaybe ELEMENTDECL_END # [VC: Unique Element Type Declaration]
 contentspec                   ::= EMPTY | ANY | Mixed | children
 ChoiceOrSeq                   ::= choice | seq

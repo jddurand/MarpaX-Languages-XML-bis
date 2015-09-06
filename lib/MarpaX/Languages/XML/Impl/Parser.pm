@@ -43,6 +43,15 @@ has _last_lexeme => (
                     );
 
 #
+# Internal buffer length
+#
+has _length => (
+                is          => 'rw',
+                isa         => PositiveOrZeroInt,
+                default     => 0
+                );
+
+#
 # Grammars (cached because of element recursivity)
 #
 has _grammars => (
@@ -573,6 +582,9 @@ sub _generic_parse {
         # Callback ?
         #
         my $code = $switches_ref->{$_};
+        #
+        # A G1 callback has no argument
+        #
         my $rc_switch = defined($code) ? $self->$code() : 1;
         #
         # Any false return value mean immediate stop
@@ -622,14 +634,32 @@ sub _generic_parse {
           #
           # Callback on lexeme prediction
           #
-          my $code = $switches_ref->{"^$_"};
+          my $lexeme_prediction_event = "^$_";
+          my $code = $switches_ref->{$lexeme_prediction_event};
+          #
+          # A L0 callback has a lot of arguments
+          #
           my $rc_switch = defined($code) ? $self->$code($data, $global_pos, $pos, $next_global_line, $next_global_column, $next_global_pos, $next_pos) : 1;
           if (! $rc_switch) {
             if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-              $self->_logger->debugf('[%d:%d] Event callback %s says to stop', $self->LineNumber, $self->ColumnNumber, "^$_");
+              $self->_logger->debugf('[%d:%d] Event callback %s says to stop', $self->LineNumber, $self->ColumnNumber, $lexeme_prediction_event);
             }
             return;
           }
+          #
+          # A negative value means that the input have changed and alternatives should be rescanned
+          #
+          if ($rc_switch < 0) {
+            if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+              $self->_logger->debugf('[%d:%d] Event callback %s says input have changed: rescanning', $self->LineNumber, $self->ColumnNumber, "^$_");
+            }
+            goto manage_events;
+          }
+        }
+        #
+        # If we are here, this mean that no eventual callback says to not be there -;
+        #
+        foreach (@alternatives) {
           #
           # Push alternative
           #
@@ -648,12 +678,20 @@ sub _generic_parse {
         # Position 0 and length 1: the Marpa input buffer is virtual
         #
         $r->lexeme_complete(0, 1);
+        $self->_set_LineNumber($next_global_line);
+        $self->_set_ColumnNumber($next_global_column);
+        ${$global_posp}    = $global_pos    = $next_global_pos;
+        ${$posp}           = $pos           = $next_pos;
+        $remaining -= $max_length;
         #
         # Fake the lexeme completion events
         #
         foreach (@lexeme_complete_events) {
           my $code = $switches_ref->{$_};
-          my $rc_switch = defined($code) ? $self->$code($data, $global_pos, $pos, $next_global_line, $next_global_column, $next_global_pos, $next_pos) : 1;
+          #
+          # A L0 completion callback has less arguments than a predicted one
+          #
+          my $rc_switch = defined($code) ? $self->$code($data, $global_pos, $pos) : 1;
           if (! $rc_switch) {
             if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
               $self->_logger->debugf('[%d:%d] Event callback %s says to stop', $self->LineNumber, $self->ColumnNumber, $_);
@@ -661,11 +699,6 @@ sub _generic_parse {
             return;
           }
         }
-        $self->_set_LineNumber($next_global_line);
-        $self->_set_ColumnNumber($next_global_column);
-        ${$global_posp}    = $global_pos    = $next_global_pos;
-        ${$posp}           = $pos           = $next_pos;
-        $remaining -= $max_length;
         #
         # lexeme complete can generate new events: handle them before eventually resuming
         #
@@ -814,7 +847,7 @@ sub parse {
   #
   my $final_encoding = $orig_encoding;
   my %internal_events = (
-                         'prolog$'          => { end_of_grammar => 1, type => 'completed', symbol_name => 'prolog' },
+                         'prolog$'          => { type => 'completed', symbol_name => 'prolog' },
                         );
   my %switches = (
                   '^_ENCNAME'  => sub {
@@ -836,7 +869,7 @@ sub parse {
                   '^_ELEMENT_START'  => sub {
                     my ($self, $data, $global_pos, $pos, $next_global_line, $next_global_column, $next_global_pos, $next_pos) = @_;
                     if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-                      $self->_logger->debugf('[%d:%d->%d:%d] ELEMENT_START lexeme prediction event', $self->LineNumber, $self->ColumnNumber, $next_global_line, $next_global_column);
+                      $self->_logger->debugf('[%d:%d] ELEMENT_START lexeme prediction event', $self->LineNumber, $self->ColumnNumber);
                     }
                     return 0;
                   },
@@ -908,36 +941,73 @@ sub parse {
   }
 
   # -------------
-  # Parse element - we use a stack free implementation because perl is(was?) not very good at recursion
+  # Parse element
   # -------------
+  #
+  # We use a stack free implementation because perl is(was?) not very good at recursion. Also
+  # we know in advance that Marpa will maintain internally a tree of everything happening in
+  # the grammar, so reading a big thing, even in streaming mode, is useless if we use a single
+  # grammar for all the data because of Marpa book-keeping (which is normal btw).
+  #
+  # If we look closer to the grammar we will see that the pivot is the 'content' rule:
+  #
+  # document                      ::= prolog element MiscAny
+  # element                       ::= EmptyElemTag
+  #                                 | STag content ETag
+  # STag                          ::= ELEMENT_START STagName STagUnitAny         SMaybe ELEMENT_END # [WFC: Unique Att Spec]
+  # EmptyElemTag                  ::= ELEMENT_START Name     EmptyElemTagUnitAny SMaybe EMPTYELEM_END # [WFC: Unique Att Spec]
+  #
+  # # Note: Both STagUnitAny and EmptyElemTagUnitAny resume to: S Attribute
+  #
+  # content                       ::= CharDataMaybe contentUnitAny
+  # contentUnitAny                ::= contentUnit*            # LOOP HERE
+  # contentUnit                   ::= element   CharDataMaybe # RECURSION HERE!
+  #                                 | Reference CharDataMaybe
+  #                                 | CDSect    CharDataMaybe
+  #                                 | PI        CharDataMaybe
+  #                                 | PI        CharDataMaybe
+  #                                 | Comment   CharDataMaybe
+  #
+  # * The first 'element' (usually called the the root element) must appear
+  # * 'element' recurse only in the content.
+  #
+  # Conclusion:
+  # * Nothing distinguishes an STag to an EmptyElemTag except the very end: '>' (for STag) or '/'> (for EmptyElemTag)
+  # * The first element must be followed by MiscAny
+  # * 'content' is a nullable!
+  # * Any other element must be followed by CharDataMaybe. Then the position will be the end of contentUnitAny that is a nullable, followed by ETAG. So the
+  #   general algorithm for element is:
+  #
+  #
   %internal_events = (
-                      'element$'       => { fixed_length => 0, end_of_grammar => 1, type => 'completed', symbol_name => 'element' },
-                      'AttributeName$' => { fixed_length => 0, end_of_grammar => 0, type => 'completed', symbol_name => 'AttributeName' },
+                      'element$'           => { type => 'completed', symbol_name => 'element' },
+                      '^content'           => { type => 'predicted', symbol_name => 'content' },
+                      'AttributeName$'     => { type => 'completed', symbol_name => 'AttributeName' },
                      );
+
+  my $content = 0;
   %switches = (
-               '^_ELEMENT_START'  => sub {
-                 my ($self, $data, $global_pos, $pos, $next_global_line, $next_global_column, $next_global_pos, $next_pos) = @_;
-                 #
-                 # Inner element -> new recognizer
-                 #
+               '^content'  => sub {
+                 my ($self) = @_;
                  if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-                   $self->_logger->debugf('[%d:%d->%d:%d] ELEMENT_START lexeme prediction event', $self->LineNumber, $self->ColumnNumber, $next_global_line, $next_global_column);
+                   $self->_logger->debugf('[%d:%d] content rule prediction event', $self->LineNumber, $self->ColumnNumber);
                  }
+                 $content = 1;
                  return 0;
                },
                'AttributeName$'  => sub {
                  my ($self) = @_;
                  my $AttributeName = $self->_get__last_lexeme('_NAME');
                  if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-                   $self->_logger->debugf('[%d:%d] Attribute %s', $AttributeName);
+                   $self->_logger->debugf('[%d:%d] Attribute %s', $self->LineNumber, $self->ColumnNumber, $AttributeName);
                  }
                  return 1;
-               }
+               },
               );
   $self->_generic_parse(
-                        $buffer,           # buffer
-                        'element',         # start_symbol
-                        'element$',        # end_event_name
+                        $buffer,             # buffer
+                        'element',           # start_symbol
+                        'element$',          # end_event_name
                         @generic_parse_common_args
                        );
 }
