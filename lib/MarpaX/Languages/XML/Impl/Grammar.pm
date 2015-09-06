@@ -2,13 +2,13 @@ package MarpaX::Languages::XML::Impl::Grammar;
 use Data::Section -setup;
 use Marpa::R2;
 use MarpaX::Languages::XML::Exception;
-use MarpaX::Languages::XML::Type::G1Description qw/G1Description/;
+use MarpaX::Languages::XML::Type::GrammarDescription qw/GrammarDescription/;
 use Moo;
 use MooX::late;
 use MooX::Role::Logger;
 use MooX::HandlesVia;
 use Scalar::Util qw/blessed reftype/;
-use Types::Standard qw/InstanceOf HashRef RegexpRef/;
+use Types::Standard qw/InstanceOf HashRef RegexpRef CodeRef Str Enum/;
 
 # ABSTRACT: MarpaX::Languages::XML::Role::Grammar implementation
 
@@ -37,11 +37,29 @@ has lexeme_exclusion => (
                          isa => HashRef[RegexpRef],
                          writer => '_set_lexeme_exclusion'
                         );
-has g1_description => (
+has grammardescription => (
                        is  => 'ro',
-                       isa => HashRef[G1Description],
-                       writer => '_set_g1_description'
+                       isa => HashRef[GrammarDescription],
+                       writer => '_set_grammardescription'
                       );
+
+has sax_handler => (
+                    is  => 'ro',
+                    isa => HashRef[CodeRef],
+                    default => sub { {} }
+                   );
+
+has xml_version => (
+                    is  => 'ro',
+                    isa => Enum[qw/1.0 1.1/],
+                    default => '1.0'
+                   );
+
+has start => (
+              is  => 'ro',
+              isa => Str,
+              default => 'document'
+             );
 
 our %XMLVERSION = (
                    '1.0' => __PACKAGE__->section_data('xml10'),

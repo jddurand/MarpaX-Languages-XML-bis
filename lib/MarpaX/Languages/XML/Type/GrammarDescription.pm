@@ -1,13 +1,14 @@
-package MarpaX::Languages::XML::Type::G1Description;
+package MarpaX::Languages::XML::Type::GrammarDescription;
 use Type::Library
   -base,
-  -declare => qw/G1Description/;
+  -declare => qw/GrammarDescription/;
 use Type::Utils -all;
 use Types::Standard -types;
 use Types::Common::Numeric qw/PositiveOrZeroInt/;
 
-declare G1Description,
+declare GrammarDescription,
   as Dict[
+          lexeme        => Bool,
           fixed_length  => Bool,
           type          => Str,
           min_chars     => PositiveOrZeroInt,
