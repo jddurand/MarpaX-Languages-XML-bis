@@ -73,13 +73,11 @@ sub _trigger__pos {
   my ($self, $pos) = @_;
 
   $self->_set__remaining($self->_length - $pos);
-  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-      $self->_logger->tracef('[%d:%d] Data: %s', $self->LineNumber, $self->ColumnNumber,
-                             hexdump(data              => ${$self->io->buffer},
-                                     suppress_warnings => 1,
-                                     start_position    => $self->_pos,
-                                     end_position      => ($self->_pos + 15 >= $self->_length) ? ($self->_pos + 15) : ($self->_length - $self->_pos)
-                                    ));
+  if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+    $self->_logger->debugf('[%d:%d] Data: %s', $self->LineNumber, $self->ColumnNumber,
+                           hexdump(data              => substr(${$self->io->buffer}, $self->_pos, 15),
+                                   suppress_warnings => 1,
+                                  ));
   }
 }
 
@@ -125,12 +123,12 @@ has _next_pos => (
                  );
 has _next_global_line => (
                           is          => 'rw',
-                          isa         => PositiveOrZeroInt,
+                          isa         => PositiveInt,
                           writer      => '_set__next_global_line'
                          );
 has _next_global_column => (
                             is          => 'rw',
-                            isa         => PositiveOrZeroInt,
+                            isa         => PositiveInt,
                             writer      => '_set__next_global_column'
                            );
 has _next_global_pos => (
@@ -151,32 +149,35 @@ has io => (
 
 has block_size => (
                    is          => 'ro',
-                   isa         => PositiveOrZeroInt,
-                   default     => 11
+                   isa         => PositiveInt,
+                   default     => 1024 * 1024 * 1024
           );
 
-has sax_handlers => (
-                     is  => 'ro',
-                     isa => HashRef[CodeRef],
-                     default => sub { {} },
-                     handles_via => 'Hash',
-                     handles => {
-                                 keys_sax_handlers  => 'keys',
-                                 get_sax_handler    => 'get',
-                                 exists_sax_handler => 'exists',
-                                }
+has sax_handler => (
+                    is  => 'ro',
+                    isa => HashRef[CodeRef],
+                    default => sub { {} },
+                    handles_via => 'Hash',
+                    handles => {
+                                keys_sax_handler  => 'keys',
+                                get_sax_handler    => 'get',
+                                exists_sax_handler => 'exists',
+                               }
                     );
 
+#
+# Logger attribute that need to be external
+#
 has LineNumber => (
                    is => 'ro',
-                   isa => PositiveOrZeroInt,
+                   isa => PositiveInt,
                    writer => '_set_LineNumber',
                    default => 1
                   );
 
 has ColumnNumber => (
                    is => 'ro',
-                   isa => PositiveOrZeroInt,
+                   isa => PositiveInt,
                    writer => '_set_ColumnNumber',
                    default => 1
                   );
@@ -583,8 +584,8 @@ sub _reduceAndRead {
   #
   # Read more data
   #
-  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-    $self->_logger->tracef('[%d:%d] Reading data', $self->LineNumber, $self->ColumnNumber);
+  if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+    $self->_logger->debugf('[%d:%d] Reading %d characters', $self->LineNumber, $self->ColumnNumber, $self->block_size);
   }
 
   $self->_set__length($self->_read($eof_is_fatal, $r));
@@ -685,7 +686,7 @@ sub _parse_prolog {
   foreach (qw/start_document/) {
     if ($self->exists_sax_handler($_)) {
       my $user_code = $self->get_sax_handler($_);
-      $grammar_event{$_} = { types => 'nulled', symbol_name => $_ };
+      $grammar_event{$_} = { type => 'nulled', symbol_name => $_ };
       $callbacks{$_} = sub { return shift->$_($user_code) };
     }
   }
@@ -747,21 +748,21 @@ sub parse {
   local $MarpaX::Languages::XML::Impl::Parser::is_debug = $self->_logger->is_debug;
   local $MarpaX::Languages::XML::Impl::Parser::is_warn  = $self->_logger->is_warn;
   #
-  # Set all SAX booleans
-  #
-  foreach ($self->keys_sax_handlers) {
-    $self->_set_sax_event($_, 1);
-  }
-  #
   # We want to handle buffer direcly with no COW: buffer is a variable send in all parameters
   # and accessed using $_[]
   #
   my $buffer;
   $self->io->buffer($buffer);
+
   # ------------
   # Parse prolog
   # ------------
   $self->_parse_prolog($buffer);
+
+  # --------------------
+  # Parse (root) element
+  # --------------------
+  $self->_parse_element($buffer);
 
 }
 

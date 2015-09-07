@@ -23,15 +23,15 @@ use Try::Tiny;
 my $help = 0;
 my $loglevel = 'INFO';
 my $logstderr = 0;
-my $block_size = 0;
+my $block_size = 11;
 my @sax = ();
 
-our %SAX_HANDLERS = (
-                     start_document => \&_start_document,
-                     start_element  => \&_start_element,
-                     end_element    => \&_end_element,
-                     end_document   => \&_end_document,
-                    );
+our %SAX_HANDLER = (
+    start_document => \&_start_document,
+    start_element  => \&_start_element,
+    end_element    => \&_end_element,
+    end_document   => \&_end_document,
+    );
 
 GetOptions ('help!' => \$help,
             'loglevel=s' => \$loglevel,
@@ -48,11 +48,11 @@ GetOptions ('help!' => \$help,
 __PACKAGE__->_init($loglevel, $logstderr);
 
 @sax = split(/,/,join(',',@sax));
-my %sax_handlers = (grep { $_ eq 'all' } @sax)
-  ?
-  %SAX_HANDLERS
-  :
-  map { $_ => $SAX_HANDLERS{$_} } grep { exists($SAX_HANDLERS{$_}) } @sax;
+my %sax_handler = (grep { $_ eq 'all' } @sax)
+    ?
+    %SAX_HANDLER
+    :
+    map { $_ => $SAX_HANDLER{$_} } grep { exists($SAX_HANDLER{$_}) } @sax;
 
 my $rc = EXIT_SUCCESS;
 foreach (@ARGV) {
@@ -60,7 +60,7 @@ foreach (@ARGV) {
   try {
     MarpaX::Languages::XML->parse(io => MarpaX::Languages::XML::Impl::IO->new->open($source),
                                   block_size => $block_size,
-                                  sax_handlers => \%sax_handlers
+                                  sax_handler => \%sax_handler
                                  );
   } catch {
     $log->errorf('%s', "$_");
