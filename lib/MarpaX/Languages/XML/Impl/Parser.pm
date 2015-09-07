@@ -30,6 +30,15 @@ This module is an implementation of MarpaX::Languages::XML::Role::Parser.
 # -------------------
 
 #
+# Because of the prolog retry, start_document can happen twice
+#
+has _start_document_done => (
+                             is          => 'rw',
+                             isa         => Bool,
+                             default     => 0
+                    );
+
+#
 # Last lexemes
 #
 has _last_lexeme => (
@@ -40,7 +49,7 @@ has _last_lexeme => (
                      handles     => {
                                      _get__last_lexeme => 'get',
                                      _set__last_lexeme => 'set',
-                                    },
+                                    }
                     );
 
 #
@@ -612,17 +621,20 @@ sub _read {
   return $new_length;
 }
 
-sub start_document {
+sub _start_document {
   my ($self, $user_code, @args) = @_;
 
-  if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-    $self->_logger->debugf('[%d:%d] SAX event start_document', $self->LineNumber, $self->ColumnNumber);
+  if (! $self->_start_document_done) {
+    if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+      $self->_logger->debugf('[%d:%d] SAX event start_document', $self->LineNumber, $self->ColumnNumber);
+    }
+    #
+    # No argument for start_document
+    #
+    $self->$user_code(@args);
+    $self->_start_document_done(1);
   }
-  #
-  # No argument for start_document
-  #
-  $self->$user_code(@args);
-  return 1;
+  return;
 }
 
 sub _parse_prolog {
@@ -686,8 +698,9 @@ sub _parse_prolog {
   foreach (qw/start_document/) {
     if ($self->exists_sax_handler($_)) {
       my $user_code = $self->get_sax_handler($_);
+      my $internal_code = "_$_";
       $grammar_event{$_} = { type => 'nulled', symbol_name => $_ };
-      $callbacks{$_} = sub { return shift->$_($user_code) };
+      $callbacks{$_} = sub { my ($self) = @_; $self->$internal_code($user_code); return; };
     }
   }
   #
