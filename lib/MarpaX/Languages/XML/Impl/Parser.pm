@@ -30,6 +30,33 @@ This module is an implementation of MarpaX::Languages::XML::Role::Parser.
 # -------------------
 
 #
+# Current entity references
+#
+has _entityref => (
+                   is => 'rw',
+                   isa => HashRef[Str],
+                   default => sub { {} },
+                   handles_via => 'Hash',
+                   handles     => {
+                                   _get__entityref => 'get',
+                                   _set__entityref => 'set',
+                                   _exists__entityref => 'exists',
+                                  }
+                  );
+has _pereference => (
+                     is => 'rw',
+                     isa => HashRef[Str],
+                     default => sub { {} },
+                     handles_via => 'Hash',
+                     handles     => {
+                                     _get__pereference => 'get',
+                                     _set__pereference => 'set',
+                                     _exists__pereference => 'exists',
+                                    }
+                    );
+
+
+#
 # Because of the prolog retry, start_document can happen twice
 #
 has _start_document_done => (
@@ -749,6 +776,62 @@ sub _parse_prolog {
       $self->_exception('Two many retries because of encoding difference beween BOM, guess and XML');
     }
   }
+}
+
+sub _parse_element {
+  my ($self) = @_;              # buffer is in $_[1]
+
+  #
+  # Default grammar event and callbacks
+  #
+  my $grammar;
+  my %grammar_event = (
+                       'element$'       => { type => 'completed', symbol_name => 'element' },
+                       'AttributeName$' => { type => 'completed', symbol_name => 'AttributeName' },
+                      );
+  my %att = ();
+  my $attname = '';
+  my @attvalue = [];
+  my %callbacks = (
+                   '_ATTVALUEINTERIORDQUOTEUNIT$' => sub {
+                     my ($self, $data) = @_;
+                     push(@attvalue, { char => $data });
+                     return 1;
+                   },
+                   '_ATTVALUEINTERIORSQUOTEUNIT$' => sub {
+                     my ($self, $data) = @_;
+                     push(@attvalue, { char => $data });
+                     return 1;
+                   },
+                   '_ENTITYREF_END$' => sub {
+                     my ($self, $data) = @_;
+                     my $name = $self->_get__last_lexeme('_NAME');
+                     if (! $self->_exists__entityref($name)) {
+                       $self->_logger->debugf('[%d:%d] Unknown EntityRef %s', $self->LineNumber, $self->ColumnNumber, $name);
+                     }
+                     push(@attvalue, { entityref => $name });
+                     return 1;
+                   },
+                   '_PEREFERENCE_END$' => sub {
+                     my ($self, $data) = @_;
+                     my $name = $self->_get__last_lexeme('_NAME');
+                     if (! $self->_exists__pereference($name)) {
+                       $self->_logger->debugf('[%d:%d] Unknown PEReference %s', $self->LineNumber, $self->ColumnNumber, $name);
+                     }
+                     push(@attvalue, { pereference => $name });
+                     return 1;
+                   },
+                   'AttValue$' => sub {
+                     my ($self) = @_;
+                     $att{$attname} = $grammar->normalize_attvalue($self, @attvalue);
+                     return 1;
+                   },
+                   'AttributeName$' => sub {
+                     my ($self) = @_;
+                     $attname = $self->_get__last_lexeme('_NAME');
+                     return 1;
+                   }
+                  );
 }
 
 sub parse {

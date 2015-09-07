@@ -24,6 +24,28 @@ This module is an implementation of MarpaX::Languages::XML::Role::Grammar. It pr
 
 =cut
 
+has _normalize_attvalue => (
+                            is     => 'ro',
+                            isa    => HashRef[CodeRef],
+                            default => sub {
+                              {
+                                '1.0' => \&_normalize_attvalue_xml10,
+                                '1.1' => \&_normalize_attvalue_xml11
+                              }
+                            }
+                           );
+
+has _eol_handling => (
+                      is     => 'ro',
+                      isa    => HashRef[CodeRef],
+                      default => sub {
+                        {
+                          '1.0' => \&_eol_handling_xml10,
+                          '1.1' => \&_eol_handling_xml11
+                          }
+                      }
+                     );
+
 has scanless => (
                  is     => 'ro',
                  isa    => InstanceOf['Marpa::R2::Scanless::G'],
@@ -399,6 +421,83 @@ sub _build_scanless {
   }
 
   return Marpa::R2::Scanless::G->new({source => \$data});
+}
+
+#
+# End-of-line handling: XML1.0 and XML1.1 share the same algorithm
+# ----------------------------------------------------------------
+sub _eol_handling_xml10 {
+  my $self = shift;
+  return $self->_eol_handling_common(@_);
+}
+sub _eol_handling_xml11 {
+  my $self = shift;
+  return $self->_eol_handling_common(@_);
+}
+sub _eol_handling_common {
+  my $self = shift;
+  #
+  # As per XML 1.0 section 2.11 End-of-Line Handling
+  #
+  # Tanslate both the two-character sequence #xD #xA and any #xD that is not followed by #xA to a single #xA character
+  my @normalized = ();
+  my ($i, $j);
+  for ($i = 0, $j = 1; $i <= $#_; $i++, $j++) {
+    if ($_[$i] eq "\x{D}") {
+      if ($j <= $#_) {
+        if ($_[$j] eq "\x{A}") {
+          push(@normalized, "\x{A}");
+          $i++; $j++;
+        } else {
+          push(@normalized, "\x{A}");
+        }
+      } else {
+        push(@normalized, "\x{A}");
+      }
+    } else {
+      push(@normalized, $_[$i]);
+    }
+  }
+  return @normalized;
+}
+
+#
+# Normalization: XML1.0 and XML1.1 share the same algorithm
+# ---------------------------------------------------------
+sub _normalize_attvalue_xml10 {
+  my $self = shift;
+  return $self->_normalize_attvalue_common(@_);
+}
+sub _normalize_attvalue_xml11 {
+  my $self = shift;
+  return $self->_normalize_attvalue_common(@_);
+}
+
+sub _normalize_attvalue_common {
+  my $self = shift;
+  my $parser = shift;
+
+  #
+  # As per XML10 section 3.3.3 Attribute-Value Normalization
+  #
+  # 1. All line breaks MUST have been normalized on input to #xA as described in 2.11 End-of-Line Handling, so the rest of this algorithm operates on text normalized in this way.
+  my @normalized = $self->_eol_handling_common(@_);
+  #
+  # 2. Begin with a normalized value consisting of the empty string.
+  #
+  my $normalized = '';
+  #
+  # 3. For each character, entity reference, or character reference in the unnormalized attribute value, beginning with the first and continuing to the last, do the following:
+  #
+  foreach (@normalized) {
+  }
+}
+
+sub normalize_attvalue {
+  my $self = shift;
+
+  my $coderef = $self->_normalize_attvalue($self->xml_version);
+  return $self->$coderef(@_);
 }
 
 =head1 SEE ALSO
