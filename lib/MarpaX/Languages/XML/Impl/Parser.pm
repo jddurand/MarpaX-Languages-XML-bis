@@ -4,8 +4,10 @@ use Marpa::R2;
 use MarpaX::Languages::XML::Exception;
 use MarpaX::Languages::XML::Impl::Encoding;
 use MarpaX::Languages::XML::Impl::Grammar;
+use MarpaX::Languages::XML::Impl::Normalize;
 use Moo;
 use MooX::late;
+use MooX::ClassAttribute;
 use MooX::HandlesVia;
 use MooX::Role::Logger;
 use Scalar::Util qw/reftype/;
@@ -26,8 +28,25 @@ This module is an implementation of MarpaX::Languages::XML::Role::Parser.
 =cut
 
 #
+# Class attributes
+#
+class_has _normalize => (
+                         is      => 'ro',
+                         default => sub { return MarpaX::Languages::XML::Impl::Normalize->new; }
+                        );
+
+#
 # Internal attributes
 # -------------------
+
+#
+# EOF
+#
+has _eof => (
+             is => 'rw',
+             isa => Bool,
+             default => 0
+            );
 
 #
 # Current entity references
@@ -104,14 +123,23 @@ has _pos => (
              writer      => '_set__pos',
              trigger     => \&_trigger__pos
             );
+#
+# Reference to internal buffer. Used only for logging data and to avoid a call to $self->io->buffer that
+# would log... 'Getting buffer' -;
+#
+has _bufferRef => (
+                   is          => 'rw',
+                   isa         => ScalarRef
+                  );
 
 sub _trigger__pos {
   my ($self, $pos) = @_;
 
   $self->_set__remaining($self->_length - $pos);
   if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+    $self->_logger->debugf('[%d:%d] Pos: %d, Length: %d, Remaining: %d', $self->LineNumber, $self->ColumnNumber, $pos, $self->_length, $self->_remaining);
     $self->_logger->debugf('[%d:%d] Data: %s', $self->LineNumber, $self->ColumnNumber,
-                           hexdump(data              => substr(${$self->io->buffer}, $self->_pos, 15),
+                           hexdump(data              => substr(${$self->_bufferRef}, $self->_pos, 15),
                                    suppress_warnings => 1,
                                   ));
   }
@@ -253,7 +281,7 @@ sub _find_encoding {
   if ($self->io->length <= 0) {
     $self->_exception('EOF when reading first bytes');
   }
-  my $buffer = ${$self->io->buffer};
+  my $buffer = ${$self->_bufferRef};
 
   my $bom_encoding = '';
   my $guess_encoding = '';
@@ -313,7 +341,7 @@ sub _generic_parse {
   #
   # buffer is accessed using $_[1] to avoid dereferencing $self->io->buffer everytime
   #
-  my ($self, undef, $grammar, $end_event_name, $callbacks_ref) = @_;
+  my ($self, undef, $grammar, $end_event_name, $callbacks_ref, $normalize) = @_;
 
   #
   # Create a recognizer
@@ -379,7 +407,7 @@ sub _generic_parse {
           if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
             $self->_logger->tracef('[%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $self->LineNumber, $self->ColumnNumber, $lexeme, $min_chars{$_}, $self->_remaining);
           }
-          $self->_reduceAndRead($_[1], 0, $r);
+          $self->_reduceAndRead($_[1], $r, $normalize);
           if ($self->_remaining > $old_remaining) {
             #
             # Something was read
@@ -413,7 +441,7 @@ sub _generic_parse {
                 $self->_logger->tracef('[%d:%d] Lexeme %s is of unpredicted size and currently reaches end-of-buffer', $self->LineNumber, $self->ColumnNumber, $lexeme);
               }
               my $old_remaining = $self->_remaining;
-              $self->_reduceAndRead($_[1], 0, $r);
+              $self->_reduceAndRead($_[1], $r, $normalize);
               if ($self->_remaining > $old_remaining) {
                 #
                 # Something was read
@@ -597,7 +625,7 @@ sub _generic_parse {
 }
 
 sub _reduceAndRead {
-  my ($self,  undef, $eof_is_fatal, $r) = @_;
+  my ($self,  undef, $r, $normalize) = @_;
   #
   # Crunch previous data
   #
@@ -624,28 +652,44 @@ sub _reduceAndRead {
     $self->_logger->debugf('[%d:%d] Reading %d characters', $self->LineNumber, $self->ColumnNumber, $self->block_size);
   }
 
-  $self->_set__length($self->_read($eof_is_fatal, $r));
+  $self->_set__length($self->_read($_[1], $r, $normalize));
   $self->_set__pos(0);
   return;
 }
 
 sub _read {
-  my ($self, $eof_is_fatal, $r) = @_;
+  my ($self, undef, $r, $normalize) = @_;
 
-  $eof_is_fatal //= 1;
-
-  $self->io->read;
-  my $new_length;
-  if (($new_length = $self->io->length) <= 0) {
-    if ($eof_is_fatal) {
-      $self->_exception('EOF', $r);
-    } else {
+  my $length;
+  my $last;
+  do {
+    my $io_length;
+    $self->io->read;
+    if (($io_length = $self->io->length) <= 0) {
       if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
         $self->_logger->tracef('[%d:%d] EOF', $self->LineNumber, $self->ColumnNumber);
       }
+      $self->_eof(1);
+      $length = 0;
+      $last = 1;
+    } else {
+      if ($normalize) {
+        my $normalized_length = $self->_normalize->normalize_inplace($_[1], $self->_eof);
+        if ($normalized_length > 0) {
+          if ($MarpaX::Languages::XML::Impl::Parser::is_trace && ($normalized_length != $io_length)) {
+            $self->_logger->tracef('[%d:%d] Normalization removed %d characters', $self->LineNumber, $self->ColumnNumber, $io_length - $normalized_length);
+          }
+          $length = $normalized_length;
+          $last = 1;
+        }
+      } else {
+        $length = $io_length;
+        $last = 1;
+      }
     }
-  }
-  return $new_length;
+  } while (! $last);
+
+  return $length;
 }
 
 sub _start_document {
@@ -758,7 +802,8 @@ sub _parse_prolog {
                         $_[1],             # buffer
                         $grammar,          # grammar
                         'prolog$',         # end_event_name
-                        \%callbacks        # callbacks
+                        \%callbacks,       # callbacks
+                        1                  # normalize
                        );
   if ($self->_encoding ne $orig_encoding) {
     if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
@@ -847,8 +892,9 @@ sub parse {
   # We want to handle buffer direcly with no COW: buffer is a variable send in all parameters
   # and accessed using $_[]
   #
-  my $buffer;
-  $self->io->buffer($buffer);
+  my $buffer = '';
+  $self->_bufferRef(\$buffer);
+  $self->io->buffer($self->_bufferRef);
 
   # ------------
   # Parse prolog
