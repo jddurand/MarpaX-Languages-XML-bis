@@ -435,7 +435,7 @@ sub _build_scanless {
 # End-of-line handling: XML1.0 and XML1.1 share the same algorithm
 # ----------------------------------------------------------------
 sub _eol_xml10 {
-  my ($self, undef, $eof) = @_;
+  my ($self, undef, $eof, $inDecl, $error_message_ref) = @_;
   # Buffer is in $_[1]
 
   #
@@ -459,9 +459,13 @@ sub _eol_xml10 {
 }
 
 sub _eol_xml11 {
-  my ($self, undef, $eof) = @_;
+  my ($self, undef, $eof, $inDecl, $error_message_ref) = @_;
   # Buffer is in $_[1]
 
+  if ($inDecl && ($_[1] =~ /[\x{85}\x{2028}]/)) {
+    ${$error_message_ref} = "Invalid character \\x{85} or \\x{2028} in declaration";
+    return -1;
+  }
   #
   # If last character is a \x{D} this is undecidable unless eof flag
   #

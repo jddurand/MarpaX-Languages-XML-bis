@@ -39,6 +39,15 @@ has _eof => (
             );
 
 #
+# XmlDecl or TextDecl context because of XML1.1 restriction on #x85 and #x2028
+#
+has _inDecl => (
+                is => 'rw',
+                isa => Bool,
+                default => 0
+               );
+
+#
 # Current entity references
 #
 has _entityref => (
@@ -250,9 +259,16 @@ sub _exception {
               LineNumber   => $self->LineNumber,
               ColumnNumber => $self->ColumnNumber
              );
-  if ($MarpaX::Languages::XML::Impl::Parser::is_trace && $r) {
-    $hash{Progress} = $r->show_progress();
-    $hash{TerminalsExpected} = $r->terminals_expected();
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    if ($r) {
+      $hash{Progress} = $r->show_progress();
+      $hash{TerminalsExpected} = $r->terminals_expected();
+    }
+    if ($self->_bufferRef) {
+      $hash{Data} = hexdump(data => substr(${$self->_bufferRef}, $self->_pos, 47),  # 47 = 15+16+16
+                            suppress_warnings => 1,
+                           );
+    }
   }
 
   MarpaX::Languages::XML::Exception->throw(%hash);
@@ -474,7 +490,7 @@ sub _generic_parse {
         #
         # A G1 callback has no argument
         #
-        my $rc_switch = defined($code) ? $self->$code() : 1;
+        my $rc_switch = defined($code) ? $self->$code($_[1], $r) : 1;
         #
         # Any false return value mean immediate stop
         #
@@ -528,7 +544,7 @@ sub _generic_parse {
           #
           # A L0 callback has a lot of arguments
           #
-          my $rc_switch = defined($code) ? $self->$code($data) : 1;
+          my $rc_switch = defined($code) ? $self->$code($_[1], $r, $data) : 1;
           if (! $rc_switch) {
             if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
               $self->_logger->debugf('[%d:%d] Event callback %s says to stop', $self->LineNumber, $self->ColumnNumber, $lexeme_prediction_event);
@@ -579,7 +595,7 @@ sub _generic_parse {
           #
           # A L0 completion callback has less arguments than a predicted one
           #
-          my $rc_switch = defined($code) ? $self->$code($data) : 1;
+          my $rc_switch = defined($code) ? $self->$code($_[1], $r, $data) : 1;
           if (! $rc_switch) {
             if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
               $self->_logger->debugf('[%d:%d] Event callback %s says to stop', $self->LineNumber, $self->ColumnNumber, $_);
@@ -664,8 +680,14 @@ sub _read {
       $last = 1;
     } else {
       if ($normalize) {
-        my $normalized_length = $grammar->eol($_[1], $self->_eof);
-        if ($normalized_length > 0) {
+        my $error_message;
+        my $normalized_length = $grammar->eol($_[1], $self->_eof, $self->_inDecl, \$error_message);
+        if ($normalized_length < 0) {
+          #
+          # This is an error
+          #
+          $self->_exception($error_message, $r);
+        } elsif ($normalized_length > 0) {
           if ($MarpaX::Languages::XML::Impl::Parser::is_trace && ($normalized_length != $io_length)) {
             $self->_logger->tracef('[%d:%d] Normalization removed %d characters', $self->LineNumber, $self->ColumnNumber, $io_length - $normalized_length);
           }
@@ -712,10 +734,11 @@ sub _parse_prolog {
   #
   # Default grammar event and callbacks
   #
+  my $grammar;
   my %grammar_event = ( 'prolog$' => { type => 'completed', symbol_name => 'prolog' } );
   my %callbacks = (
                    '^_ENCNAME' => sub {
-                     my ($self, $data) = @_;
+                     my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
                      #
                      # Encoding is composed only of ASCII codepoints, so uc is ok
                      #
@@ -733,19 +756,49 @@ sub _parse_prolog {
                          $self->_logger->debugf('[%d:%d] XML encoding %s disagree with current encoding %s', $self->LineNumber, $self->ColumnNumber, $xml_encoding, $self->_encoding);
                        }
                        $orig_encoding = $final_encoding;
+                       #
+                       # No need to go further. We will have to retry anyway.
+                       #
                        return 0;
                      }
                      return 1;
                    },
+                   '^_XMLDECL_START' => sub {
+                     my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
+                     if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+                       $self->_logger->debugf('[%d:%d] XML Declaration is starting', $self->LineNumber, $self->ColumnNumber);
+                     }
+                     $self->_inDecl(1);
+                     #
+                     # End-of-line handling have more checks if $self->_inDecl, is on, so re-apply it
+                     #
+                     my $error_message;
+                     my $normalized_length = $grammar->eol($_[1], $self->_eof, 1, \$error_message);
+                     if ($normalized_length < 0) {
+                       #
+                       # This is an error
+                       #
+                       $self->_exception($error_message, $r);
+                     }
+                     return 1;
+                   },
+                   '^_XMLDECL_END' => sub {
+                     my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
+                     if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+                       $self->_logger->debugf('[%d:%d] XML Declaration is ending', $self->LineNumber, $self->ColumnNumber);
+                       $self->_inDecl(0);
+                     }
+                     return 1;
+                   },
                    '^_VERSIONNUM' => sub {
-                     my ($self, $data) = @_;
+                     my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
                        $self->_logger->debugf('[%d:%d] XML says version number %s', $self->LineNumber, $self->ColumnNumber, $data);
                      }
                      return 1;
                    },
                    '^_ELEMENT_START' => sub {
-                     my ($self, $data) = @_;
+                     my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
                        $self->_logger->debugf('[%d:%d] XML has a root element', $self->LineNumber, $self->ColumnNumber, $data);
                      }
@@ -761,13 +814,17 @@ sub _parse_prolog {
       my $user_code = $self->get_sax_handler($_);
       my $internal_code = "_$_";
       $grammar_event{$_} = { type => 'nulled', symbol_name => $_ };
-      $callbacks{$_} = sub { my ($self) = @_; $self->$internal_code($user_code); return; };
+      $callbacks{$_} = sub {
+        my ($self, undef, $r) = @_; # $_[1] is the internal buffer
+        $self->$internal_code($user_code);
+        return;
+      };
     }
   }
   #
   # Generate grammar
   #
-  my $grammar = MarpaX::Languages::XML::Impl::Grammar->new( start => 'document', grammar_event => \%grammar_event );
+  $grammar = MarpaX::Languages::XML::Impl::Grammar->new( start => 'document', grammar_event => \%grammar_event );
   #
   # Go
   #
@@ -829,17 +886,17 @@ sub _parse_element {
   my @attvalue = [];
   my %callbacks = (
                    '_ATTVALUEINTERIORDQUOTEUNIT$' => sub {
-                     my ($self, $data) = @_;
+                     my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
                      push(@attvalue, $data);
                      return 1;
                    },
                    '_ATTVALUEINTERIORSQUOTEUNIT$' => sub {
-                     my ($self, $data) = @_;
+                     my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
                      push(@attvalue, $data);
                      return 1;
                    },
                    '_ENTITYREF_END$' => sub {
-                     my ($self, $data) = @_;
+                     my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
                      my $name = $self->_get__last_lexeme('_NAME');
                      if (! $self->_exists__entityref($name)) {
                        $self->_logger->debugf('[%d:%d] Unknown EntityRef %s', $self->LineNumber, $self->ColumnNumber, $name);
@@ -848,7 +905,7 @@ sub _parse_element {
                      return 1;
                    },
                    '_PEREFERENCE_END$' => sub {
-                     my ($self, $data) = @_;
+                     my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
                      my $name = $self->_get__last_lexeme('_NAME');
                      if (! $self->_exists__pereference($name)) {
                        $self->_logger->debugf('[%d:%d] Unknown PEReference %s', $self->LineNumber, $self->ColumnNumber, $name);
@@ -857,12 +914,12 @@ sub _parse_element {
                      return 1;
                    },
                    'AttValue$' => sub {
-                     my ($self) = @_;
+                     my ($self, undef, $r) = @_;    # $_[1] is the internal buffer
                      $att{$attname} = $grammar->normalize_attvalue($self, @attvalue);
                      return 1;
                    },
                    'AttributeName$' => sub {
-                     my ($self) = @_;
+                     my ($self, undef, $r) = @_;    # $_[1] is the internal buffer
                      $attname = $self->_get__last_lexeme('_NAME');
                      return 1;
                    }
