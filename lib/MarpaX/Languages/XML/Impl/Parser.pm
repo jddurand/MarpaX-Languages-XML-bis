@@ -1,4 +1,5 @@
 package MarpaX::Languages::XML::Impl::Parser;
+use Data::Hexdumper qw/hexdump/;
 use Marpa::R2;
 use MarpaX::Languages::XML::Exception;
 use MarpaX::Languages::XML::Impl::Encoding;
@@ -64,8 +65,23 @@ has _encoding => (
 has _pos => (
              is          => 'rw',
              isa         => PositiveOrZeroInt,
-             writer      => '_set__pos'
+             writer      => '_set__pos',
+             trigger     => \&_trigger__pos
             );
+
+sub _trigger__pos {
+  my ($self, $pos) = @_;
+
+  $self->_set__remaining($self->_length - $pos);
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+      $self->_logger->tracef('[%d:%d] Data: %s', $self->LineNumber, $self->ColumnNumber,
+                             hexdump(data              => ${$self->io->buffer},
+                                     suppress_warnings => 1,
+                                     start_position    => $self->_pos,
+                                     end_position      => ($self->_pos + 16 >= $self->_length) ? ($self->_pos + 16) : ($self->_length - $self->_pos)
+                                    ));
+  }
+}
 
 #
 # Remaining characters
@@ -73,11 +89,7 @@ has _pos => (
 has _remaining => (
                    is          => 'rw',
                    isa         => PositiveOrZeroInt,
-                   writer      => '_set__remaining',
-                   handles_via => 'Number',
-                   handles     => {
-                                   _sub__remaining => 'sub'
-                                  }
+                   writer      => '_set__remaining'
                   );
 
 #
@@ -449,7 +461,7 @@ sub _generic_parse {
         }
         my @alternatives = grep { $length{$_} == $max_length } keys %length;
         if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-          $self->_logger->debugf('[%d:%d->%d:%d] Lexeme alternatives %s', $self->LineNumber, $self->ColumnNumber, $self->_next_global_line, $self->_next_global_column, \@alternatives);
+          $self->_logger->debugf('[%d:%d->%d:%d] Match: %s, length %d', $self->LineNumber, $self->ColumnNumber, $self->_next_global_line, $self->_next_global_column, \@alternatives, $max_length);
         }
         my @lexeme_complete_events = ();
         foreach (@alternatives) {
@@ -504,7 +516,6 @@ sub _generic_parse {
         $self->_set_ColumnNumber($self->_next_global_column);
         $self->_set__global_pos($self->_next_global_pos);
         $self->_set__pos($self->_next_pos);
-        $self->_sub__remaining($max_length);
         #
         # Fake the lexeme completion events
         #
@@ -558,17 +569,16 @@ sub _reduceAndRead {
     # Faster like this -;
     #
     if ($self->_pos >= $self->_length) {
-      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-        $self->_logger->debugf('[%d:%d] Rolling-out buffer', $self->LineNumber, $self->ColumnNumber);
+      if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+        $self->_logger->tracef('[%d:%d] Rolling-out buffer', $self->LineNumber, $self->ColumnNumber);
       }
       $_[1] = '';
     } else {
-      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-        $self->_logger->debugf('[%d:%d] Rolling-out %d characters', $self->LineNumber, $self->ColumnNumber, $self->_pos);
+      if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+        $self->_logger->tracef('[%d:%d] Rolling-out %d characters', $self->LineNumber, $self->ColumnNumber, $self->_pos);
       }
       substr($_[1], 0, $self->_pos, '');
     }
-    $self->_set__pos(0);
   }
   #
   # Read more data
@@ -577,7 +587,8 @@ sub _reduceAndRead {
     $self->_logger->tracef('[%d:%d] Reading data', $self->LineNumber, $self->ColumnNumber);
   }
 
-  $self->_set__remaining($self->_read($eof_is_fatal, $r));
+  $self->_set__length($self->_read($eof_is_fatal, $r));
+  $self->_set__pos(0);
   return;
 }
 
@@ -592,12 +603,12 @@ sub _read {
     if ($eof_is_fatal) {
       $self->_exception('EOF', $r);
     } else {
-      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-        $self->_logger->debugf('[%d:%d] EOF', $self->LineNumber, $self->ColumnNumber);
+      if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+        $self->_logger->tracef('[%d:%d] EOF', $self->LineNumber, $self->ColumnNumber);
       }
     }
   }
-  return $self->_set__length($new_length);
+  return $new_length;
 }
 
 sub start_document {
@@ -642,14 +653,22 @@ sub _parse_prolog {
                      # Check eventual encoding v.s. endianness. Algorithm vaguely taken from
                      # https://blogs.oracle.com/tucu/entry/detecting_xml_charset_encoding_again
                      #
-                     return $self->_encoding($encoding->final($bom_encoding, $guess_encoding, $xml_encoding)) eq $orig_encoding;
+                     my $final_encoding = $encoding->final($bom_encoding, $guess_encoding, $xml_encoding);
+                     if ($final_encoding ne $self->_encoding) {
+                       if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+                         $self->_logger->debugf('[%d:%d] XML encoding %s disagree with current encoding %s', $self->LineNumber, $self->ColumnNumber, $xml_encoding, $self->_encoding);
+                       }
+                       $orig_encoding = $final_encoding;
+                       return 0;
+                     }
+                     return 1;
                    },
-                   '^_VERSION' => sub {
+                   '^__VERSIONNUM' => sub {
                      my ($self, $data) = @_;
                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-                       $self->_logger->debugf('[%d:%d] XML says version %s', $self->LineNumber, $self->ColumnNumber, $data);
+                       $self->_logger->debugf('[%d:%d] XML says version number %s', $self->LineNumber, $self->ColumnNumber, $data);
                      }
-                     return 0;
+                     return 1;
                    }
                   );
   #
@@ -683,9 +702,8 @@ sub _parse_prolog {
   #
   $self->_set__encoding($orig_encoding);
   $self->_set__global_pos($byte_start);
-  $self->_set__pos(0);
   $self->_set__length($self->io->length);
-  $self->_set__remaining($self->_length);
+  $self->_set__pos(0);
   $self->_set_LineNumber(1);
   $self->_set_ColumnNumber(1);
   $self->_generic_parse(
@@ -707,7 +725,7 @@ sub _parse_prolog {
     if (++$nb_retry_because_of_encoding == 1) {
       goto retry_because_of_encoding;
     } else {
-      MarpaX::Languages::XML::Exception->throw("Two many retries because of encoding difference beween BOM, guess and XML");
+      $self->_exception('Two many retries because of encoding difference beween BOM, guess and XML');
     }
   }
 }
