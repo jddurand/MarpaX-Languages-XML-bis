@@ -27,13 +27,15 @@ This module is an implementation of MarpaX::Languages::XML::Role::Grammar. It pr
 has scanless => (
                  is     => 'ro',
                  isa    => InstanceOf['Marpa::R2::Scanless::G'],
-                 writer => '_set_scanless',
+                 lazy  => 1,
+                 builder => '_build_scanless'
                 );
 
 has lexeme_regexp => (
                       is  => 'ro',
                       isa => HashRef[RegexpRef],
-                      writer => '_set_lexeme_regexp',
+                      lazy  => 1,
+                      builder => '_build_lexeme_regexp',
                       handles_via => 'Hash',
                       handles => {
                                   elements_lexeme_regexp  => 'elements',
@@ -47,7 +49,8 @@ has lexeme_regexp => (
 has lexeme_exclusion => (
                          is  => 'ro',
                          isa => HashRef[RegexpRef],
-                         writer => '_set_lexeme_exclusion',
+                         lazy  => 1,
+                         builder => '_build_lexeme_exclusion',
                          handles_via => 'Hash',
                          handles => {
                                      elements_lexeme_exclusion => 'elements',
@@ -60,7 +63,6 @@ has lexeme_exclusion => (
 has grammar_event => (
                       is  => 'ro',
                       isa => HashRef[GrammarEvent],
-                      writer => '_set_grammar_event',
                       default => sub { {} },
                       handles_via => 'Hash',
                       handles => {
@@ -71,17 +73,6 @@ has grammar_event => (
                                   exists_grammar_event   => 'exists'
                                  }
                       );
-
-has sax_event => (
-                  is  => 'ro',
-                  isa => HashRef[Bool],
-                  default => sub { {} },
-                  handles_via => 'Hash',
-                  handles => {
-                              get_sax_event    => 'get',
-                              exists_sax_event => 'exists'
-                             }
-                    );
 
 has xml_version => (
                     is  => 'ro',
@@ -361,25 +352,19 @@ our %LEXEME_EXCLUSION =
    '1.1' => \%LEXEME_EXCLUSION_COMMON,
   );
 
-sub BUILD {
-  my ($self, $args) = @_;
+sub _build_lexeme_regexp {
+  my ($self) = @_;
 
-  $self->_set_lexeme_regexp($LEXEME_REGEXP{$self->xml_version});
-  #
-  # It is illegal to overwrite an internal grammar event
-  #
-  if (grep { exists($GRAMMAR_EVENT{$self->xml_version}->{$_}) } $self->keys_grammar_event) {
-    croak "Overwriting an internal event is not allowed";
-  }
-  #
-  # Add internal events
-  #
-  $self->_set_grammar_event( {$self->elements_grammar_event, %{$GRAMMAR_EVENT{$self->xml_version}}} );
-  $self->_set_lexeme_exclusion($LEXEME_EXCLUSION{$self->xml_version});
-  $self->_set_scanless($self->_scanless);
+  return $LEXEME_REGEXP{$self->xml_version};
 }
 
-sub _scanless {
+sub _build_lexeme_exclusion {
+  my ($self) = @_;
+
+  return $LEXEME_EXCLUSION{$self->xml_version};
+}
+
+sub _build_scanless {
   my ($self) = @_;
 
   #
@@ -391,13 +376,20 @@ sub _scanless {
   #
   # Add events
   #
-  foreach ($self->keys_grammar_event) {
-    my $symbol_name = $self->get_grammar_event($_)->{symbol_name};
-    my $type        = $self->get_grammar_event($_)->{type};
+  my %events = (%{$GRAMMAR_EVENT{$self->xml_version}}, $self->elements_grammar_event);
+  foreach (keys %events) {
+    #
+    # If the user is using the same event name than an internal one, Marpa::R2 will croak
+    #
+    my $symbol_name = $events{$_}->{symbol_name};
+    my $type        = $events{$_}->{type};
     if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
       $self->_logger->tracef('[%s/%s] Adding %s %s event', $self->xml_version, $self->start, $_, $type);
     }
     $data .= "event '$_' = $type <$symbol_name>\n";
+    if (! $self->exists_grammar_event($_)) {
+      $self->set_grammar_event($_, $events{$_});
+    }
   }
   #
   # Generate the grammar
@@ -405,6 +397,7 @@ sub _scanless {
   if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
     $self->_logger->debugf('[%s/%s] Instanciating grammar', $self->xml_version, $self->start);
   }
+
   return Marpa::R2::Scanless::G->new({source => \$data});
 }
 
@@ -857,5 +850,5 @@ start_element  ::= ;
 end_element    ::= ;
 comment        ::= ;
 #
-# SAX events are added on-the-fly, c.f. method xml().
+# Events are added on-the-fly
 #

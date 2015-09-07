@@ -78,7 +78,7 @@ sub _trigger__pos {
                              hexdump(data              => ${$self->io->buffer},
                                      suppress_warnings => 1,
                                      start_position    => $self->_pos,
-                                     end_position      => ($self->_pos + 16 >= $self->_length) ? ($self->_pos + 16) : ($self->_length - $self->_pos)
+                                     end_position      => ($self->_pos + 15 >= $self->_length) ? ($self->_pos + 15) : ($self->_length - $self->_pos)
                                     ));
   }
 }
@@ -638,7 +638,7 @@ sub _parse_prolog {
   #
   # Default grammar event and callbacks
   #
-  my %grammar_events = ( 'prolog$' => { type => 'completed', symbol_name => 'prolog' } );
+  my %grammar_event = ( 'prolog$' => { type => 'completed', symbol_name => 'prolog' } );
   my %callbacks = (
                    '^_ENCNAME' => sub {
                      my ($self, $data) = @_;
@@ -663,12 +663,19 @@ sub _parse_prolog {
                      }
                      return 1;
                    },
-                   '^__VERSIONNUM' => sub {
+                   '^_VERSIONNUM' => sub {
                      my ($self, $data) = @_;
                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
                        $self->_logger->debugf('[%d:%d] XML says version number %s', $self->LineNumber, $self->ColumnNumber, $data);
                      }
                      return 1;
+                   },
+                   '^_ELEMENT_START' => sub {
+                     my ($self, $data) = @_;
+                     if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+                       $self->_logger->debugf('[%d:%d] XML has a root element', $self->LineNumber, $self->ColumnNumber, $data);
+                     }
+                     return 0;
                    }
                   );
   #
@@ -678,14 +685,14 @@ sub _parse_prolog {
   foreach (qw/start_document/) {
     if ($self->exists_sax_handler($_)) {
       my $user_code = $self->get_sax_handler($_);
-      $grammar_events{$_} = { types => 'nulled', symbol_name => $_ };
+      $grammar_event{$_} = { types => 'nulled', symbol_name => $_ };
       $callbacks{$_} = sub { return shift->$_($user_code) };
     }
   }
   #
   # Generate grammar
   #
-  my $grammar = MarpaX::Languages::XML::Impl::Grammar->new( start => 'document', grammar_events => \%grammar_events );
+  my $grammar = MarpaX::Languages::XML::Impl::Grammar->new( start => 'document', grammar_event => \%grammar_event );
   #
   # Go
   #
