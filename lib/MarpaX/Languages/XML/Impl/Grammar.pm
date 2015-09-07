@@ -24,27 +24,35 @@ This module is an implementation of MarpaX::Languages::XML::Role::Grammar. It pr
 
 =cut
 
-has _normalize_attvalue => (
-                            is     => 'ro',
-                            isa    => HashRef[CodeRef],
-                            default => sub {
-                              {
-                                '1.0' => \&_normalize_attvalue_xml10,
-                                '1.1' => \&_normalize_attvalue_xml11
-                              }
-                            }
-                           );
-
-has _eol_handling => (
-                      is     => 'ro',
-                      isa    => HashRef[CodeRef],
-                      default => sub {
-                        {
-                          '1.0' => \&_eol_handling_xml10,
-                          '1.1' => \&_eol_handling_xml11
-                          }
+has _attvalue => (
+                  is     => 'ro',
+                  isa    => HashRef[CodeRef],
+                  default => sub {
+                    {
+                      '1.0' => \&_attvalue_xml10,
+                      '1.1' => \&_attvalue_xml11
                       }
-                     );
+                  },
+                  handles_via => 'Hash',
+                  handles => {
+                              _get__attvalue  => 'get'
+                             }
+                 );
+
+has _eol => (
+             is     => 'ro',
+             isa    => HashRef[CodeRef],
+             default => sub {
+               {
+                 '1.0' => \&_eol_xml10,
+                 '1.1' => \&_eol_xml11
+                 }
+             },
+             handles_via => 'Hash',
+             handles => {
+                         _get__eol  => 'get'
+                        }
+            );
 
 has scanless => (
                  is     => 'ro',
@@ -426,103 +434,57 @@ sub _build_scanless {
 #
 # End-of-line handling: XML1.0 and XML1.1 share the same algorithm
 # ----------------------------------------------------------------
-sub _eol_handling_xml10 {
-  my $self = shift;
-  return $self->_eol_handling_common(@_);
-}
-sub _eol_handling_xml11 {
-  my $self = shift;
-  return $self->_eol_handling_common(@_);
-}
-sub _eol_handling_common {
-  my $self = shift;
+sub _eol_xml10 {
+  my ($self, undef, $eof) = @_;
+  # Buffer is in $_[1]
+
   #
-  # As per XML 1.0 section 2.11 End-of-Line Handling
+  # If last character is a \x{D} this is undecidable unless eof flag
   #
-  # Tanslate both the two-character sequence #xD #xA and any #xD that is not followed by #xA to a single #xA character
-  my @normalized = ();
-  my ($i, $j);
-  for ($i = 0, $j = 1; $i <= $#_; $i++, $j++) {
-    if (ref($_[$i])) {
-      #
-      # This is a entiryref or a pereference
-      #
-      push(@normalized, $_[$i]);
-    } else {
-      #
-      # This is a char
-      #
-      if ($_[$i] eq "\x{D}") {
-        if ($j <= $#_) {
-          #
-          # No last character
-          #
-          if ($_[$j] eq "\x{A}") {
-            #
-            # #xD followed by #xA => #xA and skip next char
-            #
-            push(@normalized, "\x{A}");
-            $i++; $j++;
-          } else {
-            #
-            # #xD not followed by #xA => #xA
-            #
-            push(@normalized, "\x{A}");
-          }
-        } else {
-          #
-          # Last character
-          #
-          push(@normalized, "\x{A}");
-        }
-      } else {
-        #
-        # No #xD
-        #
-        push(@normalized, $_[$i]);
+  if (substr($_[1], -1, 1) eq "\x{D}") {
+    if (! $eof) {
+      if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+        $self->_logger->tracef('[%s/%s] Last character in buffer is \\x{D} and requires another read', $self->xml_version, $self->start);
       }
+      return 0;
     }
   }
+  #
+  # Do normalization
+  #
+  $_[1] =~ s/\x{D}\x{A}/\x{A}/g;
+  $_[1] =~ s/\x{D}/\x{A}/g;
 
-  return @normalized;
+  return length($_[1]);
+}
+
+sub _eol_xml11 {
+  my $self = shift;
+  return $self->_eol_common(@_);
+}
+
+sub eol {
+  my $self = shift;
+
+  my $coderef = $self->_get__eol($self->xml_version);
+  return $self->$coderef(@_);
 }
 
 #
 # Normalization: XML1.0 and XML1.1 share the same algorithm
 # ---------------------------------------------------------
-sub _normalize_attvalue_xml10 {
+sub _attvalue_xml10 {
   my $self = shift;
   return $self->_normalize_attvalue_common(@_);
 }
-sub _normalize_attvalue_xml11 {
+sub _attvalue_xml11 {
   my $self = shift;
   return $self->_normalize_attvalue_common(@_);
 }
-
-sub _normalize_attvalue_common {
-  my $self = shift;
-  my $parser = shift;
-
-  #
-  # As per XML10 section 3.3.3 Attribute-Value Normalization
-  #
-  # 1. All line breaks MUST have been normalized on input to #xA as described in 2.11 End-of-Line Handling, so the rest of this algorithm operates on text normalized in this way.
-  my @normalized = $self->_eol_handling_common(@_);
-  #
-  # 2. Begin with a normalized value consisting of the empty string.
-  #
-  my $normalized = '';
-  #
-  # 3. For each character, entity reference, or character reference in the unnormalized attribute value, beginning with the first and continuing to the last, do the following:
-  #
-  foreach (@normalized) {
-  }
-}
-
-sub normalize_attvalue {
+sub attvalue {
   my $self = shift;
 
-  my $coderef = $self->_normalize_attvalue($self->xml_version);
+  my $coderef = $self->_attvalue($self->xml_version);
   return $self->$coderef(@_);
 }
 

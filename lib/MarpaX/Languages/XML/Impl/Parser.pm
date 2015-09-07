@@ -4,10 +4,8 @@ use Marpa::R2;
 use MarpaX::Languages::XML::Exception;
 use MarpaX::Languages::XML::Impl::Encoding;
 use MarpaX::Languages::XML::Impl::Grammar;
-use MarpaX::Languages::XML::Impl::Normalize;
 use Moo;
 use MooX::late;
-use MooX::ClassAttribute;
 use MooX::HandlesVia;
 use MooX::Role::Logger;
 use Scalar::Util qw/reftype/;
@@ -26,14 +24,6 @@ use Types::Common::Numeric -all;
 This module is an implementation of MarpaX::Languages::XML::Role::Parser.
 
 =cut
-
-#
-# Class attributes
-#
-class_has _normalize => (
-                         is      => 'ro',
-                         default => sub { return MarpaX::Languages::XML::Impl::Normalize->new; }
-                        );
 
 #
 # Internal attributes
@@ -407,7 +397,7 @@ sub _generic_parse {
           if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
             $self->_logger->tracef('[%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $self->LineNumber, $self->ColumnNumber, $lexeme, $min_chars{$_}, $self->_remaining);
           }
-          $self->_reduceAndRead($_[1], $r, $normalize);
+          $self->_reduceAndRead($_[1], $r, $grammar, $normalize);
           if ($self->_remaining > $old_remaining) {
             #
             # Something was read
@@ -441,7 +431,7 @@ sub _generic_parse {
                 $self->_logger->tracef('[%d:%d] Lexeme %s is of unpredicted size and currently reaches end-of-buffer', $self->LineNumber, $self->ColumnNumber, $lexeme);
               }
               my $old_remaining = $self->_remaining;
-              $self->_reduceAndRead($_[1], $r, $normalize);
+              $self->_reduceAndRead($_[1], $r, $grammar, $normalize);
               if ($self->_remaining > $old_remaining) {
                 #
                 # Something was read
@@ -625,7 +615,7 @@ sub _generic_parse {
 }
 
 sub _reduceAndRead {
-  my ($self,  undef, $r, $normalize) = @_;
+  my ($self,  undef, $r, $grammar, $normalize) = @_;
   #
   # Crunch previous data
   #
@@ -652,13 +642,13 @@ sub _reduceAndRead {
     $self->_logger->debugf('[%d:%d] Reading %d characters', $self->LineNumber, $self->ColumnNumber, $self->block_size);
   }
 
-  $self->_set__length($self->_read($_[1], $r, $normalize));
+  $self->_set__length($self->_read($_[1], $r, $grammar, $normalize));
   $self->_set__pos(0);
   return;
 }
 
 sub _read {
-  my ($self, undef, $r, $normalize) = @_;
+  my ($self, undef, $r, $grammar, $normalize) = @_;
 
   my $length;
   my $last;
@@ -674,7 +664,7 @@ sub _read {
       $last = 1;
     } else {
       if ($normalize) {
-        my $normalized_length = $self->_normalize->normalize_inplace($_[1], $self->_eof);
+        my $normalized_length = $grammar->eol($_[1], $self->_eof);
         if ($normalized_length > 0) {
           if ($MarpaX::Languages::XML::Impl::Parser::is_trace && ($normalized_length != $io_length)) {
             $self->_logger->tracef('[%d:%d] Normalization removed %d characters', $self->LineNumber, $self->ColumnNumber, $io_length - $normalized_length);
