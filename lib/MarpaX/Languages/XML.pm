@@ -12,11 +12,10 @@ use MooX::late;
 # AUTHORITY
 
 sub parse {
-  my ($class, %hash) = @_;
+  my ($class, %args) = @_;
 
-  my $io = delete($hash{io});
-
-  return MarpaX::Languages::XML::Impl::Parser->new(io => $io)->parse(\%hash);
+  my $io = delete($args{io});
+  return MarpaX::Languages::XML::Impl::Parser->new(io => $io)->parse(%args);
 }
 
 1;

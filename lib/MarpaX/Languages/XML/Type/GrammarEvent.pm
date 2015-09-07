@@ -1,19 +1,19 @@
-package MarpaX::Languages::XML::Type::GrammarEvents;
+package MarpaX::Languages::XML::Type::GrammarEvent;
 use Type::Library
   -base,
-  -declare => qw/GrammarEvents/;
+  -declare => qw/GrammarEvent/;
 use Type::Utils -all;
 use Types::Standard -types;
 use Types::Common::Numeric qw/PositiveOrZeroInt/;
+use MarpaX::Languages::XML::Type::EventType -all;
 
-declare GrammarEvents,
+declare GrammarEvent,
   as Dict[
-          lexeme        => Bool,
-          fixed_length  => Bool,
-          type          => Str,
-          min_chars     => PositiveOrZeroInt,
+          fixed_length  => Optional[Bool],
+          min_chars     => Optional[PositiveOrZeroInt],
           symbol_name   => Str,
-          lexeme_name   => Str,
+          type          => EventType,
+          lexeme        => Optional[Str],
          ];
 
 1;

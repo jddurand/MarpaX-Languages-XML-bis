@@ -7,6 +7,9 @@ use Moo::Role;
 
 # AUTHORITY
 
-requires 'compile';
+requires 'scanless';
+requires 'lexeme_regexp';
+requires 'lexeme_exclusion';
+requires 'get_grammar_event';
 
 1;

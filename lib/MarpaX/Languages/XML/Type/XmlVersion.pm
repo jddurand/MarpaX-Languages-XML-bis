@@ -5,7 +5,7 @@ use Type::Library
 use Type::Utils -all;
 use Types::Standard -types;
 
-declare EventType,
+declare XmlVersion,
   as Enum[qw/1.0 1.1/];
 
 1;
