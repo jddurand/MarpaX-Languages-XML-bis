@@ -459,8 +459,30 @@ sub _eol_xml10 {
 }
 
 sub _eol_xml11 {
-  my $self = shift;
-  return $self->_eol_common(@_);
+  my ($self, undef, $eof) = @_;
+  # Buffer is in $_[1]
+
+  #
+  # If last character is a \x{D} this is undecidable unless eof flag
+  #
+  if (substr($_[1], -1, 1) eq "\x{D}") {
+    if (! $eof) {
+      if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+        $self->_logger->tracef('[%s/%s] Last character in buffer is \\x{D} and requires another read', $self->xml_version, $self->start);
+      }
+      return 0;
+    }
+  }
+  #
+  # Do normalization
+  #
+  $_[1] =~ s/\x{D}\x{A}/\x{A}/g;
+  $_[1] =~ s/\x{D}\x{85}/\x{A}/g;
+  $_[1] =~ s/\x{85}/\x{A}/g;
+  $_[1] =~ s/\x{2028}/\x{A}/g;
+  $_[1] =~ s/\x{D}/\x{A}/g;
+
+  return length($_[1]);
 }
 
 sub eol {
