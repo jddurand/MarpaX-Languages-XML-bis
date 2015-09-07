@@ -443,21 +443,47 @@ sub _eol_handling_common {
   my @normalized = ();
   my ($i, $j);
   for ($i = 0, $j = 1; $i <= $#_; $i++, $j++) {
-    if ($_[$i] eq "\x{D}") {
-      if ($j <= $#_) {
-        if ($_[$j] eq "\x{A}") {
-          push(@normalized, "\x{A}");
-          $i++; $j++;
+    if (ref($_[$i])) {
+      #
+      # This is a entiryref or a pereference
+      #
+      push(@normalized, $_[$i]);
+    } else {
+      #
+      # This is a char
+      #
+      if ($_[$i] eq "\x{D}") {
+        if ($j <= $#_) {
+          #
+          # No last character
+          #
+          if ($_[$j] eq "\x{A}") {
+            #
+            # #xD followed by #xA => #xA and skip next char
+            #
+            push(@normalized, "\x{A}");
+            $i++; $j++;
+          } else {
+            #
+            # #xD not followed by #xA => #xA
+            #
+            push(@normalized, "\x{A}");
+          }
         } else {
+          #
+          # Last character
+          #
           push(@normalized, "\x{A}");
         }
       } else {
-        push(@normalized, "\x{A}");
+        #
+        # No #xD
+        #
+        push(@normalized, $_[$i]);
       }
-    } else {
-      push(@normalized, $_[$i]);
     }
   }
+
   return @normalized;
 }
 

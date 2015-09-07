@@ -795,12 +795,12 @@ sub _parse_element {
   my %callbacks = (
                    '_ATTVALUEINTERIORDQUOTEUNIT$' => sub {
                      my ($self, $data) = @_;
-                     push(@attvalue, { char => $data });
+                     push(@attvalue, $data);
                      return 1;
                    },
                    '_ATTVALUEINTERIORSQUOTEUNIT$' => sub {
                      my ($self, $data) = @_;
-                     push(@attvalue, { char => $data });
+                     push(@attvalue, $data);
                      return 1;
                    },
                    '_ENTITYREF_END$' => sub {
@@ -809,7 +809,7 @@ sub _parse_element {
                      if (! $self->_exists__entityref($name)) {
                        $self->_logger->debugf('[%d:%d] Unknown EntityRef %s', $self->LineNumber, $self->ColumnNumber, $name);
                      }
-                     push(@attvalue, { entityref => $name });
+                     push(@attvalue, [ entityref => $name ]);
                      return 1;
                    },
                    '_PEREFERENCE_END$' => sub {
@@ -818,7 +818,7 @@ sub _parse_element {
                      if (! $self->_exists__pereference($name)) {
                        $self->_logger->debugf('[%d:%d] Unknown PEReference %s', $self->LineNumber, $self->ColumnNumber, $name);
                      }
-                     push(@attvalue, { pereference => $name });
+                     push(@attvalue, [ pereference => $name ]);
                      return 1;
                    },
                    'AttValue$' => sub {
