@@ -33,6 +33,14 @@ This module is an implementation of MarpaX::Languages::XML::Role::Parser.
 # -------------------
 
 #
+# parse() method return value
+#
+has _parse_rc => (
+                  is => 'rw',
+                  isa => Int,
+                  default => 0
+                 );
+#
 # Character and entity references
 #
 has _charref => (
@@ -50,6 +58,35 @@ has _pereference => (
                  isa => ConsumerOf['MarpaX::Languages::XML::Role::PEReference'],
                  default => sub { return MarpaX::Languages::XML::Impl::PEReference->new() }
                 );
+
+#
+# Contexts
+#
+has _attribute_context => (
+                           is => 'rw',
+                           isa => Bool,
+                           default => 0
+                          );
+has _cdata_context => (
+                           is => 'rw',
+                           isa => Bool,
+                           default => 0
+                          );
+
+#
+# Attribute
+#
+has _attribute => (
+                   is => 'rw',
+                   isa => HashRef[Str],
+                   default => sub { {} },
+                   handles_via => 'Hash',
+                   handles => {
+                               _set__attribute => 'set',
+                               _clear__attribute => 'clear',
+                               _elements__attribute => 'elements'
+                              },
+                  );
 
 #
 # EOF
@@ -142,10 +179,12 @@ sub _trigger__pos {
   $self->_set__remaining($self->_length - $pos);
   if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
     $self->_logger->debugf('[%d:%d] Pos: %d, Length: %d, Remaining: %d', $self->LineNumber, $self->ColumnNumber, $pos, $self->_length, $self->_remaining);
-    $self->_logger->debugf('[%d:%d] Data: %s', $self->LineNumber, $self->ColumnNumber,
-                           hexdump(data              => substr(${$self->_bufferRef}, $self->_pos, 15),
-                                   suppress_warnings => 1,
-                                  ));
+    if ($self->_remaining > 0) {
+      $self->_logger->debugf('[%d:%d] Data: %s', $self->LineNumber, $self->ColumnNumber,
+                             hexdump(data              => substr(${$self->_bufferRef}, $self->_pos, 15),
+                                     suppress_warnings => 1,
+                                    ));
+    }
   }
 }
 
@@ -413,10 +452,13 @@ sub _generic_parse {
         # Check if the decision about this lexeme can be done
         #
         $min_chars{$_} //= $grammar->get_grammar_event($_)->{min_chars} // 0;
-        if ($min_chars{$_} > $self->_remaining) {
-          my $old_remaining = $self->_remaining;
+        my $remaining = $self->_remaining;
+        if (($remaining <= 0) || ($min_chars{$_} > $remaining)) {
+          my $old_remaining = $remaining;
           if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-            $self->_logger->tracef('[%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $self->LineNumber, $self->ColumnNumber, $lexeme, $min_chars{$_}, $self->_remaining);
+            if ($remaining > 0) {
+              $self->_logger->tracef('[%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $self->LineNumber, $self->ColumnNumber, $lexeme, $min_chars{$_}, $self->_remaining);
+            }
           }
           $self->_reduceAndRead($_[1], $r, $grammar, $eol);
           if ($self->_remaining > $old_remaining) {
@@ -713,20 +755,55 @@ sub _read {
   return $length;
 }
 
-sub _start_document {
-  my ($self, $user_code, @args) = @_;
+sub start_document {
+  my ($self, $user_code) = @_;
 
   if (! $self->_start_document_done) {
     if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
       $self->_logger->debugf('[%d:%d] SAX event start_document', $self->LineNumber, $self->ColumnNumber);
     }
-    #
-    # No argument for start_document
-    #
-    $self->$user_code(@args);
+    if ($user_code) {
+      my $rc = $self->$user_code({});
+      $self->_parse_rc($rc);
+    }
     $self->_start_document_done(1);
   }
-  return;
+  return 1;
+}
+
+sub end_document {
+  my ($self, $user_code) = @_;
+
+  if ($user_code) {
+    $self->$user_code(@_);
+  }
+
+  return 1;
+}
+
+sub start_element {
+  my ($self, $user_code) = @_;
+
+  if ($user_code) {
+    $self->$user_code({
+                       Attributes => { $self->_elements__attribute }
+                      }
+                     );
+  }
+
+  $self->_clear__attribute;
+
+  return 1;
+}
+
+sub end_element {
+  my ($self, $user_code) = @_;
+
+  if ($user_code) {
+    $self->$user_code(@_);
+  }
+
+  return 1;
 }
 
 sub _parse_prolog {
@@ -828,16 +905,13 @@ sub _parse_prolog {
   # is supported.
   #
   foreach (qw/start_document/) {
-    if ($self->exists_sax_handler($_)) {
-      my $user_code = $self->get_sax_handler($_);
-      my $internal_code = "_$_";
-      $grammar_event{$_} = { type => 'nulled', symbol_name => $_ };
-      $callbacks{$_} = sub {
-        my ($self, undef, $r) = @_; # $_[1] is the internal buffer
-        $self->$internal_code($user_code);
-        return;
-      };
-    }
+    my $user_code = $self->get_sax_handler($_);
+    my $internal_code = $_;
+    $grammar_event{$_} = { type => 'nulled', symbol_name => $_ };
+    $callbacks{$_} = sub {
+      my ($self, undef, $r) = @_; # $_[1] is the internal buffer
+      return $self->$internal_code($user_code);
+    };
   }
   #
   # Generate grammar
@@ -895,13 +969,15 @@ sub _parse_element {
   # Default grammar event and callbacks
   #
   my $grammar;
+  my $cdata_context = 0;
   my %grammar_event = (
                        'element$'       => { type => 'completed', symbol_name => 'element' },
                        'AttributeName$' => { type => 'completed', symbol_name => 'AttributeName' },
+                       'AttValue$'      => { type => 'completed', symbol_name => 'AttValue' },
                       );
-  my %att = ();
+  my %attribute = ();
   my $attname = '';
-  my @attvalue = [];
+  my @attvalue = ();
   my %callbacks = (
                    '_ATTVALUEINTERIORDQUOTEUNIT$' => sub {
                      my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
@@ -916,26 +992,68 @@ sub _parse_element {
                    '_ENTITYREF_END$' => sub {
                      my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
                      my $name = $self->_get__last_lexeme('_NAME');
-                     push(@attvalue, to_EntityRef($name));
+                     if ($self->_attribute_context) {
+                       push(@attvalue, to_EntityRef($name));
+                     }
                      return 1;
                    },
-                   '_PEREFERENCE_END$' => sub {
+                   '_CHARREF_END1$' => sub {
                      my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
-                     my $name = $self->_get__last_lexeme('_NAME');
-                     push(@attvalue, to_PEReference($name));
+                     my $name = $self->_get__last_lexeme('_DIGITMANY');
+                     if ($self->_attribute_context) {
+                       push(@attvalue, to_CharRef($name));
+                     }
                      return 1;
                    },
-                   'AttValue$' => sub {
-                     my ($self, undef, $r) = @_;    # $_[1] is the internal buffer
-                     $att{$attname} = $grammar->normalize_attvalue($self, @attvalue);
+                   '_CHARREF_END2$' => sub {
+                     my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
+                     my $name = $self->_get__last_lexeme('_ALPHAMANY');
+                     if ($self->_attribute_context) {
+                       push(@attvalue, to_CharRef($name));
+                     }
                      return 1;
                    },
                    'AttributeName$' => sub {
                      my ($self, undef, $r) = @_;    # $_[1] is the internal buffer
                      $attname = $self->_get__last_lexeme('_NAME');
+                     $self->_attribute_context(1);
                      return 1;
-                   }
+                   },
+                   'AttValue$' => sub {
+                     my ($self, undef, $r) = @_;    # $_[1] is the internal buffer
+                     $self->_attribute_context(0);
+                     my $attvalue = $grammar->attvalue($cdata_context, $self->_charref, $self->_entityref, @attvalue);
+                     $self->_set__attribute($attname, $attvalue);
+                     @attvalue = ();
+                     return 1;
+                   },
                   );
+  #
+  # Other grammar events for eventual SAX handlers.
+  #
+  foreach (qw/start_element end_element/) {
+    my $user_code = $self->get_sax_handler($_);
+    my $internal_code = $_;
+    $grammar_event{$_} = { type => 'nulled', symbol_name => $_ };
+    $callbacks{$_} = sub {
+      my ($self, undef, $r) = @_; # $_[1] is the internal buffer
+      return $self->$internal_code($user_code);
+    };
+  }
+  #
+  # Generate grammar
+  #
+  $grammar = MarpaX::Languages::XML::Impl::Grammar->new( start => 'element', grammar_event => \%grammar_event );
+  #
+  # Go
+  #
+  $self->_generic_parse(
+                        $_[1],             # buffer
+                        $grammar,          # grammar
+                        'element$',        # end_event_name
+                        \%callbacks,       # callbacks
+                        1                  # eol
+                       );
 }
 
 sub parse {
@@ -965,6 +1083,11 @@ sub parse {
   # --------------------
   $self->_parse_element($buffer);
 
+
+  # ----------------------------------------------------
+  # Return value eventually overwriten by end_document()
+  # ----------------------------------------------------
+  return $self->_parse_rc;
 }
 
 with 'MooX::Role::Logger';

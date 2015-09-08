@@ -9,4 +9,10 @@ use Moo::Role;
 
 requires 'parse';
 
+requires 'start_document';
+requires 'end_document';
+
+requires 'start_element';
+requires 'end_element';
+
 1;

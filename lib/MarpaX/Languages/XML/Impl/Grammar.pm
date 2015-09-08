@@ -1,4 +1,5 @@
 package MarpaX::Languages::XML::Impl::Grammar;
+use Carp qw/croak/;
 use Data::Section -setup;
 use Marpa::R2;
 use MarpaX::Languages::XML::Exception;
@@ -508,7 +509,6 @@ sub _attvalue_common {
   my $cdata = shift;
   my $charref = shift;
   my $entityref = shift;
-  my $pereference = shift;
   #
   # @_ is an array describing attvalue:
   # if not a ref, this is char
@@ -534,15 +534,9 @@ sub _attvalue_common {
       # For an entity reference, recursively apply step 3 of this algorithm to the replacement text of the entity.
       # EntityRef case.
       #
-      $attvalue .= $self->_attvalue($cdata, $entityref, $_);
-    } elsif (is_PEReference($_)) {
-      #
-      # For an entity reference, recursively apply step 3 of this algorithm to the replacement text of the entity.
-      # PEReference case.
-      #
-      $attvalue .= $self->_attvalue($cdata, $entityref, $_);
+      $attvalue .= $self->attvalue($cdata, $entityref, $_);
     } elsif (reftype($_)) {
-      $self->_logger->tracef('[%s/%s] Internal error in attribute value normalization, expecting a CharRef, EntityRef or PEReference, got %s', $self->xml_version, $self->start, reftype($_));
+      croak 'Internal error in attribute value normalization, expecting a CharRef, and EntityRef or a char, got ' . reftype($_);
     } elsif (($_ eq "\x{20}") || ($_ eq "\x{D}") || ($_ eq "\x{A}") || ($_ eq "\x{9}")) {
       #
       # For a white space character (#x20, #xD, #xA, #x9), append a space character (#x20) to the normalized value.
@@ -577,7 +571,7 @@ sub _attvalue_xml11 {
 }
 sub attvalue {
   my $self = shift;
-  my $coderef = $self->_attvalue($self->xml_version);
+  my $coderef = $self->_get__attvalue($self->xml_version);
   return $self->$coderef(@_);
 }
 
