@@ -1,5 +1,4 @@
 package MarpaX::Languages::XML::Impl::Grammar;
-use Carp qw/croak/;
 use Data::Section -setup;
 use Marpa::R2;
 use MarpaX::Languages::XML::Exception;
@@ -457,8 +456,7 @@ sub _eol_xml10 {
 }
 
 sub _eol_xml11 {
-  my ($self, undef, $eof, $decl, $error_message_ref) = @_;
-  # Buffer is in $_[1]
+  my ($self, undef, $eof, $decl, $error_message_ref) = @_; # Buffer is in $_[1]
 
   if ($decl && ($_[1] =~ /[\x{85}\x{2028}]/)) {
     ${$error_message_ref} = "Invalid character \\x{" . sprintf('%X', ord(substr($_[1], $+[0], $+[0] - $-[0]))) . "}";
@@ -489,8 +487,15 @@ sub _eol_xml11 {
 # Then it is guaranteed that eol never returns a value <= 0.
 #
 sub eol {
+  #
+  # Here is how I would do params validation
+  # CORE::state $check = compile(ConsumerOf['MarpaX::Languages::XML::Role::Grammar'],
+  #                                       Str,
+  #                                       Bool,
+  #                                       Str,
+  #                                       ScalarRef);
+  # $check->(@_);
   my $self = shift;
-
   my $coderef = $self->_get__eol($self->xml_version);
   return $self->$coderef(@_);
 }
@@ -501,7 +506,9 @@ sub eol {
 sub _attvalue_common {
   my $self = shift;
   my $cdata = shift;
+  my $charref = shift;
   my $entityref = shift;
+  my $pereference = shift;
   #
   # @_ is an array describing attvalue:
   # if not a ref, this is char
@@ -522,9 +529,16 @@ sub _attvalue_common {
       # For a character reference, append the referenced character to the normalized value.
       #
       $attvalue .= $_;
-    } elsif (is_EntityRef($_) || is_PEReference($_)) {
+    } elsif (is_EntityRef($_)) {
       #
       # For an entity reference, recursively apply step 3 of this algorithm to the replacement text of the entity.
+      # EntityRef case.
+      #
+      $attvalue .= $self->_attvalue($cdata, $entityref, $_);
+    } elsif (is_PEReference($_)) {
+      #
+      # For an entity reference, recursively apply step 3 of this algorithm to the replacement text of the entity.
+      # PEReference case.
       #
       $attvalue .= $self->_attvalue($cdata, $entityref, $_);
     } elsif (reftype($_)) {
@@ -563,7 +577,6 @@ sub _attvalue_xml11 {
 }
 sub attvalue {
   my $self = shift;
-
   my $coderef = $self->_attvalue($self->xml_version);
   return $self->$coderef(@_);
 }

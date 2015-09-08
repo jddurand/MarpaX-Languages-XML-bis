@@ -2,9 +2,11 @@ package MarpaX::Languages::XML::Impl::Parser;
 use Data::Hexdumper qw/hexdump/;
 use Marpa::R2;
 use MarpaX::Languages::XML::Exception;
+use MarpaX::Languages::XML::Impl::CharRef;
 use MarpaX::Languages::XML::Impl::Encoding;
+use MarpaX::Languages::XML::Impl::EntityRef;
 use MarpaX::Languages::XML::Impl::Grammar;
-use MarpaX::Languages::XML::Type::CharacterAndEntityReferences -all;
+use MarpaX::Languages::XML::Impl::PEReference;
 use Moo;
 use MooX::late;
 use MooX::HandlesVia;
@@ -29,6 +31,25 @@ This module is an implementation of MarpaX::Languages::XML::Role::Parser.
 #
 # Internal attributes
 # -------------------
+
+#
+# Character and entity references
+#
+has _charref => (
+                 is => 'rw',
+                 isa => ConsumerOf['MarpaX::Languages::XML::Role::CharRef'],
+                 default => sub { return MarpaX::Languages::XML::Impl::CharRef->new() }
+                );
+has _entityref => (
+                 is => 'rw',
+                 isa => ConsumerOf['MarpaX::Languages::XML::Role::EntityRef'],
+                 default => sub { return MarpaX::Languages::XML::Impl::EntityRef->new() }
+                );
+has _pereference => (
+                 is => 'rw',
+                 isa => ConsumerOf['MarpaX::Languages::XML::Role::PEReference'],
+                 default => sub { return MarpaX::Languages::XML::Impl::PEReference->new() }
+                );
 
 #
 # EOF
@@ -57,33 +78,6 @@ has _decl_end_pos => (
                       isa => PositiveOrZeroInt,
                       default => 0
                      );
-
-#
-# Current entity references
-#
-has _entityref => (
-                   is => 'rw',
-                   isa => HashRef[Str],
-                   default => sub { {} },
-                   handles_via => 'Hash',
-                   handles     => {
-                                   _get__entityref => 'get',
-                                   _set__entityref => 'set',
-                                   _exists__entityref => 'exists',
-                                  }
-                  );
-has _pereference => (
-                     is => 'rw',
-                     isa => HashRef[Str],
-                     default => sub { {} },
-                     handles_via => 'Hash',
-                     handles     => {
-                                     _get__pereference => 'get',
-                                     _set__pereference => 'set',
-                                     _exists__pereference => 'exists',
-                                    }
-                    );
-
 
 #
 # Because of the prolog retry, start_document can happen twice

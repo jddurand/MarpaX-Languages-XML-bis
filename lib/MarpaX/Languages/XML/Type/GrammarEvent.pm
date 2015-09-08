@@ -3,8 +3,8 @@ use Type::Library
   -base,
   -declare => qw/GrammarEvent/;
 use Type::Utils -all;
-use Types::Standard -types;
-use Types::Common::Numeric qw/PositiveOrZeroInt/;
+use Types::Standard -all;
+use Types::Common::Numeric -all;
 use MarpaX::Languages::XML::Type::EventType -all;
 
 declare GrammarEvent,
