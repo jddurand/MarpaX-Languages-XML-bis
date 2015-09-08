@@ -497,13 +497,72 @@ sub eol {
 #
 # Normalization: XML1.0 and XML1.1 share the same algorithm
 # ---------------------------------------------------------
+sub _attvalue_common {
+  my $self = shift;
+  my $cdata = shift;
+  my $entityref = shift;
+  #
+  # @_ is an array describing attvalue:
+  # if not a ref, this is char
+  # if a ref, this is a reference to an array like: [ type, content ]
+  # where type is either 'charref', 'entityref'
+  #
+  # 1. All line breaks must have been normalized on input to #xA as described in 2.11 End-of-Line Handling, so the rest of this algorithm operates on text normalized in this way.
+  #
+  # 2. Begin with a normalized value consisting of the empty string.
+  #
+  my $attvalue = '';
+  #
+  # 3. For each character, entity reference, or character reference in the unnormalized attribute value, beginning with the first and continuing to the last, do the following:
+  #
+  foreach (@_) {
+    if (ref($_)) {
+      if ($->[0] eq 'charref') {
+        #
+        # For a character reference, append the referenced character to the normalized value.
+        #
+        $attvalue .= $_->[1];
+      } elsif ($_->[0] eq 'entityref') {
+        #
+        # For an entity reference, recursively apply step 3 of this algorithm to the replacement text of the entity.
+        #
+        $attvalue .= $self->_attvalue($cdata, $entityref, $->[1]);
+      } else {
+        $self->_logger->tracef('[%s/%s] Internal error in attribute value normalization: ref() = %s', $self->xml_version, $self->start, ref($_));
+      }
+    } else {
+      if (($_ eq "\x{20}") || ($_ eq "\x{D}") || ($_ eq "\x{A}") || ($_ eq "\x{9}")) {
+        #
+        # For a white space character (#x20, #xD, #xA, #x9), append a space character (#x20) to the normalized value.
+        #
+        $attvalue .= "\x{20}";
+      } else {
+        #
+        # For another character, append the character to the normalized value.
+        #
+        $attvalue .= $_;
+      }
+    }
+  }
+  #
+  # If the attribute type is not CDATA, then the XML processor must further process the normalized attribute value by discarding any leading and trailing space (#x20) characters, and by replacing sequences of space (#x20) characters by a single space (#x20) character.
+  #
+  if (! $cdata) {
+    $attvalue =~ s/\A\x{20}*//;
+    $attvalue =~ s/\x{20}*\z//;
+    $attvalue =~ s/\x{20}+/\x{20}/g;
+  }
+
+  return $attvalue;
+}
+
 sub _attvalue_xml10 {
   my $self = shift;
-  return $self->_normalize_attvalue_common(@_);
+  return $self->_attvalue_common(@_);
 }
 sub _attvalue_xml11 {
   my $self = shift;
-  return $self->_normalize_attvalue_common(@_);
+  return $self->_attvalue_common(@_);
 }
 sub attvalue {
   my $self = shift;
