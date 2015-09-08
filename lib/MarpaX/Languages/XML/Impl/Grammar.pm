@@ -517,32 +517,28 @@ sub _attvalue_common {
   # 3. For each character, entity reference, or character reference in the unnormalized attribute value, beginning with the first and continuing to the last, do the following:
   #
   foreach (@_) {
-    if (ref($_)) {
-      if (is_CharRef($_)) {
-        #
-        # For a character reference, append the referenced character to the normalized value.
-        #
-        $attvalue .= $_;
-      } elsif (is_EntityRef($_)) {
-        #
-        # For an entity reference, recursively apply step 3 of this algorithm to the replacement text of the entity.
-        #
-        $attvalue .= $self->_attvalue($cdata, $entityref, $_);
-      } else {
-        $self->_logger->tracef('[%s/%s] Internal error in attribute value normalization, expecting a CharRef or EntityRef, got %s', $self->xml_version, $self->start, reftype($_));
-      }
+    if (is_CharRef($_)) {
+      #
+      # For a character reference, append the referenced character to the normalized value.
+      #
+      $attvalue .= $_;
+    } elsif (is_EntityRef($_) || is_PEReference($_)) {
+      #
+      # For an entity reference, recursively apply step 3 of this algorithm to the replacement text of the entity.
+      #
+      $attvalue .= $self->_attvalue($cdata, $entityref, $_);
+    } elsif (reftype($_)) {
+      $self->_logger->tracef('[%s/%s] Internal error in attribute value normalization, expecting a CharRef, EntityRef or PEReference, got %s', $self->xml_version, $self->start, reftype($_));
+    } elsif (($_ eq "\x{20}") || ($_ eq "\x{D}") || ($_ eq "\x{A}") || ($_ eq "\x{9}")) {
+      #
+      # For a white space character (#x20, #xD, #xA, #x9), append a space character (#x20) to the normalized value.
+      #
+      $attvalue .= "\x{20}";
     } else {
-      if (($_ eq "\x{20}") || ($_ eq "\x{D}") || ($_ eq "\x{A}") || ($_ eq "\x{9}")) {
-        #
-        # For a white space character (#x20, #xD, #xA, #x9), append a space character (#x20) to the normalized value.
-        #
-        $attvalue .= "\x{20}";
-      } else {
-        #
-        # For another character, append the character to the normalized value.
-        #
-        $attvalue .= $_;
-      }
+      #
+      # For another character, append the character to the normalized value.
+      #
+      $attvalue .= $_;
     }
   }
   #
