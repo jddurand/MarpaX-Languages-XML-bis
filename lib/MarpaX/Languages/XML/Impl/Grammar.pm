@@ -435,7 +435,7 @@ sub _build_scanless {
 # End-of-line handling: XML1.0 and XML1.1 share the same algorithm
 # ----------------------------------------------------------------
 sub _eol_xml10 {
-  my ($self, undef, $eof, $inDecl, $error_message_ref) = @_;
+  my ($self, undef, $eof, $decl, $error_message_ref) = @_;
   # Buffer is in $_[1]
 
   #
@@ -456,11 +456,11 @@ sub _eol_xml10 {
 }
 
 sub _eol_xml11 {
-  my ($self, undef, $eof, $inDecl, $error_message_ref) = @_;
+  my ($self, undef, $eof, $decl, $error_message_ref) = @_;
   # Buffer is in $_[1]
 
-  if ($inDecl && ($_[1] =~ /[\x{85}\x{2028}]/)) {
-    ${$error_message_ref} = "Invalid character \\x{85} or \\x{2028}";
+  if ($decl && ($_[1] =~ /[\x{85}\x{2028}]/)) {
+    ${$error_message_ref} = "Invalid character \\x{" . sprintf('%X', ord(substr($_[1], $+[0], $+[0] - $-[0]))) . "}";
     return -1;
   }
   #
