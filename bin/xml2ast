@@ -23,7 +23,7 @@ use Try::Tiny;
 my $help = 0;
 my $loglevel = 'INFO';
 my $logstderr = 0;
-my $block_size = 11;
+my $block_size = 1024 * 1024;
 my @sax = ();
 
 our %SAX_HANDLER = (

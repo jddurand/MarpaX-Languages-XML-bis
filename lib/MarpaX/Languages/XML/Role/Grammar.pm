@@ -12,6 +12,7 @@ requires 'lexeme_regexp';
 requires 'lexeme_exclusion';
 requires 'get_grammar_event';
 requires 'eol';
+requires 'eol_decl';
 requires 'attvalue';
 
 1;
