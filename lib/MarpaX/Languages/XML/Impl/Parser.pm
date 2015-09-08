@@ -46,6 +46,16 @@ has _inDecl => (
                 isa => Bool,
                 default => 0
                );
+has _decl_start_pos => (
+                        is => 'rw',
+                        isa => PositiveOrZeroInt,
+                        default => 0
+                       );
+has _decl_end_pos => (
+                      is => 'rw',
+                      isa => PositiveOrZeroInt,
+                      default => 0
+                     );
 
 #
 # Current entity references
@@ -347,7 +357,7 @@ sub _generic_parse {
   #
   # buffer is accessed using $_[1] to avoid dereferencing $self->io->buffer everytime
   #
-  my ($self, undef, $grammar, $end_event_name, $callbacks_ref, $normalize) = @_;
+  my ($self, undef, $grammar, $end_event_name, $callbacks_ref, $eol) = @_;
 
   #
   # Create a recognizer
@@ -413,7 +423,7 @@ sub _generic_parse {
           if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
             $self->_logger->tracef('[%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $self->LineNumber, $self->ColumnNumber, $lexeme, $min_chars{$_}, $self->_remaining);
           }
-          $self->_reduceAndRead($_[1], $r, $grammar, $normalize);
+          $self->_reduceAndRead($_[1], $r, $grammar, $eol);
           if ($self->_remaining > $old_remaining) {
             #
             # Something was read
@@ -447,7 +457,7 @@ sub _generic_parse {
                 $self->_logger->tracef('[%d:%d] Lexeme %s is of unpredicted size and currently reaches end-of-buffer', $self->LineNumber, $self->ColumnNumber, $lexeme);
               }
               my $old_remaining = $self->_remaining;
-              $self->_reduceAndRead($_[1], $r, $grammar, $normalize);
+              $self->_reduceAndRead($_[1], $r, $grammar, $eol);
               if ($self->_remaining > $old_remaining) {
                 #
                 # Something was read
@@ -631,11 +641,11 @@ sub _generic_parse {
 }
 
 sub _reduceAndRead {
-  my ($self,  undef, $r, $grammar, $normalize) = @_;
+  my ($self,  undef, $r, $grammar, $eol) = @_;
   #
-  # Crunch previous data
+  # Crunch previous data unless we are in the decl context
   #
-  if ($self->_pos > 0) {
+  if ($self->_pos > 0 && ! $self->_inDecl) {
     #
     # Faster like this -;
     #
@@ -658,16 +668,32 @@ sub _reduceAndRead {
     $self->_logger->debugf('[%d:%d] Reading %d characters', $self->LineNumber, $self->ColumnNumber, $self->block_size);
   }
 
-  $self->_set__length($self->_read($_[1], $r, $grammar, $normalize));
-  $self->_set__pos(0);
+  $self->_set__length($self->_read($_[1], $r, $grammar, $eol));
+  $self->_set__pos($self->_inDecl ? $self->_pos : 0);
   return;
 }
 
+sub _eol {
+  my ($self, undef, $r, $grammar, $orig_length, $decl) = @_;
+
+  my $error_message;
+  my $eol_length = $grammar->eol($_[1], $self->_eof, $decl, \$error_message);
+  if ($eol_length < 0) {
+    #
+    # This is an error
+    #
+    $self->_exception($error_message, $r);
+  }
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace && ($eol_length != $orig_length)) {
+    $self->_logger->tracef('[%d:%d] End-of-line handling removed %d character%s', $self->LineNumber, $self->ColumnNumber, $orig_length - $eol_length, ($orig_length - $eol_length) > 0 ? 's' : '');
+  }
+  return $eol_length;
+}
+
 sub _read {
-  my ($self, undef, $r, $grammar, $normalize) = @_;
+  my ($self, undef, $r, $grammar, $eol) = @_;
 
   my $length;
-  my $last;
   do {
     my $io_length;
     $self->io->read;
@@ -676,30 +702,18 @@ sub _read {
         $self->_logger->tracef('[%d:%d] EOF', $self->LineNumber, $self->ColumnNumber);
       }
       $self->_eof(1);
-      $length = 0;
-      $last = 1;
+      return 0;
     } else {
-      if ($normalize) {
-        my $error_message;
-        my $normalized_length = $grammar->eol($_[1], $self->_eof, $self->_inDecl, \$error_message);
-        if ($normalized_length < 0) {
-          #
-          # This is an error
-          #
-          $self->_exception($error_message, $r);
-        } elsif ($normalized_length > 0) {
-          if ($MarpaX::Languages::XML::Impl::Parser::is_trace && ($normalized_length != $io_length)) {
-            $self->_logger->tracef('[%d:%d] Normalization removed %d characters', $self->LineNumber, $self->ColumnNumber, $io_length - $normalized_length);
-          }
-          $length = $normalized_length;
-          $last = 1;
-        }
+      if ($eol) {
+        #
+        # This can return 0
+        #
+        $length = $self->_eol($_[1], $r, $grammar, $io_length, 0);
       } else {
         $length = $io_length;
-        $last = 1;
       }
     }
-  } while (! $last);
+  } while (! $length);
 
   return $length;
 }
@@ -768,25 +782,34 @@ sub _parse_prolog {
                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
                        $self->_logger->debugf('[%d:%d] XML Declaration is starting', $self->LineNumber, $self->ColumnNumber);
                      }
+                     #
+                     # Remember we in a Xml or Text declaration
+                     #
                      $self->_inDecl(1);
-                     #
-                     # End-of-line handling have more checks if $self->_inDecl, is on, so re-apply it
-                     #
-                     my $error_message;
-                     my $normalized_length = $grammar->eol($_[1], $self->_eof, 1, \$error_message);
-                     if ($normalized_length < 0) {
-                       #
-                       # This is an error
-                       #
-                       $self->_exception($error_message, $r);
-                     }
+                     $self->_decl_start_pos($self->_pos);
                      return 1;
                    },
-                   '^_XMLDECL_END' => sub {
+                   'XMLDECL_END$' => sub {
                      my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
                        $self->_logger->debugf('[%d:%d] XML Declaration is ending', $self->LineNumber, $self->ColumnNumber);
-                       $self->_inDecl(0);
+                     }
+                     #
+                     # Remember we not in a Xml or Text declaration
+                     #
+                     $self->_inDecl(0);
+                     $self->_decl_end_pos($self->_pos);
+                     #
+                     # And apply end-of-line handling to this portion putting the inDecl flag to true
+                     #
+                     my $decl = substr($_[1], $self->_decl_start_pos, $self->_decl_end_pos - $self->_decl_start_pos);
+                     my $orig_decl_length = length($decl);
+                     my $decl_length = $self->_eol($decl, $r, $grammar, $orig_decl_length, 1);
+                     if ($decl_length != $orig_decl_length) {
+                       #
+                       # Replace in $_[1]
+                       #
+                       substr($_[1], $self->_decl_start_pos, $self->_decl_end_pos - $self->_decl_start_pos, $decl);
                      }
                      return 1;
                    },
@@ -850,7 +873,7 @@ sub _parse_prolog {
                         $grammar,          # grammar
                         'prolog$',         # end_event_name
                         \%callbacks,       # callbacks
-                        1                  # normalize
+                        1                  # eol
                        );
   if ($self->_encoding ne $orig_encoding) {
     if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {

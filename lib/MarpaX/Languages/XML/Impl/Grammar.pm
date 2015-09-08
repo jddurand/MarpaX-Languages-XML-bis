@@ -449,9 +449,6 @@ sub _eol_xml10 {
       return 0;
     }
   }
-  #
-  # Do normalization
-  #
   $_[1] =~ s/\x{D}\x{A}/\x{A}/g;
   $_[1] =~ s/\x{D}/\x{A}/g;
 
@@ -463,7 +460,7 @@ sub _eol_xml11 {
   # Buffer is in $_[1]
 
   if ($inDecl && ($_[1] =~ /[\x{85}\x{2028}]/)) {
-    ${$error_message_ref} = "Invalid character \\x{85} or \\x{2028} in declaration";
+    ${$error_message_ref} = "Invalid character \\x{85} or \\x{2028}";
     return -1;
   }
   #
@@ -477,9 +474,6 @@ sub _eol_xml11 {
       return 0;
     }
   }
-  #
-  # Do normalization
-  #
   $_[1] =~ s/\x{D}\x{A}/\x{A}/g;
   $_[1] =~ s/\x{D}\x{85}/\x{A}/g;
   $_[1] =~ s/\x{85}/\x{A}/g;
@@ -489,6 +483,10 @@ sub _eol_xml11 {
   return length($_[1]);
 }
 
+#
+# Note: it is expected that the caller never call eol on an empty buffer.
+# Then it is guaranteed that eol never returns a value <= 0.
+#
 sub eol {
   my $self = shift;
 
