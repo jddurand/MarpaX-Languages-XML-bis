@@ -4,6 +4,7 @@ use Marpa::R2;
 use MarpaX::Languages::XML::Exception;
 use MarpaX::Languages::XML::Impl::Encoding;
 use MarpaX::Languages::XML::Impl::Grammar;
+use MarpaX::Languages::XML::Type::CharacterAndEntityReferences -all;
 use Moo;
 use MooX::late;
 use MooX::HandlesVia;
@@ -921,19 +922,13 @@ sub _parse_element {
                    '_ENTITYREF_END$' => sub {
                      my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
                      my $name = $self->_get__last_lexeme('_NAME');
-                     if (! $self->_exists__entityref($name)) {
-                       $self->_logger->debugf('[%d:%d] Unknown EntityRef %s', $self->LineNumber, $self->ColumnNumber, $name);
-                     }
-                     push(@attvalue, [ entityref => $name ]);
+                     push(@attvalue, to_EntityRef($name));
                      return 1;
                    },
                    '_PEREFERENCE_END$' => sub {
                      my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
                      my $name = $self->_get__last_lexeme('_NAME');
-                     if (! $self->_exists__pereference($name)) {
-                       $self->_logger->debugf('[%d:%d] Unknown PEReference %s', $self->LineNumber, $self->ColumnNumber, $name);
-                     }
-                     push(@attvalue, [ pereference => $name ]);
+                     push(@attvalue, to_PEReference($name));
                      return 1;
                    },
                    'AttValue$' => sub {
