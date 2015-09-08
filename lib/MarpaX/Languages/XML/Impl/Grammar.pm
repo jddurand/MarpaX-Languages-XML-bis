@@ -5,6 +5,7 @@ use Marpa::R2;
 use MarpaX::Languages::XML::Exception;
 use MarpaX::Languages::XML::Type::GrammarEvent -all;
 use MarpaX::Languages::XML::Type::XmlVersion -all;
+use MarpaX::Languages::XML::Type::CharacterAndEntityReferences -all;
 use Moo;
 use MooX::late;
 use MooX::Role::Logger;
@@ -517,18 +518,18 @@ sub _attvalue_common {
   #
   foreach (@_) {
     if (ref($_)) {
-      if ($->[0] eq 'charref') {
+      if (is_CharRef($_)) {
         #
         # For a character reference, append the referenced character to the normalized value.
         #
-        $attvalue .= $_->[1];
-      } elsif ($_->[0] eq 'entityref') {
+        $attvalue .= $_;
+      } elsif (is_EntityRef($_)) {
         #
         # For an entity reference, recursively apply step 3 of this algorithm to the replacement text of the entity.
         #
-        $attvalue .= $self->_attvalue($cdata, $entityref, $->[1]);
+        $attvalue .= $self->_attvalue($cdata, $entityref, $_);
       } else {
-        $self->_logger->tracef('[%s/%s] Internal error in attribute value normalization: ref() = %s', $self->xml_version, $self->start, ref($_));
+        $self->_logger->tracef('[%s/%s] Internal error in attribute value normalization, expecting a CharRef or EntityRef, got %s', $self->xml_version, $self->start, reftype($_));
       }
     } else {
       if (($_ eq "\x{20}") || ($_ eq "\x{D}") || ($_ eq "\x{A}") || ($_ eq "\x{9}")) {
