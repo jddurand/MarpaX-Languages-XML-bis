@@ -403,7 +403,16 @@ sub _generic_parse {
   my %lexeme_regexp    = $grammar->elements_lexeme_regexp;
   my %lexeme_exclusion = $grammar->elements_lexeme_exclusion;
   #
-  # Global variable that does not need re-initialization
+  # Variables that need initialization
+  #
+  my $global_pos   = $self->_global_pos;
+  my $LineNumber   = $self->LineNumber;
+  my $ColumnNumber = $self->ColumnNumber;
+  my $pos          = $self->_pos;
+  my $length       = $self->_length;
+  my $remaining    = $self->_remaining;
+  #
+  # Variables that does not need re-initialization
   #
   my $data;
   #
@@ -440,12 +449,6 @@ sub _generic_parse {
        $r->resume()
       ) {
     my $can_stop     = 0;
-    my $global_pos   = $self->_global_pos;
-    my $LineNumber   = $self->LineNumber;
-    my $ColumnNumber = $self->ColumnNumber;
-    my $pos          = $self->_pos;
-    my $length       = $self->_length;
-    my $remaining    = $self->_remaining;
 
     my @event_names = map { $_->[0] } @{$r->events()};
     if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
@@ -469,7 +472,7 @@ sub _generic_parse {
     foreach (@event_names) {
       my $lexeme = $grammar_event{$_}->{lexeme};
 
-      if ($grammar_event{$_}->{is_prediction} && $lexeme) {
+      if ($lexeme && $grammar_event{$_}->{is_prediction}) {
         #
         # INTERNAL PREDICTION EVENTS
         # --------------------------
