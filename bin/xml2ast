@@ -26,7 +26,7 @@ my $help = 0;
 my $loglevel = 'INFO';
 my $logstderr = 0;
 my $block_size = 1024 * 1024;
-my $xml_version = '1.0';
+my $xml_version = undef;
 my @sax = ();
 
 my $loglevel_type = Enum[qw/DEBUG INFO WARN ERROR FATAL TRACE/];
@@ -69,7 +69,8 @@ foreach (@ARGV) {
   try {
     MarpaX::Languages::XML->parse(io => MarpaX::Languages::XML::Impl::IO->new->open($source),
                                   block_size => $block_size,
-                                  sax_handler => \%sax_handler
+                                  sax_handler => \%sax_handler,
+                                  xml_version => $xml_version
                                  );
   } catch {
     $log->errorf('%s', "$_");
