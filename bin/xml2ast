@@ -9,8 +9,10 @@ use Log::Any::Adapter;
 use Log::Log4perl qw/:easy/;
 use MarpaX::Languages::XML;
 use MarpaX::Languages::XML::Impl::IO;   # Default IO implementation
+use MarpaX::Languages::XML::Type::XmlVersion -all;
 use POSIX qw/EXIT_FAILURE EXIT_SUCCESS/;
 use Try::Tiny;
+use Types::Standard -all;
 
 # ABSTRACT: XML AST
 
@@ -24,7 +26,10 @@ my $help = 0;
 my $loglevel = 'INFO';
 my $logstderr = 0;
 my $block_size = 1024 * 1024;
+my $xml_version = '1.0';
 my @sax = ();
+
+my $loglevel_type = Enum[qw/DEBUG INFO WARN ERROR FATAL TRACE/];
 
 our %SAX_HANDLER = (
     start_document => \&_start_document,
@@ -33,8 +38,10 @@ our %SAX_HANDLER = (
     end_document   => \&_end_document,
     );
 
+my $sax_type = Enum['all', keys %SAX_HANDLER];
+
 GetOptions ('help!' => \$help,
-            'loglevel=s' => \$loglevel,
+            'loglevel=s' => sub { $loglevel = $loglevel_type->assert_return($_[1]) },
             'debug' => sub { $loglevel = 'DEBUG' },
             'info' => sub { $loglevel = 'INFO' },
             'warn' => sub { $loglevel = 'WARN' },
@@ -42,12 +49,12 @@ GetOptions ('help!' => \$help,
             'fatal' => sub { $loglevel = 'FATAL' },
             'trace' => sub { $loglevel = 'TRACE' },
             'block_size=i' => \$block_size,
-            'sax=s' => \@sax,
+            'xml_version=s' => sub { $xml_version = XmlVersion->assert_return($_[1]) },
+            'sax=s' => sub { push(@sax, map {$sax_type->assert_return($_)} split(/,/, $_[1])) },
             'logstderr!' => \$logstderr);
 
 __PACKAGE__->_init($loglevel, $logstderr);
 
-@sax = split(/,/,join(',',@sax));
 my %sax_handler = (grep { $_ eq 'all' } @sax)
     ?
     %SAX_HANDLER
