@@ -390,6 +390,15 @@ sub _generic_parse {
   my %fixed_length = ();
   my %callback = ();
 
+  if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+    $self->_logger->debugf('[%d:%d] Pos: %d, Length: %d, Remaining: %d', $self->LineNumber, $self->ColumnNumber, $self->_pos, $self->_length, $self->_remaining);
+    if ($self->_remaining > 0) {
+      $self->_logger->debugf('[%d:%d] Data: %s', $self->LineNumber, $self->ColumnNumber,
+                             hexdump(data              => substr($_[1], $self->_pos, 15),
+                                     suppress_warnings => 1,
+                                    ));
+    }
+  }
   #
   # Loop on input
   #
@@ -975,8 +984,9 @@ sub _parse_prolog {
   #
   $self->_set__encoding($orig_encoding);
   $self->_set__global_pos($byte_start);
-  $self->_set__length($self->io->length);
+  my $length = $self->_set__length($self->io->length);
   $self->_set__pos(0);
+  $self->_set__remaining($length);
   $self->_set_LineNumber(1);
   $self->_set_ColumnNumber(1);
   $self->_generic_parse(
