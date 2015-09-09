@@ -15,6 +15,7 @@ use Scalar::Util qw/reftype/;
 use Try::Tiny;
 use Types::Standard -all;
 use Types::Common::Numeric -all;
+use XML::NamespaceSupport;
 
 # ABSTRACT: MarpaX::Languages::XML::Role::parser implementation
 
@@ -32,6 +33,13 @@ This module is an implementation of MarpaX::Languages::XML::Role::Parser.
 # Internal attributes
 # -------------------
 
+#
+# Namespace
+#
+has _namespace => (
+                   is => 'rw',
+                   isa => InstanceOf['XML::NamespaceSupport']
+                  );
 #
 # parse() method return value
 #
