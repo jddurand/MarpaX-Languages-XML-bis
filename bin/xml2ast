@@ -40,18 +40,20 @@ our %SAX_HANDLER = (
 
 my $sax_type = Enum['all', keys %SAX_HANDLER];
 
-GetOptions ('help!' => \$help,
-            'loglevel=s' => sub { $loglevel = $loglevel_type->assert_return($_[1]) },
-            'debug' => sub { $loglevel = 'DEBUG' },
-            'info' => sub { $loglevel = 'INFO' },
-            'warn' => sub { $loglevel = 'WARN' },
-            'error' => sub { $loglevel = 'ERROR' },
-            'fatal' => sub { $loglevel = 'FATAL' },
-            'trace' => sub { $loglevel = 'TRACE' },
-            'block_size=i' => \$block_size,
-            'xml_version=s' => sub { $xml_version = XmlVersion->assert_return($_[1]) },
-            'sax=s' => sub { push(@sax, map {$sax_type->assert_return($_)} split(/,/, $_[1])) },
-            'logstderr!' => \$logstderr);
+if (! GetOptions ('help!' => \$help,
+                  'loglevel=s' => sub { $loglevel = $loglevel_type->assert_return($_[1]) },
+                  'debug' => sub { $loglevel = 'DEBUG' },
+                  'info' => sub { $loglevel = 'INFO' },
+                  'warn' => sub { $loglevel = 'WARN' },
+                  'error' => sub { $loglevel = 'ERROR' },
+                  'fatal' => sub { $loglevel = 'FATAL' },
+                  'trace' => sub { $loglevel = 'TRACE' },
+                  'block_size=i' => \$block_size,
+                  'xml_version=s' => sub { $xml_version = XmlVersion->assert_return($_[1]); },
+                  'sax=s' => sub { push(@sax, map {$sax_type->assert_return($_)} split(/,/, $_[1])) },
+                  'logstderr!' => \$logstderr)) {
+  exit(EXIT_FAILURE);
+}
 
 __PACKAGE__->_init($loglevel, $logstderr);
 
