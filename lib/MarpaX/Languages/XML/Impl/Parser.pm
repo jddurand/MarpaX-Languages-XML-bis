@@ -7,6 +7,7 @@ use MarpaX::Languages::XML::Impl::Encoding;
 use MarpaX::Languages::XML::Impl::EntityRef;
 use MarpaX::Languages::XML::Impl::Grammar;
 use MarpaX::Languages::XML::Impl::PEReference;
+use MarpaX::Languages::XML::Type::XmlVersion -all;
 use Moo;
 use MooX::late;
 use MooX::HandlesVia;
@@ -236,6 +237,12 @@ has _next_global_pos => (
 #
 # External attributes
 # -------------------
+
+has xml_version => (
+                    is  => 'ro',
+                    isa => XmlVersion|Undef,
+                    default => undef
+                   );
 
 has io => (
            is          => 'ro',
@@ -990,7 +997,7 @@ sub _parse_prolog {
   #
   # Generate grammar
   #
-  $grammar = MarpaX::Languages::XML::Impl::Grammar->new( start => 'document', grammar_event => \%grammar_event );
+  $grammar = $self->_generate_grammar(start => 'document', grammar_event => \%grammar_event);
   #
   # Go
   #
@@ -1035,6 +1042,16 @@ sub _parse_prolog {
       $self->_exception('Two many retries because of encoding difference beween BOM, guess and XML');
     }
   }
+}
+
+sub _generate_grammar {
+  my ($self, %grammar_option) = @_;
+
+  if (! Undef->check($self->xml_version)) {
+    $grammar_option{xml_version} = $self->xml_version;
+  }
+
+  return MarpaX::Languages::XML::Impl::Grammar->new(%grammar_option);
 }
 
 sub _parse_element {
@@ -1118,7 +1135,7 @@ sub _parse_element {
   #
   # Generate grammar
   #
-  $grammar = MarpaX::Languages::XML::Impl::Grammar->new( start => 'element', grammar_event => \%grammar_event );
+  $grammar = $self->_generate_grammar(start => 'element', grammar_event => \%grammar_event);
   #
   # Go
   #
