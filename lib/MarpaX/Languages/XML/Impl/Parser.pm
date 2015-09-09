@@ -397,6 +397,7 @@ sub _generic_parse {
   my %length;
   my $max_length;
   my @predicted_lexemes;
+  my @lexeme_complete_events;
 
   if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
     $self->_logger->debugf('[%d:%d] Pos: %d, Length: %d, Remaining: %d', $self->LineNumber, $self->ColumnNumber, $self->_pos, $self->_length, $self->_remaining);
@@ -602,7 +603,7 @@ sub _generic_parse {
         if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
           $self->_logger->debugf('[%d:%d->%d:%d] Match: %s, length %d', $LineNumber, $ColumnNumber, $next_global_line, $next_global_column, \@alternatives, $max_length);
         }
-        my @lexeme_complete_events = ();
+        @lexeme_complete_events = ();
         foreach (@alternatives) {
           #
           # Callback on lexeme prediction
