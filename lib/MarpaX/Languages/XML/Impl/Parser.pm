@@ -367,12 +367,14 @@ sub _find_encoding {
 #
 # It is assumed that caller ONLY USE completed or nulled events
 # The predicted events are RESERVED for lexeme prediction.
+# This routine is the core of the package, so quite highly optimized, making it
+# less readable -;
 #
 sub _generic_parse {
   #
   # buffer is accessed using $_[1] to avoid dereferencing $self->io->buffer everytime
   #
-  my ($self, undef, $grammar, $end_event_name, $callbacks_ref, $eol) = @_;
+  my ($self, undef, $grammar, $end_event_name, $callback_ref, $eol) = @_;
 
   #
   # Create a recognizer
@@ -382,13 +384,19 @@ sub _generic_parse {
   #
   # Mapping event <=> lexeme cached for performance
   #
-  my %lexeme = ();
-  my %prediction = ();
-  my %min_chars = ();
-  my %lexeme_regexp = ();
-  my %lexeme_exclusion = ();
-  my %fixed_length = ();
-  my %callback = ();
+  my %grammar_event    = $grammar->elements_grammar_event;
+  my %lexeme_regexp    = $grammar->elements_lexeme_regexp;
+  my %lexeme_exclusion = $grammar->elements_lexeme_exclusion;
+  #
+  # Global variable that does not need re-initialization
+  #
+  my $data;
+  #
+  # Variables used in the loop: writen like because of goto label that would redo the ops
+  #
+  my %length;
+  my $max_length;
+  my @predicted_lexemes;
 
   if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
     $self->_logger->debugf('[%d:%d] Pos: %d, Length: %d, Remaining: %d', $self->LineNumber, $self->ColumnNumber, $self->_pos, $self->_length, $self->_remaining);
@@ -432,11 +440,9 @@ sub _generic_parse {
     #
     # Predicted events always come first -;
     #
-    my $have_lexeme_prediction = 0;
-    my $data;
-    my %length = ();
-    my $max_length = 0;
-    my @predicted_lexemes = ();
+    %length = ();
+    $max_length = 0;
+    @predicted_lexemes = ();
     #
     # Our regexps are always in in the form qr/\G.../p, i.e. if there is no match
     # the position is not changing. Furthermore we are always reading forward.
@@ -445,25 +451,34 @@ sub _generic_parse {
     # pos($_[1]) = $pos;
 
     foreach (@event_names) {
-      $lexeme{$_}     //= $grammar->get_grammar_event($_)->{lexeme} // '';
-      $prediction{$_} //= $grammar->get_grammar_event($_)->{type} eq 'predicted';    # An event must always be set
+      my $lexeme = $grammar_event{$_}->{lexeme};
 
-      if ($lexeme{$_} && $prediction{$_}) {
-        my $lexeme = $lexeme{$_};
+      if ($grammar_event{$_}->{is_prediction} && $lexeme) {
         #
         # INTERNAL PREDICTION EVENTS
         # --------------------------
-        $have_lexeme_prediction = 1;
         push(@predicted_lexemes, $lexeme);
         #
         # Check if the decision about this lexeme can be done
         #
-        $min_chars{$_} //= $grammar->get_grammar_event($_)->{min_chars} // 0;
-        if (($remaining <= 0) || ($min_chars{$_} > $remaining)) {
+        my $min_chars = $grammar_event{$_}->{min_chars};
+        #
+        # It happend much more frequently that that lexeme should not be matched
+        # than that we are at the end of buffer
+        #
+        if ($min_chars && ($min_chars < $max_length)) {
+          #
+          # No need to check for this lexeme: its predicted length is lower of another that has already matched
+          #
+          if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+            $self->_logger->debugf('[%d:%d] Skipping lexeme %s: another one longer has already matched', $LineNumber, $ColumnNumber, $lexeme);
+          }
+          next;
+        } elsif (($remaining <= 0) || ($min_chars > $remaining)) {     # Second test imply that $min_char is > 0
           my $old_remaining = $remaining;
           if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
             if ($remaining > 0) {
-              $self->_logger->tracef('[%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $LineNumber, $ColumnNumber, $lexeme, $min_chars{$_}, $remaining);
+              $self->_logger->tracef('[%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $LineNumber, $ColumnNumber, $lexeme, $min_chars, $remaining);
             }
           }
           $self->_reduceAndRead($_[1], $r, $pos, $length, $remaining, \$pos, \$length, \$remaining, $grammar, $eol);
@@ -481,20 +496,19 @@ sub _generic_parse {
         #
         # It is assumed that if the caller setted a lexeme name, he also setted a lexeme regexp
         #
-        $lexeme_regexp{$lexeme} //= $grammar->get_lexeme_regexp($lexeme);         # It is a configuration error to have this undef at this stage
-        if ($_[1] =~ $lexeme_regexp{$lexeme}) {
+        if ($_[1] =~ $lexeme_regexp{$lexeme}) {          # It is a configuration error to have this undef at this stage
           #
           # Note: our patterns are compiled with the /p modifier
           #
           my $matched_data = ${^MATCH};
-          $lexeme_exclusion{$lexeme} //= $grammar->get_lexeme_exclusion($lexeme) // '';
-          if ($lexeme_exclusion{$lexeme} && ($matched_data =~ $lexeme_exclusion{$lexeme})) {
+          my $lexeme_exclusion = $lexeme_exclusion{$lexeme};
+          if ($lexeme_exclusion && ($matched_data =~ $lexeme_exclusion)) {
             if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
               $self->_logger->tracef('[%d:%d] Lexeme %s match excluded', $LineNumber, $ColumnNumber, $lexeme);
             }
           } else {
-            $fixed_length{$_} //= $grammar->get_grammar_event($_)->{fixed_length} // 0;
-            if (($+[0] >= $length) && ! $fixed_length{$_}) {
+            my $fixed_length = $grammar_event{$_}->{fixed_length};
+            if (! $fixed_length && ($+[0] >= $length)) {
               if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
                 $self->_logger->tracef('[%d:%d] Lexeme %s is of unpredicted size and currently reaches end-of-buffer', $LineNumber, $ColumnNumber, $lexeme);
               }
@@ -515,7 +529,7 @@ sub _generic_parse {
             if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
               $self->_logger->tracef('[%d:%d] %s: match of length %d', $LineNumber, $ColumnNumber, $lexeme, $length_lexeme);
             }
-            if ((! $max_length) || ($length_lexeme > $max_length)) {
+            if ($length_lexeme > $max_length) {   # Will automatically catch the case of $max_length == 0
               $data = $matched_data;
               $max_length = $length_lexeme;
             }
@@ -538,7 +552,7 @@ sub _generic_parse {
         #
         # Callback ?
         #
-        my $code = $callback{$_} //= $callbacks_ref->{$_} // '';
+        my $code = $callback_ref->{$_};
         #
         # A G1 callback has no argument
         #
@@ -555,9 +569,9 @@ sub _generic_parse {
       }
     }
     if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-      $self->_logger->tracef('[%d:%d] have_lexeme_prediction %d can_stop %d length %s', $LineNumber, $ColumnNumber, $have_lexeme_prediction, $can_stop, \%length);
+      $self->_logger->tracef('[%d:%d] predicted_lexemes %s can_stop %d length %s', $LineNumber, $ColumnNumber, \@predicted_lexemes, $can_stop, \%length);
     }
-    if ($have_lexeme_prediction) {
+    if (@predicted_lexemes) {
       if (! $max_length) {
         if ($can_stop) {
           if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
@@ -594,7 +608,7 @@ sub _generic_parse {
           # Callback on lexeme prediction
           #
           my $lexeme_prediction_event = "^$_";
-          my $code = $callback{$lexeme_prediction_event} //= $callbacks_ref->{$lexeme_prediction_event} // '';
+          my $code = $callback_ref->{$lexeme_prediction_event};
           #
           # A L0 callback has a lot of arguments
           #
@@ -650,7 +664,7 @@ sub _generic_parse {
         # Fake the lexeme completion events
         #
         foreach (@lexeme_complete_events) {
-          my $code = $callback{$_} //= $callbacks_ref->{$_} // '';
+          my $code = $callback_ref->{$_};
           #
           # A L0 completion callback has less arguments than a predicted one
           #
@@ -859,7 +873,7 @@ sub _parse_prolog {
   # Default grammar event and callbacks
   #
   my $grammar;
-  my %grammar_event = ( 'prolog$' => { type => 'completed', symbol_name => 'prolog' } );
+  my %grammar_event = ( 'prolog$' => { type => 'completed', fixed_length => 0, min_chars => 0, symbol_name => 'prolog' } );
   my %callbacks = (
                    '^_ENCNAME' => sub {
                      my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
@@ -958,7 +972,7 @@ sub _parse_prolog {
   foreach (qw/start_document/) {
     my $user_code = $self->get_sax_handler($_);
     my $internal_code = $_;
-    $grammar_event{$_} = { type => 'nulled', symbol_name => $_ };
+    $grammar_event{$_} = { type => 'nulled', fixed_length => 0, min_chars => 0, symbol_name => $_ };
     $callbacks{$_} = sub {
       my ($self, undef, $r) = @_; # $_[1] is the internal buffer
       return $self->$internal_code($user_code);
@@ -1023,9 +1037,9 @@ sub _parse_element {
   my $grammar;
   my $cdata_context = 0;
   my %grammar_event = (
-                       'element$'       => { type => 'completed', symbol_name => 'element' },
-                       'AttributeName$' => { type => 'completed', symbol_name => 'AttributeName' },
-                       'AttValue$'      => { type => 'completed', symbol_name => 'AttValue' },
+                       'element$'       => { type => 'completed', fixed_length => 0, min_chars => 0, symbol_name => 'element' },
+                       'AttributeName$' => { type => 'completed', fixed_length => 0, min_chars => 0, symbol_name => 'AttributeName' },
+                       'AttValue$'      => { type => 'completed', fixed_length => 0, min_chars => 0, symbol_name => 'AttValue' },
                       );
   my %attribute = ();
   my $attname = '';
@@ -1086,7 +1100,7 @@ sub _parse_element {
   foreach (qw/start_element end_element/) {
     my $user_code = $self->get_sax_handler($_);
     my $internal_code = $_;
-    $grammar_event{$_} = { type => 'nulled', symbol_name => $_ };
+    $grammar_event{$_} = { type => 'nulled', fixed_length => 0, min_chars => 0, symbol_name => $_ };
     $callbacks{$_} = sub {
       my ($self, undef, $r) = @_; # $_[1] is the internal buffer
       return $self->$internal_code($user_code);

@@ -8,9 +8,9 @@ use Moo::Role;
 # AUTHORITY
 
 requires 'scanless';
-requires 'lexeme_regexp';
-requires 'lexeme_exclusion';
-requires 'get_grammar_event';
+requires 'elements_grammar_event';
+requires 'elements_lexeme_regexp';
+requires 'elements_lexeme_exclusion';
 requires 'eol';
 requires 'eol_decl';
 requires 'attvalue';

@@ -151,12 +151,12 @@ our %GRAMMAR_EVENT_COMMON =
    '^NOT_SQUOTEMANY'                => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'NOT_SQUOTEMANY',                lexeme => '_NOT_SQUOTEMANY' },
    '^PUBIDCHARDQUOTE'               => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'PUBIDCHARDQUOTE',               lexeme => '_PUBIDCHARDQUOTE' },
    '^PUBIDCHARSQUOTE'               => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'PUBIDCHARSQUOTE',               lexeme => '_PUBIDCHARSQUOTE' },
-   '^CHARDATAMANY'                  => { fixed_length => 0, type => 'predicted', min_chars =>  3, symbol_name => 'CHARDATAMANY',                  lexeme => '_CHARDATAMANY' },    # [^<&]+ without ']]>'
-   '^COMMENTCHARMANY'               => { fixed_length => 0, type => 'predicted', min_chars =>  2, symbol_name => 'COMMENTCHARMANY',               lexeme => '_COMMENTCHARMANY' }, # Char* without '--'
-   '^PITARGET'                      => { fixed_length => 0, type => 'predicted', min_chars =>  3, symbol_name => 'PITARGET',                      lexeme => '_PITARGET' },        # NAME but /xml/i
-   '^CDATAMANY'                     => { fixed_length => 0, type => 'predicted', min_chars =>  3, symbol_name => 'CDATAMANY',                     lexeme => '_CDATAMANY' },       # Char* minus ']]>'
-   '^PICHARDATAMANY'                => { fixed_length => 0, type => 'predicted', min_chars =>  2, symbol_name => 'PICHARDATAMANY',                lexeme => '_PICHARDATAMANY' },  # Char* minus '?>'
-   '^IGNOREMANY'                    => { fixed_length => 0, type => 'predicted', min_chars =>  3, symbol_name => 'IGNOREMANY',                    lexeme => '_IGNOREMANY' },      # Char minus* ('<![' or ']]>')
+   '^CHARDATAMANY'                  => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'CHARDATAMANY',                  lexeme => '_CHARDATAMANY' },    # [^<&]+ without ']]>'
+   '^COMMENTCHARMANY'               => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'COMMENTCHARMANY',               lexeme => '_COMMENTCHARMANY' }, # Char* without '--'
+   '^PITARGET'                      => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'PITARGET',                      lexeme => '_PITARGET' },        # NAME but /xml/i
+   '^CDATAMANY'                     => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'CDATAMANY',                     lexeme => '_CDATAMANY' },       # Char* minus ']]>'
+   '^PICHARDATAMANY'                => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'PICHARDATAMANY',                lexeme => '_PICHARDATAMANY' },  # Char* minus '?>'
+   '^IGNOREMANY'                    => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'IGNOREMANY',                    lexeme => '_IGNOREMANY' },      # Char minus* ('<![' or ']]>')
    '^DIGITMANY'                     => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'DIGITMANY',                     lexeme => '_DIGITMANY' },
    '^ALPHAMANY'                     => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'ALPHAMANY',                     lexeme => '_ALPHAMANY' },
    '^ENCNAME'                       => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'ENCNAME',                       lexeme => '_ENCNAME' },
@@ -436,6 +436,10 @@ sub _build_scanless {
     if (! $self->exists_grammar_event($_)) {
       $self->set_grammar_event($_, $events{$_});
     }
+    #
+    # Systematically set is_prediction
+    #
+    $events{$_}->{is_prediction} = $type eq 'predicted';
   }
   #
   # Generate the grammar
