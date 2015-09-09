@@ -100,11 +100,6 @@ has _eof => (
 #
 # XmlDecl or TextDecl context because of XML1.1 restriction on #x85 and #x2028
 #
-has _inDecl => (
-                is => 'rw',
-                isa => Bool,
-                default => 0
-               );
 has _decl_start_pos => (
                         is => 'rw',
                         isa => PositiveOrZeroInt,
@@ -435,9 +430,10 @@ sub _generic_parse {
     my @predicted_lexemes = ();
     #
     # Our regexps are always in in the form qr/\G.../p, i.e. if there is no match
-    # the position is not changing
+    # the position is not changing. Furthermore we are always reading forward.
+    # So the position is always implicitely correct at this stage.
     #
-    pos($_[1]) = $pos;
+    # pos($_[1]) = $pos;
 
     foreach (@event_names) {
       $lexeme{$_}     //= $grammar->get_grammar_event($_)->{lexeme} // '';
@@ -628,6 +624,10 @@ sub _generic_parse {
         $global_pos   = $self->_set__global_pos($next_global_pos);
         $pos          = $self->_set__pos($next_pos);
         $remaining    = $self->_set__remaining($length - $pos);
+        #
+        # Reposition internal buffer
+        #
+        pos($_[1]) = $pos;
         if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
           $self->_logger->debugf('[%d:%d] Pos: %d, Length: %d, Remaining: %d', $LineNumber, $ColumnNumber, $pos, $length, $remaining);
           if ($remaining > 0) {
@@ -685,7 +685,7 @@ sub _reduceAndRead {
   #
   # Crunch previous data unless we are in the decl context
   #
-  if ($pos > 0 && ! $self->_inDecl) {
+  if (! $MarpaX::Languages::XML::Impl::Parser::in_decl) {
     #
     # Faster like this -;
     #
@@ -886,11 +886,11 @@ sub _parse_prolog {
                      #
                      # Remember we in a Xml or Text declaration
                      #
-                     $self->_inDecl(1);
+                     $MarpaX::Languages::XML::Impl::Parser::in_decl = 1;
                      $self->_decl_start_pos($self->_pos);
                      return 1;
                    },
-                   'XMLDECL_END$' => sub {
+                   '_XMLDECL_END$' => sub {
                      my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
                        $self->_logger->debugf('[%d:%d] XML Declaration is ending', $self->LineNumber, $self->ColumnNumber);
@@ -898,10 +898,10 @@ sub _parse_prolog {
                      #
                      # Remember we not in a Xml or Text declaration
                      #
-                     $self->_inDecl(0);
+                     $MarpaX::Languages::XML::Impl::Parser::in_decl = 0;
                      $self->_decl_end_pos($self->_pos);
                      #
-                     # And apply end-of-line handling to this portion putting the inDecl flag to true
+                     # And apply end-of-line handling to this portion using a specific decl eol method
                      #
                      my $decl = substr($_[1], $self->_decl_start_pos, $self->_decl_end_pos - $self->_decl_start_pos);
                      my $orig_length = length($decl);
@@ -1107,6 +1107,7 @@ sub parse {
   local $MarpaX::Languages::XML::Impl::Parser::is_trace = $self->_logger->is_trace;
   local $MarpaX::Languages::XML::Impl::Parser::is_debug = $self->_logger->is_debug;
   local $MarpaX::Languages::XML::Impl::Parser::is_warn  = $self->_logger->is_warn;
+  local $MarpaX::Languages::XML::Impl::Parser::in_decl  = 0;
   #
   # We want to handle buffer direcly with no COW: buffer is a variable send in all parameters
   # and accessed using $_[]
