@@ -468,18 +468,12 @@ sub _build_xmlns_scanless {
   #
   $data .= $add;
   $data .= $replace;
-  #
-  # Generate the grammar
-  #
-  if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-    $self->_logger->debugf('[%s/%s] Instanciating XMLNS grammar', $self->xml_version, $self->start);
-  }
 
-  return Marpa::R2::Scanless::G->new({source => \$data});
+  return $self->_build_scanless($data, 'xmlns');
 }
 
 sub _build_scanless {
-  my ($self, $data) = @_;
+  my ($self, $data, $spec) = @_;
   #
   # Add events
   #
@@ -491,7 +485,7 @@ sub _build_scanless {
     my $symbol_name = $events{$_}->{symbol_name};
     my $type        = $events{$_}->{type};
     if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-      $self->_logger->tracef('[%s/%s] Adding %s %s event', $self->xml_version, $self->start, $_, $type);
+      $self->_logger->tracef('[%s/%s/%s] Adding %s %s event', $spec, $self->xml_version, $self->start, $_, $type);
     }
     $data .= "event '$_' = $type <$symbol_name>\n";
     if (! $self->exists_grammar_event($_)) {
@@ -506,7 +500,7 @@ sub _build_scanless {
   # Generate the grammar
   #
   if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-    $self->_logger->debugf('[%s/%s] Instanciating XML grammar', $self->xml_version, $self->start);
+    $self->_logger->debugf('[%s/%s/%s] Instanciating grammar', $spec, $self->xml_version, $self->start);
   }
 
   return Marpa::R2::Scanless::G->new({source => \$data});
@@ -522,7 +516,7 @@ sub _build_xml_scanless {
   my $start = $self->start;
   $data =~ s/\$START/$start/sxmg;
 
-  return $self->_build_scanless($data);
+  return $self->_build_scanless($data, 'xml');
 }
 
 #
