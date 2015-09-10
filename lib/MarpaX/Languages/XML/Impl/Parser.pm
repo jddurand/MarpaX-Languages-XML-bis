@@ -2,7 +2,6 @@ package MarpaX::Languages::XML::Impl::Parser;
 use Data::Hexdumper qw/hexdump/;
 use Marpa::R2;
 use MarpaX::Languages::XML::Exception;
-use MarpaX::Languages::XML::Impl::CharRef;
 use MarpaX::Languages::XML::Impl::Encoding;
 use MarpaX::Languages::XML::Impl::EntityRef;
 use MarpaX::Languages::XML::Impl::Grammar;
@@ -52,11 +51,6 @@ has _parse_rc => (
 #
 # Character and entity references
 #
-has _charref => (
-                 is => 'rw',
-                 isa => ConsumerOf['MarpaX::Languages::XML::Role::CharRef'],
-                 default => sub { return MarpaX::Languages::XML::Impl::CharRef->new() }
-                );
 has _entityref => (
                  is => 'rw',
                  isa => ConsumerOf['MarpaX::Languages::XML::Role::EntityRef'],
@@ -1091,23 +1085,37 @@ sub _parse_element {
                      my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
                      my $name = $self->_get__last_lexeme('_NAME');
                      if ($self->_attribute_context) {
-                       push(@attvalue, to_EntityRef($name));
+                       my $entityref = $self->_entityref->get($name);
+                       if (! defined($entityref)) {
+                         $self->_exception("Entity reference $name does not exist");
+                       } else {
+                         push(@attvalue, $entityref);
+                       }
                      }
                      return 1;
                    },
-                   '_CHARREF_END1$' => sub {
+                   #
+                   # _DIGITMANY and _ALPHAMANY appears only in the context of a CharRef
+                   #
+                   '_DIGITMANY$' => sub {
                      my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
-                     my $name = $self->_get__last_lexeme('_DIGITMANY');
                      if ($self->_attribute_context) {
-                       push(@attvalue, to_CharRef($name));
+                       #
+                       # A char reference is nothing else but the chr() of it.
+                       # Perl will warn by itself if this is not a good character.
+                       #
+                       push(@attvalue, chr(hex($data)));
                      }
                      return 1;
                    },
-                   '_CHARREF_END2$' => sub {
+                   '_ALPHAMANY$' => sub {
                      my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
-                     my $name = $self->_get__last_lexeme('_ALPHAMANY');
                      if ($self->_attribute_context) {
-                       push(@attvalue, to_CharRef($name));
+                       #
+                       # A char reference is nothing else but the chr() of it.
+                       # Perl will warn by itself if this is not a good character.
+                       #
+                       push(@attvalue, chr(hex($data)));
                      }
                      return 1;
                    },
@@ -1120,7 +1128,7 @@ sub _parse_element {
                    'AttValue$' => sub {
                      my ($self, undef, $r) = @_;    # $_[1] is the internal buffer
                      $self->_attribute_context(0);
-                     my $attvalue = $grammar->attvalue($cdata_context, $self->_charref, $self->_entityref, @attvalue);
+                     my $attvalue = $grammar->attvalue($cdata_context, $self->_entityref, @attvalue);
                      $self->_set__attribute($attname, { Name => $attname, Value => $attvalue, NamespaceURI => '', Prefix => '', LocalName => '' });
                      @attvalue = ();
                      return 1;

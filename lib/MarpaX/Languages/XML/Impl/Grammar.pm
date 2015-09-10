@@ -5,7 +5,6 @@ use Marpa::R2;
 use MarpaX::Languages::XML::Exception;
 use MarpaX::Languages::XML::Type::GrammarEvent -all;
 use MarpaX::Languages::XML::Type::XmlVersion -all;
-use MarpaX::Languages::XML::Type::CharacterAndEntityReferences -all;
 use Moo;
 use MooX::late;
 use MooX::Role::Logger;
@@ -557,7 +556,6 @@ sub eol {
 sub _attvalue_common {
   my $self = shift;
   my $cdata = shift;
-  my $charref = shift;
   my $entityref = shift;
   #
   # @_ is an array describing attvalue:
@@ -574,19 +572,16 @@ sub _attvalue_common {
   # 3. For each character, entity reference, or character reference in the unnormalized attribute value, beginning with the first and continuing to the last, do the following:
   #
   foreach (@_) {
-    if (is_CharRef($_)) {
-      #
-      # For a character reference, append the referenced character to the normalized value.
-      #
-      $attvalue .= $_;
-    } elsif (is_EntityRef($_)) {
+    #
+    # For a character reference, append the referenced character to the normalized value.
+    # In our case this is done by the parser when pushing.
+    #
+    if (ref($_)) { # ref() is faster
       #
       # For an entity reference, recursively apply step 3 of this algorithm to the replacement text of the entity.
       # EntityRef case.
       #
-      $attvalue .= $self->attvalue($cdata, $entityref, $_);
-    } elsif (reftype($_)) {
-      croak 'Internal error in attribute value normalization, expecting a CharRef, and EntityRef or a char, got ' . reftype($_);
+      $attvalue .= $self->attvalue($cdata, $entityref, $entityref->get($_));
     } elsif (($_ eq "\x{20}") || ($_ eq "\x{D}") || ($_ eq "\x{A}") || ($_ eq "\x{9}")) {
       #
       # For a white space character (#x20, #xD, #xA, #x9), append a space character (#x20) to the normalized value.
