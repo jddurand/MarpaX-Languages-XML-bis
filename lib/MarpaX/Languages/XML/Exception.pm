@@ -18,10 +18,10 @@ around stringify => sub {
     $string .= "\nGrammar progress:\n" . $self->{Progress};
   }
   if ($self->{TerminalsExpected}) {
-    $string .= "\nTerminals expected:\n" . join(', ', @{$self->{TerminalsExpected}});
+    $string .= "\nTerminals expected:\n" . join(', ', @{$self->{TerminalsExpected}}) . "\n";
   }
   if ($self->{Data}) {
-    $string .= "\nData:\n" . $self->{Data};
+    $string .= "\nData:\n" . $self->{Data} . "\n";
   }
   return $string;
 };

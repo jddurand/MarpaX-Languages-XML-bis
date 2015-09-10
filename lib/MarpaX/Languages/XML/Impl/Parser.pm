@@ -293,7 +293,7 @@ sub _exception {
               LineNumber   => $self->LineNumber,
               ColumnNumber => $self->ColumnNumber
              );
-  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace || $ENV{XML_DEBUG}) {
     if ($r) {
       $hash{Progress} = $r->show_progress();
       $hash{TerminalsExpected} = $r->terminals_expected();
@@ -1087,7 +1087,7 @@ sub _parse_element {
                      if ($self->_attribute_context) {
                        my $entityref = $self->_entityref->get($name);
                        if (! defined($entityref)) {
-                         $self->_exception("Entity reference $name does not exist");
+                         $self->_exception("Entity reference $name does not exist", $r);
                        } else {
                          push(@attvalue, $entityref);
                        }
