@@ -842,6 +842,8 @@ PublicID                      ::= PUBLIC S PubidLiteral
 
 #
 # Namespace support as of http://www.w3.org/TR/xml-names/
+# This grammar is supposed to be applied on a fixed string, i.e. not in streaming mode.
+# This is why 'xmlns' and 'xmlns:' are left as is
 #
 
 NSAttName                     ::= PrefixedAttName
