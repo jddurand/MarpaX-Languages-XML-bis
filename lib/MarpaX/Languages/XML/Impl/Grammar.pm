@@ -879,7 +879,29 @@ NScontent                    ::= CharDataMaybe NScontentUnitAny
 NSAttribute                  ::= NSAttName Eq AttValue
                                | QName Eq AttValue # [NSC: Prefix Declared] [NSC: No Prefix Undeclaring] [NSC: Attributes Unique]
 
-#
+
+NSdoctypedeclUnit            ::= markupdecl | PEReference | S
+NSdoctypedeclUnitAny         ::= NSdoctypedeclUnit*
+NSdoctypedecl                ::= '<!DOCTYPE' S QName               SMaybe '[' NSdoctypedeclUnitAny            ']' SMaybe '>'
+NSdoctypedecl                ::= '<!DOCTYPE' S QName               SMaybe                                                '>'
+NSdoctypedecl                ::= '<!DOCTYPE' S QName S ExternalID  SMaybe '[' NSdoctypedeclUnitAny            ']' SMaybe '>'
+NSdoctypedecl                ::= '<!DOCTYPE' S QName S ExternalID  SMaybe                                                '>'
+NSelementdecl                ::= '<!ELEMENT' S QName S contentspec SMaybe '>'
+QNameOrChoiceOrSeq           ::= QName | choice | seq
+NScp                         ::= QNameOrChoiceOrSeq
+                               | QNameOrChoiceOrSeq QUESTIONMARK
+                               | QNameOrChoiceOrSeq STAR
+                               | QNameOrChoiceOrSeq PLUS
+NSMixedUnit                  ::= SMaybe '|' SMaybe QName
+NSMixedUnitAny               ::= NSMixedUnit*
+NSMixed                      ::= '(' SMaybe '#PCDATA' NSMixedUnitAny SMaybe ')*'
+                               | '(' SMaybe '#PCDATA'                SMaybe ')'
+NSAttDefAny                  ::= NSAttDef*
+NSAttlistDecl                ::= '<!ATTLIST' S QName NSAttDefAny SMaybe '>'
+NSAttDef                     ::= S QName     S AttType S DefaultDecl
+NSAttDef                     ::= S NSAttName S AttType S DefaultDecl
+
+  #
 # Generic internal token matching anything
 #
 __ANYTHING ~ [\s\S]
