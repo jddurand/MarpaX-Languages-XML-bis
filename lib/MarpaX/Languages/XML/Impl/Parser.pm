@@ -285,7 +285,7 @@ L<IO::All>, L<Marpa::R2>
 
 =cut
 
-sub _exception {
+sub _parse_exception {
   my ($self, $message, $r) = @_;
 
   my %hash = (
@@ -305,7 +305,7 @@ sub _exception {
     }
   }
 
-  MarpaX::Languages::XML::Exception->throw(%hash);
+  MarpaX::Languages::XML::Exception::Parse->throw(%hash);
 }
 
 sub _find_encoding {
@@ -319,7 +319,7 @@ sub _find_encoding {
   }
   $self->io->read;
   if ($self->io->length <= 0) {
-    $self->_exception('EOF when reading first bytes');
+    $self->_parse_exception('EOF when reading first bytes');
   }
   my $buffer = ${$self->_bufferRef};
 
@@ -592,7 +592,7 @@ sub _generic_parse {
           }
           return;
         } else {
-          $self->_exception('No predicted lexeme found', $r);
+          $self->_parse_exception('No predicted lexeme found', $r);
         }
       } else {
         #
@@ -708,7 +708,7 @@ sub _generic_parse {
         }
         return;
       } else {
-        $self->_exception('No prediction and grammar end flag is not set', $r);
+        $self->_parse_exception('No prediction and grammar end flag is not set', $r);
       }
     }
   }
@@ -772,7 +772,7 @@ sub _eol {
     #
     # This is an error
     #
-    $self->_exception($error_message, $r);
+    $self->_parse_exception($error_message, $r);
   }
   if ($MarpaX::Languages::XML::Impl::Parser::is_trace && ($eol_length != $orig_length)) {
     $self->_logger->tracef('[%d:%d] End-of-line handling removed %d character%s', $self->LineNumber, $self->ColumnNumber, $orig_length - $eol_length, ($orig_length - $eol_length) > 0 ? 's' : '');
@@ -804,7 +804,7 @@ sub _read {
           #
           # This is an error
           #
-          $self->_exception($error_message, $r);
+          $self->_parse_exception($error_message, $r);
         } elsif ($eol_length > 0) {
           if ($MarpaX::Languages::XML::Impl::Parser::is_trace && ($eol_length != $io_length)) {
             $self->_logger->tracef('[%d:%d] End-of-line handling removed %d character%s', $self->LineNumber, $self->ColumnNumber, $io_length - $eol_length, ($io_length - $eol_length) > 0 ? 's' : '');
@@ -950,7 +950,7 @@ sub _parse_prolog {
                        #
                        # This is an error
                        #
-                       $self->_exception($error_message, $r);
+                       $self->_parse_exception($error_message, $r);
                      }
                      if ($MarpaX::Languages::XML::Impl::Parser::is_trace && ($eol_length != $orig_length)) {
                        $self->_logger->tracef('[%d:%d] End-of-line handling in declaration removed %d character%s', $self->LineNumber, $self->ColumnNumber, $orig_length - $eol_length, ($orig_length - $eol_length) > 0 ? 's' : '');
@@ -1039,7 +1039,7 @@ sub _parse_prolog {
     if (++$nb_retry_because_of_encoding == 1) {
       goto retry_because_of_encoding;
     } else {
-      $self->_exception('Two many retries because of encoding difference beween BOM, guess and XML');
+      $self->_parse_exception('Two many retries because of encoding difference beween BOM, guess and XML');
     }
   }
 }
@@ -1087,7 +1087,7 @@ sub _parse_element {
                      if ($self->_attribute_context) {
                        my $entityref = $self->_entityref->get($name);
                        if (! defined($entityref)) {
-                         $self->_exception("Entity reference $name does not exist", $r);
+                         $self->_parse_exception("Entity reference $name does not exist", $r);
                        } else {
                          push(@attvalue, $entityref);
                        }
