@@ -141,6 +141,7 @@ our %GRAMMAR_EVENT_COMMON =
    # These G1 events are lexemes predictions, but BEFORE the input stream is tentatively read by Marpa
    #
    '^NAME'                          => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'NAME',                          lexeme => '_NAME' },
+   '^NCNAME'                        => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'NCNAME',                        lexeme => '_NCNAME' },
    '^NMTOKENMANY'                   => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'NMTOKENMANY',                   lexeme => '_NMTOKENMANY' },
    '^ENTITYVALUEINTERIORDQUOTEUNIT' => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'ENTITYVALUEINTERIORDQUOTEUNIT', lexeme => '_ENTITYVALUEINTERIORDQUOTEUNIT' },
    '^ENTITYVALUEINTERIORSQUOTEUNIT' => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'ENTITYVALUEINTERIORSQUOTEUNIT', lexeme => '_ENTITYVALUEINTERIORSQUOTEUNIT' },
@@ -266,6 +267,7 @@ our %LEXEME_REGEXP_COMMON =
    # These are the lexemes of unknown size
    #
    _NAME                          => qr{\G[:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}][:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]*}p,
+   _NCNAME                        => qr{\G[A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}][:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]*}p, # _NAME without ':'
    _NMTOKENMANY                   => qr{\G[:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]+}p,
    _ENTITYVALUEINTERIORDQUOTEUNIT => qr{\G[^%&"]+}p,
    _ENTITYVALUEINTERIORSQUOTEUNIT => qr{\G[^%&']+}p,
@@ -846,7 +848,7 @@ NSAttName                     ::= PrefixedAttName
                                 | DefaultAttName
 PrefixedAttName               ::= 'xmlns:' NCName # [NSC: Reserved Prefixes and Namespace Names]
 DefaultAttName                ::= 'xmlns'
-NCName                        ::= Name # - (Char* ':' Char*) /* An XML Name, minus the ":" */
+NCName                        ::= NCNAME # Name - (Char* ':' Char*) /* An XML Name, minus the ":" */
 
 QName                         ::= PrefixedName
                                 | UnprefixedName
@@ -860,6 +862,7 @@ LocalPart                     ::= NCName
 #
 __ANYTHING ~ [\s\S]
 _NAME ~ __ANYTHING
+_NCNAME ~ __ANYTHING
 _NMTOKENMANY ~ __ANYTHING
 _ENTITYVALUEINTERIORDQUOTEUNIT ~ __ANYTHING
 _ENTITYVALUEINTERIORSQUOTEUNIT ~ __ANYTHING
@@ -970,6 +973,7 @@ _NOTATIONDECL_START ~ __ANYTHING
 _NOTATIONDECL_END ~ __ANYTHING
 
 NAME ::= _NAME
+NCNAME ::= _NCNAME
 NMTOKENMANY ::= _NMTOKENMANY
 ENTITYVALUEINTERIORDQUOTEUNIT ::= _ENTITYVALUEINTERIORDQUOTEUNIT
 ENTITYVALUEINTERIORSQUOTEUNIT ::= _ENTITYVALUEINTERIORSQUOTEUNIT
