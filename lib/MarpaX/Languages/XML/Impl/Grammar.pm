@@ -859,6 +859,26 @@ UnprefixedName                ::= LocalPart
 Prefix                        ::= NCName
 LocalPart                     ::= NCName
 
+# Namespace compliant rules
+
+NSSTagUnit                   ::= S NSAttribute
+NSSTagUnitAny                ::= NSSTagUnit*
+NSSTag                       ::= '<' QName NSSTagUnitAny SMaybe '>'          # [NSC: Prefix Declared]
+NSETag                       ::= '</' QName SMaybe '>'                       # [NSC: Prefix Declared]
+NSEmptyElemTag               ::= '<' QName NSSTagUnitAny SMaybe '/>'         # [NSC: Prefix Declared]
+NSelement                    ::= NSEmptyElemTag
+                               | NSSTag NScontent NSETag                     # [WFC: Element Type Match] [VC: Element Valid]
+NScontentUnit                ::= NSelement CharDataMaybe
+                               | Reference CharDataMaybe
+                               | CDSect CharDataMaybe
+                               | PI CharDataMaybe
+                               | Comment CharDataMaybe
+NScontentUnitAny             ::= NScontentUnit*
+NScontent                    ::= CharDataMaybe NScontentUnitAny
+
+NSAttribute                  ::= NSAttName Eq AttValue
+                               | QName Eq AttValue # [NSC: Prefix Declared] [NSC: No Prefix Undeclaring] [NSC: Attributes Unique]
+
 #
 # Generic internal token matching anything
 #
