@@ -142,6 +142,23 @@ our %XMLBNF = (
                '1.0' => __PACKAGE__->section_data('xml10'),
                '1.1' => __PACKAGE__->section_data('xml10')
               );
+
+#
+# xmlns parts are special in the __DATA__ section: they contain code that should be eval'ed
+#
+our %XMLNSBNF = (
+               '1.0' => __PACKAGE__->section_data('xmlns10'),
+               '1.1' => __PACKAGE__->section_data('xmlns10')
+              );
+our %XMLNSBNF_ADD = (
+               '1.0' => __PACKAGE__->section_data('xmlns10:add'),
+               '1.1' => __PACKAGE__->section_data('xmlns10:add')
+              );
+our %XMLNSBNF_REPLACE = (
+               '1.0' => __PACKAGE__->section_data('xmlns10:replace'),
+               '1.1' => __PACKAGE__->section_data('xmlns10:replace')
+              );
+
 our %GRAMMAR_EVENT_COMMON =
   (
    #
@@ -209,9 +226,8 @@ our %GRAMMAR_EVENT_COMMON =
    '^CHOICE_END'                    => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'CHOICE_END',                   lexeme => '_CHOICE_END' },
    '^SEQ_START'                     => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'SEQ_START',                    lexeme => '_SEQ_START' },
    '^SEQ_END'                       => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'SEQ_END',                      lexeme => '_SEQ_END' },
-   '^MIXED_START1'                  => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'MIXED_START1',                 lexeme => '_MIXED_START1' },
+   '^MIXED_START'                   => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'MIXED_START',                  lexeme => '_MIXED_START' },
    '^MIXED_END1'                    => { fixed_length => 1, type => 'predicted', min_chars =>  2, symbol_name => 'MIXED_END1',                   lexeme => '_MIXED_END1' },
-   '^MIXED_START2'                  => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'MIXED_START2',                 lexeme => '_MIXED_START2' },
    '^MIXED_END2'                    => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'MIXED_END2',                   lexeme => '_MIXED_END2' },
    '^COMMA'                         => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'COMMA',                        lexeme => '_COMMA' },
    '^PCDATA'                        => { fixed_length => 1, type => 'predicted', min_chars =>  7, symbol_name => 'PCDATA',                       lexeme => '_PCDATA' },
@@ -260,6 +276,9 @@ our %GRAMMAR_EVENT_COMMON =
    '^ENCODING'                      => { fixed_length => 1, type => 'predicted', min_chars =>  8, symbol_name => 'ENCODING',                     lexeme => '_ENCODING' },
    '^NOTATIONDECL_START'            => { fixed_length => 1, type => 'predicted', min_chars => 10, symbol_name => 'NOTATIONDECL_START',           lexeme => '_NOTATIONDECL_START' },
    '^NOTATIONDECL_END'              => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'NOTATIONDECL_END',             lexeme => '_NOTATIONDECL_END' },
+   '^XMLNSCOLON'                    => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'XMLNSCOLON',                   lexeme => '_XMLNSCOLON' },
+   '^XMLNS'                         => { fixed_length => 1, type => 'predicted', min_chars =>  5, symbol_name => 'XMLNS',                        lexeme => '_XMLNS' },
+   '^COLON'                         => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'COLON',                        lexeme => '_COLON' },
                             );
 
 our %GRAMMAR_EVENT =
@@ -335,9 +354,8 @@ our %LEXEME_REGEXP_COMMON =
    _CHOICE_END                    => qr{\G\)}p,
    _SEQ_START                     => qr{\G\(}p,
    _SEQ_END                       => qr{\G\)}p,
-   _MIXED_START1                  => qr{\G\(}p,
+   _MIXED_START                   => qr{\G\(}p,
    _MIXED_END1                    => qr{\G\)\*}p,
-   _MIXED_START2                  => qr{\G\(}p,
    _MIXED_END2                    => qr{\G\)}p,
    _COMMA                         => qr{\Gp,}p,
    _PCDATA                        => qr{\G#PCDATA}p,
@@ -386,6 +404,9 @@ our %LEXEME_REGEXP_COMMON =
    _ENCODING                      => qr{\Gencoding}p,
    _NOTATIONDECL_START            => qr{\G<!NOTATION}p,
    _NOTATIONDECL_END              => qr{\G>}p,
+   _XMLNSCOLON                    => qr{\Gxmlns:}p,
+   _XMLNS                         => qr{\Gxmlns}p,
+   _COLON                         => qr{\G:}p,
   );
 
 our %LEXEME_REGEXP=
@@ -421,18 +442,44 @@ sub _build_lexeme_exclusion {
 sub _build_xmlns_scanless {
   my ($self) = @_;
 
-  die "TODO";
-}
-
-sub _build_xml_scanless {
-  my ($self) = @_;
-
   #
   # Manipulate DATA section: revisit the start
   #
   my $data = ${$XMLBNF{$self->xml_version}};
   my $start = $self->start;
   $data =~ s/\$START/$start/sxmg;
+  #
+  # Apply xmlns specific transformations. This should never croak.
+  #
+  my $add     = ${$XMLNSBNF_ADD{$self->xml_version}};
+  my $replace = ${$XMLNSBNF_REPLACE{$self->xml_version}};
+  #
+  # Every rule in the $replace is removed from $data
+  #
+  my @rules_to_remove = ();
+  while ($replace =~ m/^\w+/mgp) {
+    push(@rules_to_remove, ${^MATCH});
+  }
+  foreach (@rules_to_remove) {
+    $data =~ s/^$_\s*::=.*$//mg;
+  }
+  #
+  # Add everything
+  #
+  $data .= $add;
+  $data .= $replace;
+  #
+  # Generate the grammar
+  #
+  if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+    $self->_logger->debugf('[%s/%s] Instanciating XMLNS grammar', $self->xml_version, $self->start);
+  }
+
+  return Marpa::R2::Scanless::G->new({source => \$data});
+}
+
+sub _build_scanless {
+  my ($self, $data) = @_;
   #
   # Add events
   #
@@ -459,10 +506,23 @@ sub _build_xml_scanless {
   # Generate the grammar
   #
   if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-    $self->_logger->debugf('[%s/%s] Instanciating grammar', $self->xml_version, $self->start);
+    $self->_logger->debugf('[%s/%s] Instanciating XML grammar', $self->xml_version, $self->start);
   }
 
   return Marpa::R2::Scanless::G->new({source => \$data});
+}
+
+sub _build_xml_scanless {
+  my ($self) = @_;
+
+  #
+  # Manipulate DATA section: revisit the start
+  #
+  my $data = ${$XMLBNF{$self->xml_version}};
+  my $start = $self->start;
+  $data =~ s/\$START/$start/sxmg;
+
+  return $self->_build_scanless($data);
 }
 
 #
@@ -792,8 +852,8 @@ seqUnitAny                    ::= seqUnit*
 seq                           ::= SEQ_START SMaybe cp seqUnitAny SMaybe SEQ_END # [VC: Proper Group/PE Nesting]
 MixedUnit                     ::= SMaybe OR SMaybe Name
 MixedUnitAny                  ::= MixedUnit*
-Mixed                         ::= MIXED_START1 SMaybe PCDATA MixedUnitAny SMaybe MIXED_END1 # [VC: Proper Group/PE Nesting] [VC: No Duplicate Types]
-                                | MIXED_START2 SMaybe PCDATA              SMaybe MIXED_END2 # [VC: Proper Group/PE Nesting] [VC: No Duplicate Types]
+Mixed                         ::= MIXED_START SMaybe PCDATA MixedUnitAny SMaybe MIXED_END1 # [VC: Proper Group/PE Nesting] [VC: No Duplicate Types]
+                                | MIXED_START SMaybe PCDATA              SMaybe MIXED_END2 # [VC: Proper Group/PE Nesting] [VC: No Duplicate Types]
 AttlistDecl                   ::= ATTLIST_START S Name AttDefAny SMaybe ATTLIST_END
 AttDefAny                     ::= AttDef*
 AttDef                        ::= S Name S AttType S DefaultDecl
@@ -854,68 +914,6 @@ NotationDecl                  ::= NOTATIONDECL_START S Name S   PublicID SMaybe 
 PublicID                      ::= PUBLIC S PubidLiteral
 
 #
-# Namespace support as of http://www.w3.org/TR/xml-names/
-# This grammar is supposed to be applied on a fixed string, i.e. not in streaming mode.
-# This is why 'xmlns' and 'xmlns:' are left as is
-#
-
-NSAttName                     ::= PrefixedAttName
-                                | DefaultAttName
-PrefixedAttName               ::= 'xmlns:' NCName # [NSC: Reserved Prefixes and Namespace Names]
-DefaultAttName                ::= 'xmlns'
-NCName                        ::= NCNAME # Name - (Char* ':' Char*) /* An XML Name, minus the ":" */
-
-QName                         ::= PrefixedName
-                                | UnprefixedName
-PrefixedName                  ::= Prefix ':' LocalPart
-UnprefixedName                ::= LocalPart
-Prefix                        ::= NCName
-LocalPart                     ::= NCName
-
-# Namespace compliant rules
-
-NSSTagUnit                   ::= S NSAttribute
-NSSTagUnitAny                ::= NSSTagUnit*
-NSSTag                       ::= '<' QName NSSTagUnitAny SMaybe '>'          # [NSC: Prefix Declared]
-NSETag                       ::= '</' QName SMaybe '>'                       # [NSC: Prefix Declared]
-NSEmptyElemTag               ::= '<' QName NSSTagUnitAny SMaybe '/>'         # [NSC: Prefix Declared]
-NSelement                    ::= NSEmptyElemTag
-                               | NSSTag NScontent NSETag                     # [WFC: Element Type Match] [VC: Element Valid]
-NScontentUnit                ::= NSelement CharDataMaybe
-                               | Reference CharDataMaybe
-                               | CDSect CharDataMaybe
-                               | PI CharDataMaybe
-                               | Comment CharDataMaybe
-NScontentUnitAny             ::= NScontentUnit*
-NScontent                    ::= CharDataMaybe NScontentUnitAny
-
-NSAttribute                  ::= NSAttName Eq AttValue
-                               | QName Eq AttValue # [NSC: Prefix Declared] [NSC: No Prefix Undeclaring] [NSC: Attributes Unique]
-
-
-NSdoctypedeclUnit            ::= markupdecl | PEReference | S
-NSdoctypedeclUnitAny         ::= NSdoctypedeclUnit*
-NSdoctypedecl                ::= '<!DOCTYPE' S QName                 SMaybe '[' NSdoctypedeclUnitAny            ']' SMaybe '>'
-NSdoctypedecl                ::= '<!DOCTYPE' S QName                 SMaybe                                                '>'
-NSdoctypedecl                ::= '<!DOCTYPE' S QName S ExternalID    SMaybe '[' NSdoctypedeclUnitAny            ']' SMaybe '>'
-NSdoctypedecl                ::= '<!DOCTYPE' S QName S ExternalID    SMaybe                                                '>'
-NSelementdecl                ::= '<!ELEMENT' S QName S NScontentspec SMaybe '>'
-NScontentspec                ::= EMPTY | ANY | NSMixed | children
-QNameOrChoiceOrSeq           ::= QName | choice | seq
-NScp                         ::= QNameOrChoiceOrSeq
-                               | QNameOrChoiceOrSeq QUESTIONMARK
-                               | QNameOrChoiceOrSeq STAR
-                               | QNameOrChoiceOrSeq PLUS
-NSMixedUnit                  ::= SMaybe '|' SMaybe QName
-NSMixedUnitAny               ::= NSMixedUnit*
-NSMixed                      ::= '(' SMaybe '#PCDATA' NSMixedUnitAny SMaybe ')*'
-                               | '(' SMaybe '#PCDATA'                SMaybe ')'
-NSAttDefAny                  ::= NSAttDef*
-NSAttlistDecl                ::= '<!ATTLIST' S QName NSAttDefAny SMaybe '>'
-NSAttDef                     ::= S QName     S AttType S DefaultDecl
-NSAttDef                     ::= S NSAttName S AttType S DefaultDecl
-
-  #
 # Generic internal token matching anything
 #
 __ANYTHING ~ [\s\S]
@@ -978,9 +976,8 @@ _CHOICE_START ~ __ANYTHING
 _CHOICE_END ~ __ANYTHING
 _SEQ_START ~ __ANYTHING
 _SEQ_END ~ __ANYTHING
-_MIXED_START1 ~ __ANYTHING
+_MIXED_START ~ __ANYTHING
 _MIXED_END1 ~ __ANYTHING
-_MIXED_START2 ~ __ANYTHING
 _MIXED_END2 ~ __ANYTHING
 _COMMA ~ __ANYTHING
 _PCDATA ~ __ANYTHING
@@ -1029,6 +1026,9 @@ _TEXTDECL_END ~ __ANYTHING
 _ENCODING ~ __ANYTHING
 _NOTATIONDECL_START ~ __ANYTHING
 _NOTATIONDECL_END ~ __ANYTHING
+_XMLNSCOLON ~ __ANYTHING
+_XMLNS ~ __ANYTHING
+_COLON ~ __ANYTHING
 
 NAME ::= _NAME
 NCNAME ::= _NCNAME
@@ -1089,9 +1089,8 @@ CHOICE_START ::= _CHOICE_START
 CHOICE_END ::= _CHOICE_END
 SEQ_START ::= _SEQ_START
 SEQ_END ::= _SEQ_END
-MIXED_START1 ::= _MIXED_START1
+MIXED_START ::= _MIXED_START
 MIXED_END1 ::= _MIXED_END1
-MIXED_START2 ::= _MIXED_START2
 MIXED_END2 ::= _MIXED_END2
 COMMA ::= _COMMA
 PCDATA ::= _PCDATA
@@ -1140,6 +1139,9 @@ TEXTDECL_END ::= _TEXTDECL_END
 ENCODING ::= _ENCODING
 NOTATIONDECL_START ::= _NOTATIONDECL_START
 NOTATIONDECL_END ::= _NOTATIONDECL_END
+XMLNSCOLON ::= _XMLNSCOLON
+XMLNS ::= _XMLNS
+COLON ::= _COLON
 
 #
 # SAX nullable rules
@@ -1151,3 +1153,46 @@ comment        ::= ;
 #
 # Events are added on-the-fly
 #
+__[ xmlns10 ]__
+#
+# This will be evaled to return a transform entry point
+#
+sub {
+    my ($self, $data) = @_;
+
+    my $add     = ${$XMLNSBNF_ADD{$self->xml_version}};
+    my $replace = ${$XMLNSBNF_REPLACE{$self->xml_version}};
+
+    return $data;
+}
+__[ xmlns10:add ]__
+NSAttName	   ::= PrefixedAttName
+                     | DefaultAttName
+PrefixedAttName    ::= XMLNSCOLON NCName # [NSC: Reserved Prefixes and Namespace Names]
+DefaultAttName     ::= XMLNS
+NCName             ::= NCNAME            # Name - (Char* ':' Char*) /* An XML Name, minus the ":" */
+QName              ::= PrefixedName
+                     | UnprefixedName
+PrefixedName       ::= Prefix COLON LocalPart
+UnprefixedName     ::= LocalPart
+Prefix             ::= NCName
+LocalPart          ::= NCName
+
+__[ xmlns10:replace ]__
+STag               ::= ELEMENT_START QName STagUnitAny SMaybe ELEMENT_END           # [NSC: Prefix Declared]
+ETag               ::= ETAG_START QName SMaybe ETAG_END                             # [NSC: Prefix Declared]
+EmptyElemTag       ::= ELEMENT_START QName EmptyElemTagUnitAny SMaybe EMPTYELEM_END # [NSC: Prefix Declared]
+Attribute          ::= NSAttName Eq AttValue
+                     | QName Eq AttValue                                            # [NSC: Prefix Declared][NSC: No Prefix Undeclaring][NSC: Attributes Unique]
+doctypedeclUnit    ::= markupdecl | PEReference | S
+doctypedeclUnitAny ::= doctypedeclUnit*
+doctypedecl        ::= DOCTYPE_START S QName              SMaybe                                             DOCTYPE_END
+doctypedecl        ::= DOCTYPE_START S QName              SMaybe LBRACKET doctypedeclUnitAny RBRACKET SMaybe DOCTYPE_END
+doctypedecl        ::= DOCTYPE_START S QName S            SMaybe                                             DOCTYPE_END
+doctypedecl        ::= DOCTYPE_START S QName S ExternalID SMaybe LBRACKET doctypedeclUnitAny RBRACKET SMaybe DOCTYPE_END
+elementdecl        ::= ELEMENTDECL_START S QName S contentspec SMaybe ELEMENTDECL_END
+NameOrChoiceOrSeq  ::= QName | choice | seq
+MixedUnit          ::= SMaybe OR SMaybe QName
+AttlistDecl        ::= ATTLIST_START S QName AttDefAny SMaybe ATTLIST_END
+AttDef             ::= S QName     S AttType S DefaultDecl
+                     | S NSAttName S AttType S DefaultDecl
