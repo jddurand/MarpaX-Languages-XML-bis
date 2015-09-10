@@ -69,11 +69,18 @@ has _eol_decl => (
                              }
             );
 
-has scanless => (
-                 is     => 'ro',
-                 isa    => InstanceOf['Marpa::R2::Scanless::G'],
-                 lazy  => 1,
-                 builder => '_build_scanless'
+has xml_scanless => (
+                     is     => 'ro',
+                     isa    => InstanceOf['Marpa::R2::Scanless::G'],
+                     lazy  => 1,
+                     builder => '_build_xml_scanless'
+                );
+
+has xmlns_scanless => (
+                       is     => 'ro',
+                       isa    => InstanceOf['Marpa::R2::Scanless::G'],
+                       lazy  => 1,
+                       builder => '_build_xmlns_scanless'
                 );
 
 has lexeme_regexp => (
@@ -411,7 +418,13 @@ sub _build_lexeme_exclusion {
   return $LEXEME_EXCLUSION{$self->xml_version};
 }
 
-sub _build_scanless {
+sub _build_xmlns_scanless {
+  my ($self) = @_;
+
+  die "TODO";
+}
+
+sub _build_xml_scanless {
   my ($self) = @_;
 
   #

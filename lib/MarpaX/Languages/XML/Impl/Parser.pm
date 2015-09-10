@@ -388,7 +388,7 @@ sub _generic_parse {
   #
   # Create a recognizer
   #
-  my $r = Marpa::R2::Scanless::R->new({ grammar => $grammar->scanless });
+  my $r = Marpa::R2::Scanless::R->new({ grammar => $grammar->xml_scanless });
 
   #
   # Mapping event <=> lexeme cached for performance

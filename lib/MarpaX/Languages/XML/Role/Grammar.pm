@@ -7,7 +7,8 @@ use Moo::Role;
 
 # AUTHORITY
 
-requires 'scanless';
+requires 'xml_scanless';
+requires 'xmlns_scanless';
 requires 'elements_grammar_event';
 requires 'elements_lexeme_regexp';
 requires 'elements_lexeme_exclusion';
