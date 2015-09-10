@@ -882,11 +882,12 @@ NSAttribute                  ::= NSAttName Eq AttValue
 
 NSdoctypedeclUnit            ::= markupdecl | PEReference | S
 NSdoctypedeclUnitAny         ::= NSdoctypedeclUnit*
-NSdoctypedecl                ::= '<!DOCTYPE' S QName               SMaybe '[' NSdoctypedeclUnitAny            ']' SMaybe '>'
-NSdoctypedecl                ::= '<!DOCTYPE' S QName               SMaybe                                                '>'
-NSdoctypedecl                ::= '<!DOCTYPE' S QName S ExternalID  SMaybe '[' NSdoctypedeclUnitAny            ']' SMaybe '>'
-NSdoctypedecl                ::= '<!DOCTYPE' S QName S ExternalID  SMaybe                                                '>'
-NSelementdecl                ::= '<!ELEMENT' S QName S contentspec SMaybe '>'
+NSdoctypedecl                ::= '<!DOCTYPE' S QName                 SMaybe '[' NSdoctypedeclUnitAny            ']' SMaybe '>'
+NSdoctypedecl                ::= '<!DOCTYPE' S QName                 SMaybe                                                '>'
+NSdoctypedecl                ::= '<!DOCTYPE' S QName S ExternalID    SMaybe '[' NSdoctypedeclUnitAny            ']' SMaybe '>'
+NSdoctypedecl                ::= '<!DOCTYPE' S QName S ExternalID    SMaybe                                                '>'
+NSelementdecl                ::= '<!ELEMENT' S QName S NScontentspec SMaybe '>'
+NScontentspec                ::= EMPTY | ANY | NSMixed | children
 QNameOrChoiceOrSeq           ::= QName | choice | seq
 NScp                         ::= QNameOrChoiceOrSeq
                                | QNameOrChoiceOrSeq QUESTIONMARK
