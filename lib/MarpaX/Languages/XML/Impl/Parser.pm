@@ -1061,7 +1061,6 @@ sub _parse_element {
   # Default grammar event and callbacks
   #
   my $grammar;
-  my $cdata_context = 0;
   my %grammar_event = (
                        'element$'       => { type => 'completed', fixed_length => 0, min_chars => 0, symbol_name => 'element' },
                        'AttributeName$' => { type => 'completed', fixed_length => 0, min_chars => 0, symbol_name => 'AttributeName' },
@@ -1128,7 +1127,7 @@ sub _parse_element {
                    'AttValue$' => sub {
                      my ($self, undef, $r) = @_;    # $_[1] is the internal buffer
                      $self->_attribute_context(0);
-                     my $attvalue = $grammar->attvalue($cdata_context, $self->_entityref, @attvalue);
+                     my $attvalue = $grammar->attvalue($self->_cdata_context, $self->_entityref, @attvalue);
                      $self->_set__attribute($attname, { Name => $attname, Value => $attvalue, NamespaceURI => '', Prefix => '', LocalName => '' });
                      @attvalue = ();
                      return 1;
