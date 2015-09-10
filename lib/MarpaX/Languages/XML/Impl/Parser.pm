@@ -968,9 +968,6 @@ sub _parse_prolog {
                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
                        $self->_logger->debugf('[%d:%d] XML says version number %s', $self->LineNumber, $self->ColumnNumber, $data);
                      }
-                     if (XmlVersion->check($self->xml_version) && ($data ne $self->xml_version)) {
-                       $self->_logger->warnf('[%d:%d] XML says version number %s while parser is using %s', $self->LineNumber, $self->ColumnNumber, $data, $self->xml_version);
-                     }
                      return 1;
                    },
                    '^_ELEMENT_START' => sub {
