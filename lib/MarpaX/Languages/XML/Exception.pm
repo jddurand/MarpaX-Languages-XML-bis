@@ -26,10 +26,16 @@ around stringify => sub {
   return $string;
 };
 
-# Other exception classes:
+package MarpaX::Languages::XML::Exception::NotRecognized;
+use Moo;
+extends 'MarpaX::Languages::XML::Exception';
 
-@MarpaX::Languages::XML::Exception::NotRecognized::ISA = ('MarpaX::Languages::XML::Exception');
-@MarpaX::Languages::XML::Exception::NotSupported::ISA = ('MarpaX::Languages::XML::Exception');
-@MarpaX::Languages::XML::Exception::Parse::ISA = ('MarpaX::Languages::XML::Exception');
+package MarpaX::Languages::XML::Exception::NotSupported;
+use Moo;
+extends 'MarpaX::Languages::XML::Exception';
+
+package MarpaX::Languages::XML::Exception::Parse;
+use Moo;
+extends 'MarpaX::Languages::XML::Exception';
 
 1;
