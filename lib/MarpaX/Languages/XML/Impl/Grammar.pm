@@ -837,6 +837,24 @@ EncName                       ::= ENCNAME
 NotationDecl                  ::= NOTATIONDECL_START S Name S ExternalID SMaybe NOTATIONDECL_END # [VC: Unique Notation Name]
 NotationDecl                  ::= NOTATIONDECL_START S Name S   PublicID SMaybe NOTATIONDECL_END # [VC: Unique Notation Name]
 PublicID                      ::= PUBLIC S PubidLiteral
+
+#
+# Namespace support as of http://www.w3.org/TR/xml-names/
+#
+
+NSAttName                     ::= PrefixedAttName
+                                | DefaultAttName
+PrefixedAttName               ::= 'xmlns:' NCName # [NSC: Reserved Prefixes and Namespace Names]
+DefaultAttName                ::= 'xmlns'
+NCName                        ::= Name # - (Char* ':' Char*) /* An XML Name, minus the ":" */
+
+QName                         ::= PrefixedName
+                                | UnprefixedName
+PrefixedName                  ::= Prefix ':' LocalPart
+UnprefixedName                ::= LocalPart
+Prefix                        ::= NCName
+LocalPart                     ::= NCName
+
 #
 # Generic internal token matching anything
 #
