@@ -389,6 +389,7 @@ sub _generic_parse {
   # Create a recognizer
   #
   my $r = Marpa::R2::Scanless::R->new({ grammar => $grammar->xml_scanless });
+  # my $r = Marpa::R2::Scanless::R->new({ grammar => $grammar->xmlns_scanless });
 
   #
   # Mapping event <=> lexeme cached for performance
@@ -489,9 +490,6 @@ sub _generic_parse {
           #
           # No need to check for this lexeme: its predicted length is lower of another that has already matched
           #
-          if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-            $self->_logger->debugf('[%d:%d] Skipping lexeme %s: another one longer has already matched', $LineNumber, $ColumnNumber, $lexeme);
-          }
           next;
         } elsif (($remaining <= 0) || ($min_chars > $remaining)) {     # Second test imply that $min_char is > 0
           my $old_remaining = $remaining;
@@ -545,9 +543,6 @@ sub _generic_parse {
               }
             }
             my $length_lexeme = $length{$lexeme} = length($matched_data);
-            if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-              $self->_logger->tracef('[%d:%d] %s: match of length %d', $LineNumber, $ColumnNumber, $lexeme, $length_lexeme);
-            }
             if ($length_lexeme > $max_length) {   # Will automatically catch the case of $max_length == 0
               $data = $matched_data;
               $max_length = $length_lexeme;
@@ -557,10 +552,6 @@ sub _generic_parse {
               $max_priority = $priority_lexeme;
             }
             ++$nb_match;
-          }
-        } else {
-          if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-            $self->_logger->tracef('[%d:%d] %s: no match', $LineNumber, $ColumnNumber, $lexeme);
           }
         }
       } else {
@@ -591,9 +582,6 @@ sub _generic_parse {
           return;
         }
       }
-    }
-    if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-      $self->_logger->tracef('[%d:%d] predicted_lexemes %s can_stop %d length %s', $LineNumber, $ColumnNumber, \@predicted_lexemes, $can_stop, \%length);
     }
     if (@predicted_lexemes) {
       if (! $max_length) {
@@ -676,9 +664,6 @@ sub _generic_parse {
           # So we handle ourself the callbacks on lexeme completion.
           #
           push(@lexeme_complete_events, "$_\$");
-        }
-        if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-          $self->_logger->tracef('[%d:%d->%d:%d] Lexeme complete of length %d', $LineNumber, $ColumnNumber, $next_global_line, $next_global_column, $max_length);
         }
         #
         # Position 0 and length 1: the Marpa input buffer is virtual
