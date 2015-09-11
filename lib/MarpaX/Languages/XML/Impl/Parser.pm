@@ -413,7 +413,10 @@ sub _generic_parse {
   # Variables used in the loop: writen like because of goto label that would redo the ops
   #
   my %length;
+  my $nb_match;
   my $max_length;
+  my %priority;
+  my $max_priority;
   my @predicted_lexemes;
   my @lexeme_complete_events;
 
@@ -454,7 +457,10 @@ sub _generic_parse {
     # Predicted events always come first -;
     #
     %length = ();
+    $nb_match = 0;
     $max_length = 0;
+    %priority = ();
+    $max_priority = 0;
     @predicted_lexemes = ();
     #
     # Our regexps are always in in the form qr/\G.../p, i.e. if there is no match
@@ -546,6 +552,11 @@ sub _generic_parse {
               $data = $matched_data;
               $max_length = $length_lexeme;
             }
+            my $priority_lexeme = $priority{$lexeme} = $grammar_event{$_}->{priority};
+            if ($priority_lexeme > $max_priority) {   # Will automatically catch the case of $max_priority == 0
+              $max_priority = $priority_lexeme;
+            }
+            ++$nb_match;
           }
         } else {
           if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
@@ -599,19 +610,36 @@ sub _generic_parse {
         # Update position and remaining chars in internal buffer, global line and column numbers. Wou might think it is too early, but
         # this is to have the expected next positions when doing predicted lexeme callbacks.
         #
-        my $next_pos = $self->_set__next_pos($pos + $max_length);
-        my $next_global_pos = $self->_set__next_global_pos($global_pos + $max_length);
+        # You will notice that we do NOT use the setter for one good reason: it takes time and we
+        # know what we are doing. I remind this routine should be ultra optimized.
+        #
+        # my $next_pos = $self->_set__next_pos($pos + $max_length);
+        my $next_pos = $self->{_next_pos} = $pos + $max_length;
+        # my $next_global_pos = $self->_set__next_global_pos($global_pos + $max_length);
+        my $next_global_pos = $self->{_next_global_pos} = $global_pos + $max_length;
         my $linebreaks;
         my $next_global_column;
         my $next_global_line;
         if ($linebreaks = () = $data =~ /\R/g) {
-          $next_global_line = $self->_set__next_global_line($LineNumber + $linebreaks);
-          $next_global_column = $self->_set__next_global_column(1 + (length($data) - $+[0]));
+          # $next_global_line = $self->_set__next_global_line($LineNumber + $linebreaks);
+          $next_global_line = $self->{_next_global_line} = $LineNumber + $linebreaks;
+          # $next_global_column = $self->_set__next_global_column(1 + (length($data) - $+[0]));
+          $next_global_column = $self->{_next_global_column} = 1 + (length($data) - $+[0]);
         } else {
-          $next_global_line = $self->_set__next_global_line($LineNumber);
-          $next_global_column = $self->_set__next_global_column($ColumnNumber + $max_length);
+          # $next_global_line = $self->_set__next_global_line($LineNumber);
+          $next_global_line = $self->{_next_global_line} = $LineNumber;
+          # $next_global_column = $self->_set__next_global_column($ColumnNumber + $max_length);
+          $next_global_column = $self->{_next_global_column} = $ColumnNumber + $max_length;
         }
-        my @alternatives = grep { $length{$_} == $max_length } keys %length;
+        my @alternatives;
+        #
+        # No need to grep if there is a single match
+        #
+        if ($nb_match == 1) {
+          @alternatives = keys %length;
+        } else {
+          @alternatives = grep { ($length{$_} == $max_length) && ($priority{$_} == $max_priority) } keys %length;
+        }
         if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
           $self->_logger->debugf('[%d:%d->%d:%d] Match: %s, length %d', $LineNumber, $ColumnNumber, $next_global_line, $next_global_column, \@alternatives, $max_length);
         }
@@ -641,7 +669,8 @@ sub _generic_parse {
           # Push alternative
           #
           $r->lexeme_alternative($_);
-          $self->_set__last_lexeme($_, $data);
+          # $self->_set__last_lexeme($_, $data);
+          $self->{_last_lexeme}->{$_} = $data;
           #
           # Our stream is virtual, i.e. Marpa will never see the lexemes.
           # So we handle ourself the callbacks on lexeme completion.
@@ -655,11 +684,16 @@ sub _generic_parse {
         # Position 0 and length 1: the Marpa input buffer is virtual
         #
         $r->lexeme_complete(0, 1);
-        $LineNumber   = $self->_set_LineNumber($next_global_line);
-        $ColumnNumber = $self->_set_ColumnNumber($next_global_column);
-        $global_pos   = $self->_set__global_pos($next_global_pos);
-        $pos          = $self->_set__pos($next_pos);
-        $remaining    = $self->_set__remaining($length - $pos);
+        # $LineNumber   = $self->_set_LineNumber($next_global_line);
+        $LineNumber   = $self->{LineNumber} = $next_global_line;
+        # $ColumnNumber = $self->_set_ColumnNumber($next_global_column);
+        $ColumnNumber = $self->{ColumnNumber} = $next_global_column;
+        # $global_pos   = $self->_set__global_pos($next_global_pos);
+        $global_pos   = $self->{_global_pos} = $next_global_pos;
+        # $pos          = $self->_set__pos($next_pos);
+        $pos          = $self->{_pos} = $next_pos;
+        # $remaining    = $self->_set__remaining($length - $pos);
+        $remaining    = $self->{_remaining} = $length - $pos;
         #
         # Reposition internal buffer
         #
