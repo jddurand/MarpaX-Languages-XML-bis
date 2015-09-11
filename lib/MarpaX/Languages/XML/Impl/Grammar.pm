@@ -495,6 +495,12 @@ sub _build_scanless {
     # Systematically set is_prediction
     #
     $events{$_}->{is_prediction} = $type eq 'predicted';
+    #
+    # Systematically set priority if undef and lexeme
+    #
+    if ($events{$_}->{lexeme}) {
+      $events{$_}->{priority} //= 0;
+    }
   }
   #
   # Generate the grammar
@@ -833,7 +839,12 @@ children                      ::= ChoiceOrSeq
                                 | ChoiceOrSeq QUESTIONMARK
                                 | ChoiceOrSeq STAR
                                 | ChoiceOrSeq PLUS
-NameOrChoiceOrSeq             ::= Name | choice | seq
+#
+# Writen like this for the merged of XML+NS
+#
+NameOrChoiceOrSeq             ::= Name
+NameOrChoiceOrSeq             ::= choice
+NameOrChoiceOrSeq             ::= seq
 cp                            ::= NameOrChoiceOrSeq
                                 | NameOrChoiceOrSeq QUESTIONMARK
                                 | NameOrChoiceOrSeq STAR
@@ -1185,7 +1196,9 @@ doctypedecl        ::= DOCTYPE_START S QName              SMaybe LBRACKET doctyp
 doctypedecl        ::= DOCTYPE_START S QName S            SMaybe                                             DOCTYPE_END
 doctypedecl        ::= DOCTYPE_START S QName S ExternalID SMaybe LBRACKET doctypedeclUnitAny RBRACKET SMaybe DOCTYPE_END
 elementdecl        ::= ELEMENTDECL_START S QName S contentspec SMaybe ELEMENTDECL_END
-NameOrChoiceOrSeq  ::= QName | choice | seq
+NameOrChoiceOrSeq  ::= QName
+NameOrChoiceOrSeq  ::= choice
+NameOrChoiceOrSeq  ::= seq
 MixedUnit          ::= SMaybe OR SMaybe QName
 AttlistDecl        ::= ATTLIST_START S QName AttDefAny SMaybe ATTLIST_END
 AttDef             ::= S QName     S AttType S DefaultDecl

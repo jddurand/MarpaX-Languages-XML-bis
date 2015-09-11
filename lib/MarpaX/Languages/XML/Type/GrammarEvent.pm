@@ -13,8 +13,9 @@ declare GrammarEvent,
           min_chars     => PositiveOrZeroInt,
           symbol_name   => Str,
           type          => EventType,
-          is_prediction => Optional[Bool],            # Overwriten a scanless creation time
+          is_prediction => Optional[Bool],            # Overwriten at scanless creation time
           lexeme        => Optional[Str],
+          priority      => Optional[Int],             # Fixed to 0 at scanless creation time if undef and lexeme
          ];
 
 1;
