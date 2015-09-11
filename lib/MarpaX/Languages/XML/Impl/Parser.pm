@@ -504,6 +504,7 @@ sub _generic_parse {
           # No need to check for this lexeme: its predicted length is lower of another that has already matched.
           # Unless this lexeme would have a higher priority -;
           #
+          # $self->_logger->tracef('[%d:%d] Lexeme %s case 01', $LineNumber, $ColumnNumber, $lexeme);
           next;
         } elsif (($remaining <= 0) || ($grammar_event{$_}->{decision_chars} > $remaining)) {     # Second test imply that $grammar_event{$_}->{decision_chars} is > 0
           my $old_remaining = $remaining;
@@ -563,10 +564,14 @@ sub _generic_parse {
               $max_priority = $priority_lexeme;
               $length{$lexeme} = $max_length;
             } else {
-              my $length_lexeme = $length{$lexeme} = length($matched_data);
+              my $length_lexeme = length($matched_data);
               if ($length_lexeme > $max_length) {   # Will automatically catch the case of $max_length == 0
                 $data = $matched_data;
                 $max_length = $length_lexeme;
+                $max_priority = $priority_lexeme;
+                $length{$lexeme} = $length_lexeme;
+              # } else {
+                # $self->_logger->tracef('[%d:%d] Lexeme %s case 02', $LineNumber, $ColumnNumber, $lexeme);
               }
             }
             ++$nb_match;
