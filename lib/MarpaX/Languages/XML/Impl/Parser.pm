@@ -432,7 +432,7 @@ sub _generic_parse {
   my @predicted_lexemes;
   my @lexeme_complete_events;
 
-  if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
     $self->_logger->debugf('[%d:%d] Pos: %d, Length: %d, Remaining: %d', $self->LineNumber, $self->ColumnNumber, $self->_pos, $self->_length, $self->_remaining);
     if ($self->_remaining > 0) {
       $self->_logger->debugf('[%d:%d] Data: %s', $self->LineNumber, $self->ColumnNumber,
@@ -526,7 +526,7 @@ sub _generic_parse {
         # It is assumed that if the caller setted a lexeme name, he also setted a lexeme regexp
         #
         if ($_[1] =~ $lexeme_regexp{$lexeme}) {          # It is a configuration error to have this undef at this stage
-          if ($predicted_length && ($+[0] >= $length)) { # I.e. predicted_length is < 0, or > 0 - in any case the end of buffer is avoided as much as possible
+          if ((! $predicted_length) && ($+[0] >= $length)) { # I.e. predicted_length is < 0, or > 0 - in any case the end of buffer is avoided as much as possible
             if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
               $self->_logger->tracef('[%d:%d] Lexeme %s is of unpredicted size and currently reaches end-of-buffer', $LineNumber, $ColumnNumber, $lexeme);
             }
@@ -553,7 +553,7 @@ sub _generic_parse {
               $self->_logger->tracef('[%d:%d] Lexeme %s match excluded', $LineNumber, $ColumnNumber, $lexeme);
             }
           } else {
-              if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+              if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
                 $self->_logger->debugf('[%d:%d] Match %s with priority=%d (current max priority=%d), length=%d', $LineNumber, $ColumnNumber, $lexeme, $priority, $max_priority, length($matched_data));
                 foreach (split(/\R/, hexdump(data => $matched_data, suppress_warnings => 1))) {
                   $self->_logger->debugf("[%d:%d] ... %s", $LineNumber, $ColumnNumber, $_);
@@ -706,7 +706,7 @@ sub _generic_parse {
         # Reposition internal buffer
         #
         pos($_[1]) = $pos;
-        if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+        if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
           $self->_logger->debugf('[%d:%d] Pos: %d, Length: %d, Remaining: %d', $LineNumber, $ColumnNumber, $pos, $length, $remaining);
           if ($remaining > 0) {
             $self->_logger->debugf('[%d:%d] Data: %s', $LineNumber, $ColumnNumber,
