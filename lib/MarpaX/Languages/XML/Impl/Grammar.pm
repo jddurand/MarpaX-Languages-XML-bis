@@ -5,6 +5,7 @@ use Marpa::R2;
 use MarpaX::Languages::XML::Exception;
 use MarpaX::Languages::XML::Type::GrammarEvent -all;
 use MarpaX::Languages::XML::Type::XmlVersion -all;
+use MarpaX::Languages::XML::Type::XmlSupport -all;
 use Moo;
 use MooX::late;
 use MooX::Role::Logger;
@@ -69,6 +70,13 @@ has _eol_decl => (
                              }
             );
 
+has scanless => (
+                 is     => 'ro',
+                 isa    => InstanceOf['Marpa::R2::Scanless::G'],
+                 lazy  => 1,
+                 builder => '_build_scanless'
+                );
+
 has xml_scanless => (
                      is     => 'ro',
                      isa    => InstanceOf['Marpa::R2::Scanless::G'],
@@ -82,6 +90,13 @@ has xmlns_scanless => (
                        lazy  => 1,
                        builder => '_build_xmlns_scanless'
                 );
+
+has xml_or_xmlns_scanless => (
+                           is     => 'ro',
+                           isa    => InstanceOf['Marpa::R2::Scanless::G'],
+                           lazy  => 1,
+                           builder => '_build_xml_or_xmlns_scanless'
+                          );
 
 has lexeme_regexp => (
                       is  => 'ro',
@@ -132,6 +147,12 @@ has xml_version => (
                     default => '1.0'
                    );
 
+has xml_support => (
+                    is  => 'ro',
+                    isa => XmlSupport,
+                    default => 'xml_or_xmlns'
+                   );
+
 has start => (
               is  => 'ro',
               isa => Str,
@@ -158,6 +179,10 @@ our %XMLNSBNF_REPLACE = (
                '1.0' => __PACKAGE__->section_data('xmlns10:replace'),
                '1.1' => __PACKAGE__->section_data('xmlns10:replace')
               );
+our %XMLNSBNF_AND = (
+               '1.0' => __PACKAGE__->section_data('xmlns10:and'),
+               '1.1' => __PACKAGE__->section_data('xmlns10:and')
+              );
 
 our %GRAMMAR_EVENT_COMMON =
   (
@@ -165,7 +190,6 @@ our %GRAMMAR_EVENT_COMMON =
    # These G1 events are lexemes predictions, but BEFORE the input stream is tentatively read by Marpa
    #
    '^NAME'                          => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'NAME',                          lexeme => '_NAME' },
-   '^NCNAME'                        => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'NCNAME',                        lexeme => '_NCNAME' },
    '^NMTOKENMANY'                   => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'NMTOKENMANY',                   lexeme => '_NMTOKENMANY' },
    '^ENTITYVALUEINTERIORDQUOTEUNIT' => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'ENTITYVALUEINTERIORDQUOTEUNIT', lexeme => '_ENTITYVALUEINTERIORDQUOTEUNIT' },
    '^ENTITYVALUEINTERIORSQUOTEUNIT' => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'ENTITYVALUEINTERIORSQUOTEUNIT', lexeme => '_ENTITYVALUEINTERIORSQUOTEUNIT' },
@@ -279,10 +303,11 @@ our %GRAMMAR_EVENT_COMMON =
    #
    # XML Namespace compliant input, if any, has priority
    #
-   '^XMLNSCOLON'                    => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'XMLNSCOLON',                   lexeme => '_XMLNSCOLON', priority => 1 },
-   '^XMLNS'                         => { fixed_length => 1, type => 'predicted', min_chars =>  5, symbol_name => 'XMLNS',                        lexeme => '_XMLNS', priority => 1 },
+   '^XMLNSCOLON'                    => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'XMLNSCOLON',                   lexeme => '_XMLNSCOLON', priority => 1, decision_chars => 7 },
+   '^XMLNS'                         => { fixed_length => 1, type => 'predicted', min_chars =>  5, symbol_name => 'XMLNS',                        lexeme => '_XMLNS', priority => 1, decision_chars => 6 },
    '^COLON'                         => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'COLON',                        lexeme => '_COLON', priority => 1 },
-                            );
+   '^NCNAME'                        => { fixed_length => 0, type => 'predicted', min_chars =>  1, symbol_name => 'NCNAME',                       lexeme => '_NCNAME', priority => 1 },
+  );
 
 our %GRAMMAR_EVENT =
   (
@@ -296,7 +321,6 @@ our %LEXEME_REGEXP_COMMON =
    # These are the lexemes of unknown size
    #
    _NAME                          => qr{\G[:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}][:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]*}p,
-   _NCNAME                        => qr{\G[A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}][:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]*}p, # _NAME without ':'
    _NMTOKENMANY                   => qr{\G[:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]+}p,
    _ENTITYVALUEINTERIORDQUOTEUNIT => qr{\G[^%&"]+}p,
    _ENTITYVALUEINTERIORSQUOTEUNIT => qr{\G[^%&']+}p,
@@ -407,9 +431,10 @@ our %LEXEME_REGEXP_COMMON =
    _ENCODING                      => qr{\Gencoding}p,
    _NOTATIONDECL_START            => qr{\G<!NOTATION}p,
    _NOTATIONDECL_END              => qr{\G>}p,
-   _XMLNSCOLON                    => qr{\Gxmlns:}p,
-   _XMLNS                         => qr{\Gxmlns}p,
+   _XMLNSCOLON                    => qr{\Gxmlns:(?!:)}p,
+   _XMLNS                         => qr{\Gxmlns(?!:)}p,
    _COLON                         => qr{\G:}p,
+   _NCNAME                        => qr{\G[A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}][:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]*}p, # _NAME without ':'
   );
 
 our %LEXEME_REGEXP=
@@ -472,10 +497,33 @@ sub _build_xmlns_scanless {
   $data .= $add;
   $data .= $replace;
 
-  return $self->_build_scanless($data, 'xmlns');
+  return $self->_scanless($data, 'xmlns');
 }
 
-sub _build_scanless {
+sub _build_xml_or_xmlns_scanless {
+  my ($self) = @_;
+
+  #
+  # Manipulate DATA section: revisit the start
+  #
+  my $data = ${$XMLBNF{$self->xml_version}};
+  my $start = $self->start;
+  $data =~ s/\$START/$start/sxmg;
+  #
+  # Apply xmlns specific transformations. This should never croak.
+  #
+  my $add = ${$XMLNSBNF_ADD{$self->xml_version}};
+  my $and = ${$XMLNSBNF_AND{$self->xml_version}};
+  #
+  # Add everything
+  #
+  $data .= $add;
+  $data .= $and;
+
+  return $self->_scanless($data, 'xml_or_xmlns');
+}
+
+sub _scanless {
   my ($self, $data, $spec) = @_;
   #
   # Add events
@@ -506,6 +554,10 @@ sub _build_scanless {
     }
   }
   #
+  # Systematically set decision_chars if undef
+  #
+  $events{$_}->{decision_chars} //= $events{$_}->{min_chars};
+  #
   # Generate the grammar
   #
   if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
@@ -525,7 +577,16 @@ sub _build_xml_scanless {
   my $start = $self->start;
   $data =~ s/\$START/$start/sxmg;
 
-  return $self->_build_scanless($data, 'xml');
+  return $self->_scanless($data, 'xml');
+}
+
+sub _build_scanless {
+  my $self = shift;
+
+  my $xml_support = $self->xml_support;
+  my $method = $xml_support . '_scanless';
+
+  return $self->$method(@_);
 }
 
 #
@@ -1191,7 +1252,7 @@ STag               ::= ELEMENT_START QName STagUnitAny SMaybe ELEMENT_END       
 ETag               ::= ETAG_START QName SMaybe ETAG_END                             # [NSC: Prefix Declared]
 EmptyElemTag       ::= ELEMENT_START QName EmptyElemTagUnitAny SMaybe EMPTYELEM_END # [NSC: Prefix Declared]
 Attribute          ::= NSAttName Eq AttValue
-                     | QName Eq AttValue                                            # [NSC: Prefix Declared][NSC: No Prefix Undeclaring][NSC: Attributes Unique]
+Attribute          ::= QName Eq AttValue                                            # [NSC: Prefix Declared][NSC: No Prefix Undeclaring][NSC: Attributes Unique]
 doctypedeclUnit    ::= markupdecl | PEReference | S
 doctypedeclUnitAny ::= doctypedeclUnit*
 doctypedecl        ::= DOCTYPE_START S QName              SMaybe                                             DOCTYPE_END
@@ -1205,4 +1266,26 @@ NameOrChoiceOrSeq  ::= seq
 MixedUnit          ::= SMaybe OR SMaybe QName
 AttlistDecl        ::= ATTLIST_START S QName AttDefAny SMaybe ATTLIST_END
 AttDef             ::= S QName     S AttType S DefaultDecl
-                     | S NSAttName S AttType S DefaultDecl
+AttDef             ::= S NSAttName S AttType S DefaultDecl
+
+__[ xmlns10:and ]__
+STag               ::= ELEMENT_START QName STagUnitAny SMaybe ELEMENT_END           # [NSC: Prefix Declared]
+ETag               ::= ETAG_START QName SMaybe ETAG_END                             # [NSC: Prefix Declared]
+EmptyElemTag       ::= ELEMENT_START QName EmptyElemTagUnitAny SMaybe EMPTYELEM_END # [NSC: Prefix Declared]
+Attribute          ::= NSAttName Eq AttValue
+Attribute          ::= QName Eq AttValue                                            # [NSC: Prefix Declared][NSC: No Prefix Undeclaring][NSC: Attributes Unique]
+doctypedeclUnit    ::= markupdecl | PEReference | S
+doctypedeclUnitAny ::= doctypedeclUnit*
+doctypedecl        ::= DOCTYPE_START S QName              SMaybe                                             DOCTYPE_END
+doctypedecl        ::= DOCTYPE_START S QName              SMaybe LBRACKET doctypedeclUnitAny RBRACKET SMaybe DOCTYPE_END
+doctypedecl        ::= DOCTYPE_START S QName S            SMaybe                                             DOCTYPE_END
+doctypedecl        ::= DOCTYPE_START S QName S ExternalID SMaybe LBRACKET doctypedeclUnitAny RBRACKET SMaybe DOCTYPE_END
+elementdecl        ::= ELEMENTDECL_START S QName S contentspec SMaybe ELEMENTDECL_END
+#
+# This is HERE that there is a difference between the 'and' and the 'replace' sections
+#
+NameOrChoiceOrSeq  ::= QName
+MixedUnit          ::= SMaybe OR SMaybe QName
+AttlistDecl        ::= ATTLIST_START S QName AttDefAny SMaybe ATTLIST_END
+AttDef             ::= S QName     S AttType S DefaultDecl
+AttDef             ::= S NSAttName S AttType S DefaultDecl

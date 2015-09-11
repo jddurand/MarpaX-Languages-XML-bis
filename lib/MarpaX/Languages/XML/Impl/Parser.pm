@@ -7,6 +7,7 @@ use MarpaX::Languages::XML::Impl::EntityRef;
 use MarpaX::Languages::XML::Impl::Grammar;
 use MarpaX::Languages::XML::Impl::PEReference;
 use MarpaX::Languages::XML::Type::XmlVersion -all;
+use MarpaX::Languages::XML::Type::XmlSupport -all;
 use Moo;
 use MooX::late;
 use MooX::HandlesVia;
@@ -233,8 +234,14 @@ has _next_global_pos => (
 # -------------------
 
 has xml_version => (
-                    is  => 'ro',
-                    isa => XmlVersion|Undef,
+                    is      => 'ro',
+                    isa     => XmlVersion|Undef,
+                    default => undef
+                   );
+
+has xml_support => (
+                    is      => 'ro',
+                    isa     => XmlSupport|Undef,
                     default => undef
                    );
 
@@ -249,6 +256,12 @@ has block_size => (
                    isa         => PositiveInt,
                    default     => 1024 * 1024
           );
+
+has strict_ns => (
+                   is          => 'ro',
+                   isa         => Bool,
+                   default     => 0
+                  );
 
 has sax_handler => (
                     is  => 'ro',
@@ -388,8 +401,7 @@ sub _generic_parse {
   #
   # Create a recognizer
   #
-  my $r = Marpa::R2::Scanless::R->new({ grammar => $grammar->xml_scanless });
-  # my $r = Marpa::R2::Scanless::R->new({ grammar => $grammar->xmlns_scanless });
+  my $r = Marpa::R2::Scanless::R->new({ grammar => $grammar->scanless });
 
   #
   # Mapping event <=> lexeme cached for performance
@@ -482,20 +494,22 @@ sub _generic_parse {
         # Check if the decision about this lexeme can be done
         #
         my $min_chars = $grammar_event{$_}->{min_chars};
+        my $priority_lexeme = $grammar_event{$_}->{priority};
         #
         # It happend much more frequently that that lexeme should not be matched
         # than that we are at the end of buffer
         #
-        if ($min_chars && ($min_chars < $max_length)) {
+        if ($min_chars && ($min_chars < $max_length) && ($priority_lexeme <= $max_priority)) {
           #
-          # No need to check for this lexeme: its predicted length is lower of another that has already matched
+          # No need to check for this lexeme: its predicted length is lower of another that has already matched.
+          # Unless this lexeme would have a higher priority -;
           #
           next;
-        } elsif (($remaining <= 0) || ($min_chars > $remaining)) {     # Second test imply that $min_char is > 0
+        } elsif (($remaining <= 0) || ($grammar_event{$_}->{decision_chars} > $remaining)) {     # Second test imply that $grammar_event{$_}->{decision_chars} is > 0
           my $old_remaining = $remaining;
           if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
             if ($remaining > 0) {
-              $self->_logger->tracef('[%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $LineNumber, $ColumnNumber, $lexeme, $min_chars, $remaining);
+              $self->_logger->tracef('[%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $LineNumber, $ColumnNumber, $lexeme, $grammar_event{$_}->{decision_chars}, $remaining);
             }
           }
           $self->_reduceAndRead($_[1], $r, $pos, $length, $remaining, \$pos, \$length, \$remaining, $grammar, $eol);
@@ -542,14 +556,18 @@ sub _generic_parse {
                 }
               }
             }
-            my $length_lexeme = $length{$lexeme} = length($matched_data);
-            if ($length_lexeme > $max_length) {   # Will automatically catch the case of $max_length == 0
-              $data = $matched_data;
-              $max_length = $length_lexeme;
-            }
-            my $priority_lexeme = $priority{$lexeme} = $grammar_event{$_}->{priority};
+            $priority{$lexeme} = $priority_lexeme;
             if ($priority_lexeme > $max_priority) {   # Will automatically catch the case of $max_priority == 0
+              $data = $matched_data;
+              $max_length = length($matched_data);
               $max_priority = $priority_lexeme;
+              $length{$lexeme} = $max_length;
+            } else {
+              my $length_lexeme = $length{$lexeme} = length($matched_data);
+              if ($length_lexeme > $max_length) {   # Will automatically catch the case of $max_length == 0
+                $data = $matched_data;
+                $max_length = $length_lexeme;
+              }
             }
             ++$nb_match;
           }
@@ -626,7 +644,12 @@ sub _generic_parse {
         if ($nb_match == 1) {
           @alternatives = keys %length;
         } else {
-          @alternatives = grep { ($length{$_} == $max_length) && ($priority{$_} == $max_priority) } keys %length;
+          @alternatives = grep { ($priority{$_} == $max_priority) } keys %length;
+          if ($#alternatives > 0) {
+            my $one_of_prioritized_lexeme = (sort { $length{$b} <=> $length{$a} } @alternatives)[0];
+            $max_length = $length{$one_of_prioritized_lexeme};
+            @alternatives = grep { ($length{$_} == $max_length) } @alternatives;
+          }
         }
         if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
           $self->_logger->debugf('[%d:%d->%d:%d] Match: %s, length %d', $LineNumber, $ColumnNumber, $next_global_line, $next_global_column, \@alternatives, $max_length);
@@ -1065,6 +1088,10 @@ sub _generate_grammar {
 
   if (! Undef->check($self->xml_version)) {
     $grammar_option{xml_version} = $self->xml_version;
+  }
+
+  if (! Undef->check($self->xml_support)) {
+    $grammar_option{xml_support} = $self->xml_support;
   }
 
   return MarpaX::Languages::XML::Impl::Grammar->new(%grammar_option);
