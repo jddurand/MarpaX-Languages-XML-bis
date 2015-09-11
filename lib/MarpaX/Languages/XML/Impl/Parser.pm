@@ -428,7 +428,6 @@ sub _generic_parse {
   my %length;
   my $nb_match;
   my $max_length;
-  my %priority;
   my $max_priority;
   my @predicted_lexemes;
   my @lexeme_complete_events;
@@ -472,7 +471,6 @@ sub _generic_parse {
     %length = ();
     $nb_match = 0;
     $max_length = 0;
-    %priority = ();
     $max_priority = 0;
     @predicted_lexemes = ();
     #
@@ -493,24 +491,23 @@ sub _generic_parse {
         #
         # Check if the decision about this lexeme can be done
         #
-        my $min_chars = $grammar_event{$_}->{min_chars};
-        my $priority_lexeme = $grammar_event{$_}->{priority};
+        my $predicted_length = $grammar_event{$_}->{predicted_length};
+        my $priority = $grammar_event{$_}->{priority};
         #
-        # It happend much more frequently that that lexeme should not be matched
+        # It happen much more frequently that that lexeme should not be matched
         # than that we are at the end of buffer
         #
-        if ($min_chars && ($min_chars < $max_length) && ($priority_lexeme <= $max_priority)) {
+        if ((($predicted_length > 0) && ($predicted_length < $max_length)) || ($priority < $max_priority)) {
           #
           # No need to check for this lexeme: its predicted length is lower of another that has already matched.
-          # Unless this lexeme would have a higher priority -;
           #
           # $self->_logger->tracef('[%d:%d] Lexeme %s case 01', $LineNumber, $ColumnNumber, $lexeme);
           next;
-        } elsif (($remaining <= 0) || ($grammar_event{$_}->{decision_chars} > $remaining)) {     # Second test imply that $grammar_event{$_}->{decision_chars} is > 0
+        } elsif (($remaining <= 0) || ($predicted_length > $remaining)) {     # Second test imply that $predicted_length is > 1
           my $old_remaining = $remaining;
           if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
             if ($remaining > 0) {
-              $self->_logger->tracef('[%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $LineNumber, $ColumnNumber, $lexeme, $grammar_event{$_}->{decision_chars}, $remaining);
+              $self->_logger->tracef('[%d:%d] Lexeme %s requires %d chars > %d remaining for decidability', $LineNumber, $ColumnNumber, $lexeme, $predicted_length, $remaining);
             }
           }
           $self->_reduceAndRead($_[1], $r, $pos, $length, $remaining, \$pos, \$length, \$remaining, $grammar, $eol);
@@ -529,8 +526,25 @@ sub _generic_parse {
         # It is assumed that if the caller setted a lexeme name, he also setted a lexeme regexp
         #
         if ($_[1] =~ $lexeme_regexp{$lexeme}) {          # It is a configuration error to have this undef at this stage
+          if ($predicted_length && ($+[0] >= $length)) { # I.e. predicted_length is < 0, or > 0 - in any case the end of buffer is avoided as much as possible
+            if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+              $self->_logger->tracef('[%d:%d] Lexeme %s is of unpredicted size and currently reaches end-of-buffer', $LineNumber, $ColumnNumber, $lexeme);
+            }
+            my $old_remaining = $remaining;
+            $self->_reduceAndRead($_[1], $r, $pos, $length, $remaining, \$pos, \$length, \$remaining, $grammar, $eol);
+            if ($remaining > $old_remaining) {
+              #
+              # Something was read
+              #
+              goto manage_events;
+            } else {
+              if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+                $self->_logger->debugf('[%d:%d] Nothing more read', $LineNumber, $ColumnNumber);
+              }
+            }
+          }
           #
-          # Note: our patterns are compiled with the /p modifier
+          # Note: all our patterns are compiled with the /p modifier for perl < 5.20
           #
           my $matched_data = ${^MATCH};
           my $lexeme_exclusion = $lexeme_exclusion{$lexeme};
@@ -539,40 +553,26 @@ sub _generic_parse {
               $self->_logger->tracef('[%d:%d] Lexeme %s match excluded', $LineNumber, $ColumnNumber, $lexeme);
             }
           } else {
-            my $fixed_length = $grammar_event{$_}->{fixed_length};
-            if (! $fixed_length && ($+[0] >= $length)) {
-              if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-                $self->_logger->tracef('[%d:%d] Lexeme %s is of unpredicted size and currently reaches end-of-buffer', $LineNumber, $ColumnNumber, $lexeme);
-              }
-              my $old_remaining = $remaining;
-              $self->_reduceAndRead($_[1], $r, $pos, $length, $remaining, \$pos, \$length, \$remaining, $grammar, $eol);
-              if ($remaining > $old_remaining) {
-                #
-                # Something was read
-                #
-                goto manage_events;
-              } else {
-                if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-                  $self->_logger->debugf('[%d:%d] Nothing more read', $LineNumber, $ColumnNumber);
+              if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+                $self->_logger->debugf('[%d:%d] Match %s with priority=%d (current max priority=%d), length=%d', $LineNumber, $ColumnNumber, $lexeme, $priority, $max_priority, length($matched_data));
+                foreach (split(/\R/, hexdump(data => $matched_data, suppress_warnings => 1))) {
+                  $self->_logger->debugf("[%d:%d] ... %s", $LineNumber, $ColumnNumber, $_);
                 }
               }
+            if ($priority > $max_priority) {
+              #
+              # A new higher priority comes in: we remove every that got matched
+              #
+              $max_priority = $priority;
+              $nb_match = 0;
+              $max_length = 0;
+              %length = ();
             }
-            $priority{$lexeme} = $priority_lexeme;
-            if ($priority_lexeme > $max_priority) {   # Will automatically catch the case of $max_priority == 0
+            my $length_lexeme = length($matched_data);
+            $length{$lexeme} = $length_lexeme;
+            if ($length_lexeme > $max_length) {   # Will automatically catch the case of $max_length == 0
               $data = $matched_data;
-              $max_length = length($matched_data);
-              $max_priority = $priority_lexeme;
-              $length{$lexeme} = $max_length;
-            } else {
-              my $length_lexeme = length($matched_data);
-              if ($length_lexeme > $max_length) {   # Will automatically catch the case of $max_length == 0
-                $data = $matched_data;
-                $max_length = $length_lexeme;
-                $max_priority = $priority_lexeme;
-                $length{$lexeme} = $length_lexeme;
-              # } else {
-                # $self->_logger->tracef('[%d:%d] Lexeme %s case 02', $LineNumber, $ColumnNumber, $lexeme);
-              }
+              $max_length = $length_lexeme;
             }
             ++$nb_match;
           }
@@ -649,12 +649,7 @@ sub _generic_parse {
         if ($nb_match == 1) {
           @alternatives = keys %length;
         } else {
-          @alternatives = grep { ($priority{$_} == $max_priority) } keys %length;
-          if ($#alternatives > 0) {
-            my $one_of_prioritized_lexeme = (sort { $length{$b} <=> $length{$a} } @alternatives)[0];
-            $max_length = $length{$one_of_prioritized_lexeme};
-            @alternatives = grep { ($length{$_} == $max_length) } @alternatives;
-          }
+          @alternatives = grep { ($length{$_} == $max_length) } keys %length;
         }
         if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
           $self->_logger->debugf('[%d:%d->%d:%d] Match: %s, length %d', $LineNumber, $ColumnNumber, $next_global_line, $next_global_column, \@alternatives, $max_length);
@@ -933,7 +928,7 @@ sub _parse_prolog {
   # Default grammar event and callbacks
   #
   my $grammar;
-  my %grammar_event = ( 'prolog$' => { type => 'completed', fixed_length => 0, min_chars => 0, symbol_name => 'prolog' } );
+  my %grammar_event = ( 'prolog$' => { type => 'completed', symbol_name => 'prolog' } );
   my %callbacks = (
                    '^_ENCNAME' => sub {
                      my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
@@ -1032,7 +1027,7 @@ sub _parse_prolog {
   foreach (qw/start_document/) {
     my $user_code = $self->get_sax_handler($_);
     my $internal_code = $_;
-    $grammar_event{$_} = { type => 'nulled', fixed_length => 0, min_chars => 0, symbol_name => $_ };
+    $grammar_event{$_} = { type => 'nulled', symbol_name => $_ };
     $callbacks{$_} = sub {
       my ($self, undef, $r) = @_; # $_[1] is the internal buffer
       return $self->$internal_code($user_code);
@@ -1110,9 +1105,9 @@ sub _parse_element {
   #
   my $grammar;
   my %grammar_event = (
-                       'element$'       => { type => 'completed', fixed_length => 0, min_chars => 0, symbol_name => 'element' },
-                       'AttributeName$' => { type => 'completed', fixed_length => 0, min_chars => 0, symbol_name => 'AttributeName' },
-                       'AttValue$'      => { type => 'completed', fixed_length => 0, min_chars => 0, symbol_name => 'AttValue' },
+                       'element$'       => { type => 'completed', symbol_name => 'element' },
+                       'AttributeName$' => { type => 'completed', symbol_name => 'AttributeName' },
+                       'AttValue$'      => { type => 'completed', symbol_name => 'AttValue' },
                       );
   my %attribute = ();
   my $attname = '';
@@ -1187,7 +1182,7 @@ sub _parse_element {
   foreach (qw/start_element end_element/) {
     my $user_code = $self->get_sax_handler($_);
     my $internal_code = $_;
-    $grammar_event{$_} = { type => 'nulled', fixed_length => 0, min_chars => 0, symbol_name => $_ };
+    $grammar_event{$_} = { type => 'nulled', symbol_name => $_ };
     $callbacks{$_} = sub {
       my ($self, undef, $r) = @_; # $_[1] is the internal buffer
       return $self->$internal_code($user_code);
