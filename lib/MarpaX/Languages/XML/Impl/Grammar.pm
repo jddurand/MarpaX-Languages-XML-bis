@@ -276,9 +276,12 @@ our %GRAMMAR_EVENT_COMMON =
    '^ENCODING'                      => { fixed_length => 1, type => 'predicted', min_chars =>  8, symbol_name => 'ENCODING',                     lexeme => '_ENCODING' },
    '^NOTATIONDECL_START'            => { fixed_length => 1, type => 'predicted', min_chars => 10, symbol_name => 'NOTATIONDECL_START',           lexeme => '_NOTATIONDECL_START' },
    '^NOTATIONDECL_END'              => { fixed_length => 1, type => 'predicted', min_chars =>  1, symbol_name => 'NOTATIONDECL_END',             lexeme => '_NOTATIONDECL_END' },
-   '^XMLNSCOLON'                    => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'XMLNSCOLON',                   lexeme => '_XMLNSCOLON' },
-   '^XMLNS'                         => { fixed_length => 1, type => 'predicted', min_chars =>  5, symbol_name => 'XMLNS',                        lexeme => '_XMLNS' },
-   '^COLON'                         => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'COLON',                        lexeme => '_COLON' },
+   #
+   # XML Namespace compliant input, if any, has priority
+   #
+   '^XMLNSCOLON'                    => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'XMLNSCOLON',                   lexeme => '_XMLNSCOLON', priority => 1 },
+   '^XMLNS'                         => { fixed_length => 1, type => 'predicted', min_chars =>  5, symbol_name => 'XMLNS',                        lexeme => '_XMLNS', priority => 1 },
+   '^COLON'                         => { fixed_length => 1, type => 'predicted', min_chars =>  6, symbol_name => 'COLON',                        lexeme => '_COLON', priority => 1 },
                             );
 
 our %GRAMMAR_EVENT =
