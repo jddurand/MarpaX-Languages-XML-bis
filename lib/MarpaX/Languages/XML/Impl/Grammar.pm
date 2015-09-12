@@ -560,7 +560,7 @@ sub _scanless {
     my $symbol_name = $events{$_}->{symbol_name};
     my $type        = $events{$_}->{type};
     if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-      $self->_logger->tracef('[%s/%s/%s] Adding %s %s event', $spec, $self->xml_version, $self->start, $_, $type);
+      $self->_logger->tracef('%s/%s/%s: Adding %s %s event', $spec, $self->xml_version, $self->start, $_, $type);
     }
     $data .= "event '$_' = $type <$symbol_name>\n";
     if (! $self->exists_grammar_event($_)) {
@@ -583,7 +583,7 @@ sub _scanless {
   # Generate the grammar
   #
   if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-    $self->_logger->debugf('[%s/%s/%s] Instanciating grammar', $spec, $self->xml_version, $self->start);
+    $self->_logger->debugf('%s/%s/%s: Instanciating grammar', $spec, $self->xml_version, $self->start);
   }
 
   return Marpa::R2::Scanless::G->new({source => \$data});
@@ -659,7 +659,7 @@ sub _eol_xml10 {
   if (substr($_[1], -1, 1) eq "\x{D}") {
     if (! $eof) {
       if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-        $self->_logger->tracef('[%s/%s] Last character in buffer is \\x{D} and requires another read', $self->xml_version, $self->start);
+        $self->_logger->tracef('%s/%s: Last character in buffer is \\x{D} and requires another read', $self->xml_version, $self->start);
       }
       return 0;
     }
@@ -679,7 +679,7 @@ sub _eol_xml11 {
   if (substr($_[1], -1, 1) eq "\x{D}") {
     if (! $eof) {
       if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-        $self->_logger->tracef('[%s/%s] Last character in buffer is \\x{D} and requires another read', $self->xml_version, $self->start);
+        $self->_logger->tracef('%s/%s: Last character in buffer is \\x{D} and requires another read', $self->xml_version, $self->start);
       }
       return 0;
     }
