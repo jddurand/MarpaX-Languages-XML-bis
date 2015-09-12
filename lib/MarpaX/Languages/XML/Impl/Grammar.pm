@@ -207,7 +207,6 @@ our %GRAMMAR_EVENT_COMMON =
    '^ALPHAMANY'                     => { type => 'predicted',                         symbol_name => 'ALPHAMANY',                     lexeme => '_ALPHAMANY' },
    '^ENCNAME'                       => { type => 'predicted',                         symbol_name => 'ENCNAME',                       lexeme => '_ENCNAME' },
    '^S'                             => { type => 'predicted',                         symbol_name => 'S',                             lexeme => '_S' },
-   '^NCNAME'                        => { type => 'predicted',                         symbol_name => 'NCNAME',                        lexeme => '_NCNAME' },
    #
    # These are the lexemes of predicted size
    #
@@ -306,6 +305,7 @@ our %GRAMMAR_EVENT_COMMON =
    # xmlns lexemes are using predicted_length = -1, even if at the end, except for PREFIX, the length is predictable.
    # They also have a higher priority.
    #
+   '^NCNAME'                        => { type => 'predicted', predicted_length => -1, symbol_name => 'NCNAME',                       lexeme => '_NCNAME', priority => 1 },
    '^PREFIX'                        => { type => 'predicted', predicted_length => -1, symbol_name => 'PREFIX',                       lexeme => '_PREFIX', priority => 1 },
    '^XMLNSCOLON'                    => { type => 'predicted', predicted_length => -1, symbol_name => 'XMLNSCOLON',                   lexeme => '_XMLNSCOLON', priority => 2 },
    '^XMLNS'                         => { type => 'predicted', predicted_length => -1, symbol_name => 'XMLNS',                        lexeme => '_XMLNS', priority => 2 },
@@ -320,15 +320,15 @@ our %GRAMMAR_EVENT =
 #
 # We reuse these regexp for look-forward
 #
-our $NCNAME_REGEXP = qr{[A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}][A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]*}; # _NAME without ':'
-our $NAME_TRAILER_REGEXP = qr{[:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]*};
+our $_NAME_TRAILER_REGEXP = qr{[:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]};
+our $_NAME_WITHOUT_COLON = qr{[A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}][A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]*};
 
 our %LEXEME_REGEXP_COMMON =
   (
    #
    # These are the lexemes of unknown size
    #
-   _NAME                          => qr/\G[:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}]$NAME_TRAILER_REGEXP/p,
+   _NAME                          => qr/\G[:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}]$_NAME_TRAILER_REGEXP*/,
    _NMTOKENMANY                   => qr{\G[:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]+}p,
    _ENTITYVALUEINTERIORDQUOTEUNIT => qr{\G[^%&"]+}p,
    _ENTITYVALUEINTERIORSQUOTEUNIT => qr{\G[^%&']+}p,
@@ -346,7 +346,10 @@ our %LEXEME_REGEXP_COMMON =
    _ALPHAMANY                     => qr{\G[0-9a-fA-F]+}p,
    _ENCNAME                       => qr{\G[A-Za-z][A-Za-z0-9._\-]*}p,
    _S                             => qr{\G[\x{20}\x{9}\x{D}\x{A}]+}p,
-   _NCNAME                        => qr/\G$NCNAME_REGEXP/p,
+   #
+   # An NCNAME is ok only if it is not followed by a name continuation, with eventually one ":_NAME_WITHOUT_COLON" in between
+   #
+   _NCNAME                        => qr/\G$_NAME_WITHOUT_COLON(?=(?::$_NAME_WITHOUT_COLON)?(?!$_NAME_TRAILER_REGEXP))/,
    #
    # These are the lexemes of predicted size
    #
@@ -444,9 +447,18 @@ our %LEXEME_REGEXP_COMMON =
    #
    # Regexps using predicted_length < 0 : they a zero-witdh look ahead
    #
-   _PREFIX                        => qr/\G$NCNAME_REGEXP(?=:$NCNAME_REGEXP)/p,
-   _XMLNSCOLON                    => qr/\Gxmlns:(?=$NCNAME_REGEXP)/p,
-   _XMLNS                         => qr/\Gxmlns(?!$NAME_TRAILER_REGEXP)/p,
+   #
+   # A PREFIX is the case of _NAME_WITHOUT_COLON followed by :_NAME_WITHOUT_COLON not followed by a name continuation
+   #
+   _PREFIX                        => qr/\G$_NAME_WITHOUT_COLON(?=:$_NAME_WITHOUT_COLON(?!$_NAME_TRAILER_REGEXP))/p,
+   #
+   # An XMLNSCOLON is ok only if it is the end of a _NAME
+   #
+   _XMLNSCOLON                    => qr/\Gxmlns:(?!$_NAME_TRAILER_REGEXP)/p,
+   #
+   # An XMLNS is ok only if it is the end of a _NAME
+   #
+   _XMLNS                         => qr/\Gxmlns(?!$_NAME_TRAILER_REGEXP)/p,
   );
 
 our %LEXEME_REGEXP=
