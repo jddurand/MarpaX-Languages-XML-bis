@@ -14,7 +14,8 @@ declare GrammarEvent,
           type             => EventType,
           is_prediction    => Optional[Bool],              # Overwriten at scanless creation time
           lexeme           => Optional[Str],
-          priority         => Optional[Int],               # Setted to 0 if undef at scanless creation time
+          priority         => Optional[PositiveOrZeroInt], # Setted to 0 if undef at scanless creation time
+          index            => Optional[Bool],              # Setted to false if undef at scanless creation time
          ];
 
 1;
