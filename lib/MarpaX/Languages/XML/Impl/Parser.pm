@@ -426,6 +426,18 @@ sub _event_names {
 # This routine is the core of the package, so quite highly optimized, making it
 # less readable -;
 #
+use Time::HiRes qw/gettimeofday/;
+my %stat;
+my %time;
+sub END {
+  foreach (keys %time) {
+    $time{$_} /= $stat{$_};
+  }
+  foreach (sort {$time{$a} <=> $time{$b} } keys %time) {
+    printf STDERR "%s: %d microseconds\n", $_, $time{$_};
+  }
+}
+
 sub _generic_parse {
   #
   # buffer is accessed using $_[1] to avoid dereferencing $self->io->buffer everytime
@@ -585,7 +597,17 @@ sub _generic_parse {
             $length_matched_data = $abs_predicted_length;
           }
         } else {
+          if ($lexeme eq '_S') {
+            print STDERR "TRYING\n";
+            if (my $thislength = is_XML_S($_[1], $pos)) {
+              print STDERR "GOT IT: LENGTH $thislength\n";
+            }
+          }
+          my ($seconds0, $microseconds0) = gettimeofday;
           if ($_[1] =~ $lexeme_match{$lexeme}) {
+            my ($seconds1, $microseconds1) = gettimeofday;
+            $stat{$lexeme}++;
+            $time{$lexeme} += $microseconds1 - $microseconds0;
             $matched_data        = ${^MATCH};
             $length_matched_data = length($matched_data);
           }
@@ -689,8 +711,8 @@ sub _generic_parse {
         if ($linebreaks = () = $data =~ /\R/g) {
           # $next_global_line = $self->_set__next_global_line($LineNumber + $linebreaks);
           $next_global_line = $self->{_next_global_line} = $LineNumber + $linebreaks;
-          # $next_global_column = $self->_set__next_global_column(1 + (length($data) - $+[0]));
-          $next_global_column = $self->{_next_global_column} = 1 + (length($data) - $+[0]);
+          # $next_global_column = $self->_set__next_global_column(1 + ($max_length - $+[0]));
+          $next_global_column = $self->{_next_global_column} = 1 + ($max_length - $+[0]);
         } else {
           # $next_global_line = $self->_set__next_global_line($LineNumber);
           $next_global_line = $self->{_next_global_line} = $LineNumber;
