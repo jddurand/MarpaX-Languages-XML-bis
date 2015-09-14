@@ -1,6 +1,11 @@
 package MarpaX::Languages::XML;
 require DynaLoader;
 @ISA = qw/DynaLoader/;
+
+# VERSION
+
+# AUTHORITY
+
 #
 # All out bootstraps are in the XML object library
 #

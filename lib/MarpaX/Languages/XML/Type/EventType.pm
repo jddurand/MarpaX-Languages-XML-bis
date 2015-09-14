@@ -5,6 +5,10 @@ use Type::Library
 use Type::Utils -all;
 use Types::Standard -types;
 
+# VERSION
+
+# AUTHORITY
+
 declare EventType,
   as Enum[qw/predicted nulled completed/];
 
