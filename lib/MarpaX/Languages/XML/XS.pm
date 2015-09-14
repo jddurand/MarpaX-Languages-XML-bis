@@ -4,7 +4,7 @@ require DynaLoader;
 #
 # All out bootstraps are in the XML object library
 #
-bootstrap MarpaX::Languages::XML;
+# bootstrap MarpaX::Languages::XML;
 
 package MarpaX::Languages::XML::XS;
 require Exporter;
