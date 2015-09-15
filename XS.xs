@@ -27,9 +27,14 @@
   do {                                                                  \
     fprintf(stderr, "%s returns %ld\n", #funcname, (unsigned long) retval); \
   } while (0)
+#define XML_PRINT_FUNC_EXCLUSION(funcname)                              \
+  do {                                                                  \
+    fprintf(stderr, "%s matches exclusion\n", #funcname);               \
+  } while (0)
 #else
-#define XML_PRINT_FUNC_STATUS(funcname, ch, status)
+#define XML_PRINT_CHAR_STATUS(funcname, ch, status)
 #define XML_PRINT_FUNC_STATUS(funcname, retval)
+#define XML_PRINT_FUNC_EXCLUSION(funcname)
 #endif
 
 #define XML_FUNC_ALIAS(funcname, alias)                                    \
@@ -95,20 +100,23 @@ STRLEN funcname(pTHX_ SV *sv, STRLEN pos, U8 *s_force, U8 *send_force) {   \
 /* ======================================================================= */
 UV CHARDATAMANY_LOOKAHEAD[]    = { /* ']', */ ']', '>' };
 UV COMMENTCHARMANY_LOOKAHEAD[] = { /* '-', */ '-'      };
-UV PITARGET_LOOKAHEAD1[]       = { /* 'x', */ 'm', 'l' }; /* C.f. code works also with 'X' */
-UV PITARGET_LOOKAHEAD2[]       = { /* 'x', */ 'm', 'L' }; /* C.f. code works also with 'X' */
-UV PITARGET_LOOKAHEAD3[]       = { /* 'x', */ 'M', 'l' }; /* C.f. code works also with 'X' */
-UV PITARGET_LOOKAHEAD4[]       = { /* 'x', */ 'M', 'L' }; /* C.f. code works also with 'X' */
 UV CDATAMANY_LOOKAHEAD[]       = { /* ']', */ ']', '>' };
 UV PICHARDATAMANY_LOOKAHEAD[]  = { /* '?', */ '>'      };
 UV IGNOREMANY_LOOKAHEAD1[]     = { /* '<', */ '!', '[' };
 UV IGNOREMANY_LOOKAHEAD2[]     = { /* ']', */ ']', '>' };
 
 /* ======================================================================= */
-/*          Internal functions used to search for a string                 */
+/*              Static definitions used for exclusions                     */
+/* ======================================================================= */
+#define PITARGET_EXCLUSION_LENGTH 3
+UV PITARGET_EXCLUSION_UPPERCASE[PITARGET_EXCLUSION_LENGTH] = { 'X', 'M', 'L' };
+UV PITARGET_EXCLUSION_LOWERCASE[PITARGET_EXCLUSION_LENGTH] = { 'x', 'm', 'l' };
+
+/* ======================================================================= */
+/*          Internal function used to search for a string                  */
 /* ======================================================================= */
 static
-STRLEN _is_XML_STRING(pTHX_ SV *sv, STRLEN pos, U8 *s_force, U8 *send_force, STRLEN nuv, UV string[], bool partial) {
+STRLEN _is_XML_STRING(pTHX_ SV *sv, STRLEN pos, U8 *s_force, U8 *send_force, STRLEN nuv, UV string[]) {
   STRLEN  len;
   STRLEN  ulen;
   U8     *s      = (s_force != NULL) ? s_force : (U8 *)SvPV(sv, len);
@@ -151,15 +159,69 @@ STRLEN _is_XML_STRING(pTHX_ SV *sv, STRLEN pos, U8 *s_force, U8 *send_force, STR
     }
   }
 
-  if (retval != i) {
+  if (retval != nuv) {
     /* sv does not start with string */
-    retval = 0;
-  } else if ((! partial) && (s < send)) {
-    /* sv start with string but this is a partial match */
     retval = 0;
   }
 
   XML_PRINT_FUNC_STATUS(_is_XML_STRING, retval);                                 \
+  return retval;
+}
+
+/* ======================================================================= */
+/*          Internal function used to search for a string                  */
+/*      The caller must give two UV[] for case insensitivity               */
+/* ======================================================================= */
+static
+STRLEN _is_XML_STRING_INSENSITIVE(pTHX_ SV *sv, STRLEN pos, U8 *s_force, U8 *send_force, STRLEN nuv, UV uppercase[], UV lowercase[]) {
+  STRLEN  len;
+  STRLEN  ulen;
+  U8     *s      = (s_force != NULL) ? s_force : (U8 *)SvPV(sv, len);
+  U8     *send   = (send_force != NULL) ? send_force : (s + len);
+  STRLEN  retval = 0;
+  STRLEN  i      = 0;
+
+  if (! SvUTF8(sv)) {
+    ulen = 1;
+    if (pos) {
+      s += pos;
+    }
+    while ((i < nuv) && (s < send)) {
+      U8 ch = *s;
+      if ((uppercase[i] == (UV)ch) || (lowercase[i] == (UV)ch)) {
+        XML_PRINT_CHAR_STATUS(_is_XML_STRING_INSENSITIVE, ch, "ok (ASCII mode)");
+        retval++;
+        s++;
+        i++;
+      } else {
+        XML_PRINT_CHAR_STATUS(_is_XML_STRING_INSENSITIVE, ch, "ko (ASCII mode)");
+        break;
+      }
+    }
+  } else {
+    if (pos) {
+      s = utf8_hop(s, pos);
+    }
+    while ((i < nuv) && (s < send)) {
+      UV ch = NATIVE_TO_UNI(utf8_to_uvchr_buf(s, send, &ulen));
+      if ((uppercase[i] == (UV)ch) || (lowercase[i] == (UV)ch)) {
+        XML_PRINT_CHAR_STATUS(_is_XML_STRING_INSENSITIVE, ch, "ok (UTF8 mode)");
+        retval++;
+        s += ulen;
+        i++;
+      } else {
+        XML_PRINT_CHAR_STATUS(_is_XML_STRING_INSENSITIVE, ch, "ko (UTF8 mode)");
+        break;
+      }
+    }
+  }
+
+  if (retval != nuv) {
+    /* sv does not start with string (case insensitive) */
+    retval = 0;
+  }
+
+  XML_PRINT_FUNC_STATUS(_is_XML_STRING_INSENSITIVE, retval);                                 \
   return retval;
 }
 
@@ -286,7 +348,7 @@ XML_FUNC_DECL(
               rc,
               if (rc) {
                 UV colon[] = { ':' };
-                if (_is_XML_STRING(aTHX_ sv, 0, s, send, 1, colon, true)) {
+                if (_is_XML_STRING(aTHX_ sv, 0, s, send, 1, colon)) {
                   rc = 0;
                 }
               }
@@ -331,10 +393,8 @@ XML_FUNC_DECL(
               XML_NAME_WITHOUT_COLON_HEADER_UTF8(), 
               rc,
               if (rc) {
-                STRLEN rc2 = is_XML_NAME_WITHOUT_COLON_TRAILER_THEN_NOCOLON(aTHX_ sv, 0, s, send);
-                if (rc2) {
-                  rc += rc2;
-                } else {
+                UV colon[] = { ':' };
+                if (_is_XML_STRING(aTHX_ sv, 0, s, send, 1, colon)) {
                   rc = 0;
                 }
               }
@@ -525,7 +585,7 @@ XML_FUNC_DECL(
                                       ||                                \
                                                                         \
                                       (!                                \
-                                       _is_XML_STRING(aTHX_ sv, 0, s+ulen, send, XML_ARRAY_LENGTH(CHARDATAMANY_LOOKAHEAD), CHARDATAMANY_LOOKAHEAD, true) \
+                                       _is_XML_STRING(aTHX_ sv, 0, s+ulen, send, XML_ARRAY_LENGTH(CHARDATAMANY_LOOKAHEAD), CHARDATAMANY_LOOKAHEAD) \
                                       )                                 \
                                      )
 
@@ -558,7 +618,7 @@ XML_FUNC_DECL(
                                          ||                             \
                                                                         \
                                          (!                             \
-                                          _is_XML_STRING(aTHX_ sv, 0, s+ulen, send, XML_ARRAY_LENGTH(COMMENTCHARMANY_LOOKAHEAD), COMMENTCHARMANY_LOOKAHEAD, true) \
+                                          _is_XML_STRING(aTHX_ sv, 0, s+ulen, send, XML_ARRAY_LENGTH(COMMENTCHARMANY_LOOKAHEAD), COMMENTCHARMANY_LOOKAHEAD) \
                                          )                              \
                                         )
 
@@ -572,33 +632,18 @@ XML_FUNC_DECL(
 
 /* _PITARGET => qr{\G[:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}][:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]*+}p,  # NAME but /xml/i - c.f. exclusion hash */
 
-#define XML_PITARGET_LOOKAHEAD() (                                      \
-                                  (                                     \
-                                   XML_IS_NOT_CHAR('x')                 \
-                                   &&                                   \
-                                   XML_IS_NOT_CHAR('X')                 \
-                                  )                                     \
-                                                                        \
-                                  ||                                    \
-                                                                        \
-                                  (!                                    \
-                                   (                                    \
-                                    _is_XML_STRING(aTHX_ sv, 0, s+ulen, send, XML_ARRAY_LENGTH(PITARGET_LOOKAHEAD1), PITARGET_LOOKAHEAD1, false) || \
-                                    _is_XML_STRING(aTHX_ sv, 0, s+ulen, send, XML_ARRAY_LENGTH(PITARGET_LOOKAHEAD2), PITARGET_LOOKAHEAD2, false) || \
-                                    _is_XML_STRING(aTHX_ sv, 0, s+ulen, send, XML_ARRAY_LENGTH(PITARGET_LOOKAHEAD3), PITARGET_LOOKAHEAD3, false) || \
-                                    _is_XML_STRING(aTHX_ sv, 0, s+ulen, send, XML_ARRAY_LENGTH(PITARGET_LOOKAHEAD4), PITARGET_LOOKAHEAD4, false)    \
-                                   )                                    \
-                                  )                                     \
-                                 )
-
 /* We start the exclusion in the test: /xml/i must not match and, if it matches, this will be at first pos */
 XML_FUNC_DECL(
               is_XML_PITARGET,
-              XML_NAME_HEADER_ASCII() && ((rc > 0) || XML_PITARGET_LOOKAHEAD()),
-              XML_NAME_HEADER_UTF8() && ((rc > 0) || XML_PITARGET_LOOKAHEAD()),
+              XML_NAME_HEADER_ASCII(),
+              XML_NAME_HEADER_UTF8(),
               rc,
               if (rc) {
                 rc += is_XML_NAME_TRAILER(aTHX_ sv, 0, s, send);
+              }
+              if ((rc == PITARGET_EXCLUSION_LENGTH) && _is_XML_STRING_INSENSITIVE(aTHX_ sv, pos, NULL, NULL, PITARGET_EXCLUSION_LENGTH, PITARGET_EXCLUSION_UPPERCASE, PITARGET_EXCLUSION_LOWERCASE)) {
+                XML_PRINT_FUNC_EXCLUSION(is_XML_PITARGET);
+                rc = 0;
               }
               )
 
@@ -623,7 +668,7 @@ XML_FUNC_DECL(
                                    ||                                   \
                                                                         \
                                    (!                                   \
-                                    _is_XML_STRING(aTHX_ sv, 0, s+ulen, send, XML_ARRAY_LENGTH(CDATAMANY_LOOKAHEAD), CDATAMANY_LOOKAHEAD, true) \
+                                    _is_XML_STRING(aTHX_ sv, 0, s+ulen, send, XML_ARRAY_LENGTH(CDATAMANY_LOOKAHEAD), CDATAMANY_LOOKAHEAD) \
                                    )                                    \
                                   )
 
@@ -656,7 +701,7 @@ XML_FUNC_DECL(
                                         ||                              \
                                                                         \
                                         (!                              \
-                                         _is_XML_STRING(aTHX_ sv, 0, s+ulen, send, XML_ARRAY_LENGTH(PICHARDATAMANY_LOOKAHEAD), PICHARDATAMANY_LOOKAHEAD, true) \
+                                         _is_XML_STRING(aTHX_ sv, 0, s+ulen, send, XML_ARRAY_LENGTH(PICHARDATAMANY_LOOKAHEAD), PICHARDATAMANY_LOOKAHEAD) \
                                         )                               \
                                        )
 
@@ -696,11 +741,11 @@ XML_FUNC_DECL(
                                      XML_IS_CHAR('<')                   \
                                      ?                                  \
                                      (!                                 \
-                                      _is_XML_STRING(aTHX_ sv, 0, s+ulen, send, XML_ARRAY_LENGTH(IGNOREMANY_LOOKAHEAD1), IGNOREMANY_LOOKAHEAD1, true) \
+                                      _is_XML_STRING(aTHX_ sv, 0, s+ulen, send, XML_ARRAY_LENGTH(IGNOREMANY_LOOKAHEAD1), IGNOREMANY_LOOKAHEAD1) \
                                      )                                  \
                                      :                                  \
                                      (!                                 \
-                                      _is_XML_STRING(aTHX_ sv, 0, s+ulen, send, XML_ARRAY_LENGTH(IGNOREMANY_LOOKAHEAD2), IGNOREMANY_LOOKAHEAD2, true) \
+                                      _is_XML_STRING(aTHX_ sv, 0, s+ulen, send, XML_ARRAY_LENGTH(IGNOREMANY_LOOKAHEAD2), IGNOREMANY_LOOKAHEAD2) \
                                      )                                  \
                                     )                                   \
                                    )
@@ -815,14 +860,113 @@ XML_FUNC_DECL(is_XML_NCNAME,
               rc,
               if (rc) {
                 UV colon[] = { ':' };
-                if ((! is_XML_COLON_THEN_NAME_WITHOUT_COLON_THEN_NOCOLON(aTHX_ sv, 0, s, send))
-                    &&
-                    _is_XML_STRING(aTHX_ sv, 0, s, send, 1, colon, true)
-                    ) {
+                STRLEN rc2 = is_XML_COLON_THEN_NAME_WITHOUT_COLON_THEN_NOCOLON(aTHX_ sv, 0, s, send);
+                if (rc2) {
+                  rc += rc2;
+                } else if (_is_XML_STRING(aTHX_ sv, 0, s, send, 1, colon)) {
                   rc = 0;
                 }
               }
               )
+
+/* _PUBIDCHARDQUOTEMANY = qr{\G[a-zA-Z0-9\-'()+,./:=?;!*#@\$_%\x{20}\x{D}\x{A}]++} */
+#define XML_PUBIDCHARDQUOTEMANY_ASCII() (                               \
+                                     XML_IS_RANGE('a', 'z') ||          \
+                                     XML_IS_RANGE('A', 'Z') ||          \
+                                     XML_IS_RANGE('0', '9') ||          \
+                                     XML_IS_CHAR('-')       ||          \
+                                     XML_IS_CHAR('\'')      ||          \
+                                     XML_IS_CHAR('(')       ||          \
+                                     XML_IS_CHAR(')')       ||          \
+                                     XML_IS_CHAR('+')       ||          \
+                                     XML_IS_CHAR(',')       ||          \
+                                     XML_IS_CHAR('.')       ||          \
+                                     XML_IS_CHAR('/')       ||          \
+                                     XML_IS_CHAR(':')       ||          \
+                                     XML_IS_CHAR('=')       ||          \
+                                     XML_IS_CHAR('?')       ||          \
+                                     XML_IS_CHAR(';')       ||          \
+                                     XML_IS_CHAR('!')       ||          \
+                                     XML_IS_CHAR('*')       ||          \
+                                     XML_IS_CHAR('#')       ||          \
+                                     XML_IS_CHAR('@')       ||          \
+                                     XML_IS_CHAR('$')       ||          \
+                                     XML_IS_CHAR('_')       ||          \
+                                     XML_IS_CHAR('%')       ||          \
+                                     XML_IS_CHAR(0x20)      ||          \
+                                     XML_IS_CHAR(0xD)       ||          \
+                                     XML_IS_CHAR(0xA)                   \
+                                    )
+
+#define XML_PUBIDCHARDQUOTEMANY_UTF8()        \
+  XML_PUBIDCHARDQUOTEMANY_ASCII()
+
+XML_FUNC_DECL(
+              is_XML_PUBIDCHARDQUOTEMANY,
+              XML_PUBIDCHARDQUOTEMANY_ASCII(),
+              XML_PUBIDCHARDQUOTEMANY_UTF8(),
+              rc,
+              XML_NO_USERCODE()
+              )
+
+
+/* _PUBIDCHARSQUOTEMANY = qr{\G[a-zA-Z0-9\-()+,./:=?;!*#@\$_%\x{20}\x{D}\x{A}]++} */
+#define XML_PUBIDCHARSQUOTEMANY_ASCII() (                               \
+                                     XML_IS_RANGE('a', 'z') ||          \
+                                     XML_IS_RANGE('A', 'Z') ||          \
+                                     XML_IS_RANGE('0', '9') ||          \
+                                     XML_IS_CHAR('-')       ||          \
+                                     XML_IS_CHAR('\'')      ||          \
+                                     XML_IS_CHAR('(')       ||          \
+                                     XML_IS_CHAR(')')       ||          \
+                                     XML_IS_CHAR('+')       ||          \
+                                     XML_IS_CHAR(',')       ||          \
+                                     XML_IS_CHAR('.')       ||          \
+                                     XML_IS_CHAR('/')       ||          \
+                                     XML_IS_CHAR(':')       ||          \
+                                     XML_IS_CHAR('=')       ||          \
+                                     XML_IS_CHAR('?')       ||          \
+                                     XML_IS_CHAR(';')       ||          \
+                                     XML_IS_CHAR('!')       ||          \
+                                     XML_IS_CHAR('*')       ||          \
+                                     XML_IS_CHAR('#')       ||          \
+                                     XML_IS_CHAR('@')       ||          \
+                                     XML_IS_CHAR('$')       ||          \
+                                     XML_IS_CHAR('_')       ||          \
+                                     XML_IS_CHAR('%')       ||          \
+                                     XML_IS_CHAR(0x20)      ||          \
+                                     XML_IS_CHAR(0xD)       ||          \
+                                     XML_IS_CHAR(0xA)                   \
+                                    )
+
+#define XML_PUBIDCHARSQUOTEMANY_UTF8()        \
+  XML_PUBIDCHARSQUOTEMANY_ASCII()
+
+XML_FUNC_DECL(
+              is_XML_PUBIDCHARSQUOTEMANY,
+              XML_PUBIDCHARSQUOTEMANY_ASCII(),
+              XML_PUBIDCHARSQUOTEMANY_UTF8(),
+              rc,
+              XML_NO_USERCODE()
+              )
+
+/* For fixed strings sometimes doing explicit test is faster than using is_XML_STRING */
+/* _SPACE => "\x{20}" */
+#define XML_SPACE_ASCII() (                                             \
+                           XML_IS_CHAR(0x20)                            \
+                          )
+
+#define XML_SPACE_UTF8()        \
+  XML_SPACE_ASCII()
+
+XML_FUNC_DECL(
+              is_XML_SPACE,
+              (! rc) && XML_SPACE_ASCII(),
+              (! rc) && XML_SPACE_UTF8(),
+              rc,
+              XML_NO_USERCODE()
+              )
+
 
 /* ======================================================================= */
 /*                                 XML 1.0                                 */
@@ -846,6 +990,9 @@ XML_FUNC_ALIAS(is_XML10_ALPHAMANY,                     is_XML_ALPHAMANY)
 XML_FUNC_ALIAS(is_XML10_ENCNAME,                       is_XML_ENCNAME)
 XML_FUNC_ALIAS(is_XML10_NCNAME,                        is_XML_NCNAME)
 XML_FUNC_ALIAS(is_XML10_S,                             is_XML_S)
+XML_FUNC_ALIAS(is_XML10_PUBIDCHARDQUOTEMANY,           is_XML_PUBIDCHARDQUOTEMANY)
+XML_FUNC_ALIAS(is_XML10_PUBIDCHARSQUOTEMANY,           is_XML_PUBIDCHARSQUOTEMANY)
+XML_FUNC_ALIAS(is_XML10_SPACE,                         is_XML_SPACE)
 
 /* ======================================================================= */
 /*                                 XML 1.1                                 */
@@ -869,6 +1016,9 @@ XML_FUNC_ALIAS(is_XML11_ALPHAMANY,                     is_XML_ALPHAMANY)
 XML_FUNC_ALIAS(is_XML11_ENCNAME,                       is_XML_ENCNAME)
 XML_FUNC_ALIAS(is_XML11_NCNAME,                        is_XML_NCNAME)
 XML_FUNC_ALIAS(is_XML11_S,                             is_XML_S)
+XML_FUNC_ALIAS(is_XML11_PUBIDCHARDQUOTEMANY,           is_XML_PUBIDCHARDQUOTEMANY)
+XML_FUNC_ALIAS(is_XML11_PUBIDCHARSQUOTEMANY,           is_XML_PUBIDCHARSQUOTEMANY)
+XML_FUNC_ALIAS(is_XML11_SPACE,                         is_XML_SPACE)
 
 MODULE = MarpaX::Languages::XML		PACKAGE = MarpaX::Languages::XML::XS
 PROTOTYPES: DISABLE
@@ -1212,5 +1362,59 @@ is_XML11_NCNAME(sv, pos)
     STRLEN pos
   CODE:
   RETVAL = is_XML11_NCNAME(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_PUBIDCHARDQUOTEMANY(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_PUBIDCHARDQUOTEMANY(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_PUBIDCHARDQUOTEMANY(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_PUBIDCHARDQUOTEMANY(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_PUBIDCHARSQUOTEMANY(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_PUBIDCHARSQUOTEMANY(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_PUBIDCHARSQUOTEMANY(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_PUBIDCHARSQUOTEMANY(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_SPACE(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_SPACE(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_SPACE(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_SPACE(aTHX_ sv, pos, NULL, NULL);
   OUTPUT:
     RETVAL

@@ -211,8 +211,8 @@ our %GRAMMAR_EVENT_COMMON =
    #
    # These are the lexemes of predicted size
    #
-   '^PUBIDCHARDQUOTE'               => { type => 'predicted', predicted_length =>  1, symbol_name => 'PUBIDCHARDQUOTE',              lexeme => '_PUBIDCHARDQUOTE' },
-   '^PUBIDCHARSQUOTE'               => { type => 'predicted', predicted_length =>  1, symbol_name => 'PUBIDCHARSQUOTE',              lexeme => '_PUBIDCHARSQUOTE' },
+   '^PUBIDCHARDQUOTEMANY'           => { type => 'predicted', predicted_length =>  1, symbol_name => 'PUBIDCHARDQUOTEMANY',              lexeme => '_PUBIDCHARDQUOTEMANY' },
+   '^PUBIDCHARSQUOTEMANY'           => { type => 'predicted', predicted_length =>  1, symbol_name => 'PUBIDCHARSQUOTEMANY',              lexeme => '_PUBIDCHARSQUOTEMANY' },
    '^SPACE'                         => { type => 'predicted', predicted_length =>  1, symbol_name => 'SPACE',                        lexeme => '_SPACE', index => 1 },
    '^DQUOTE'                        => { type => 'predicted', predicted_length =>  1, symbol_name => 'DQUOTE',                       lexeme => '_DQUOTE', index => 1 },
    '^SQUOTE'                        => { type => 'predicted', predicted_length =>  1, symbol_name => 'SQUOTE',                       lexeme => '_SQUOTE', index => 1 },
@@ -366,8 +366,8 @@ our %LEXEME_MATCH_COMMON =
    #
    # These are the lexemes of predicted size
    #
-   _PUBIDCHARDQUOTE               => qr{\G[a-zA-Z0-9\-'()+,./:=?;!*#@\$_%\x{20}\x{D}\x{A}]}p,
-   _PUBIDCHARSQUOTE               => qr{\G[a-zA-Z0-9\-()+,./:=?;!*#@\$_%\x{20}\x{D}\x{A}]}p,
+   _PUBIDCHARDQUOTEMANY           => qr{\G[a-zA-Z0-9\-'()+,./:=?;!*#@\$_%\x{20}\x{D}\x{A}]++}p,
+   _PUBIDCHARSQUOTEMANY           => qr{\G[a-zA-Z0-9\-()+,./:=?;!*#@\$_%\x{20}\x{D}\x{A}]++}p,
    _SPACE                         => "\x{20}",
    _DQUOTE                        => '"',
    _SQUOTE                        => "'",
@@ -850,13 +850,12 @@ SystemLiteral                 ::= DQUOTE NOT_DQUOTEMANY DQUOTE
                                 | DQUOTE                DQUOTE
                                 | SQUOTE NOT_SQUOTEMANY SQUOTE
                                 | SQUOTE                SQUOTE
-PubidCharDquoteAny            ::= PubidCharDquote*
-PubidCharSquoteAny            ::= PubidCharSquote*
-PubidLiteral                  ::= DQUOTE PubidCharDquoteAny DQUOTE
-                                | SQUOTE PubidCharSquoteAny SQUOTE
-
-PubidCharDquote               ::= PUBIDCHARDQUOTE
-PubidCharSquote               ::= PUBIDCHARSQUOTE
+PubidCharDquoteMany           ::= PUBIDCHARDQUOTEMANY
+PubidCharSquoteMany           ::= PUBIDCHARSQUOTEMANY
+PubidLiteral                  ::= DQUOTE PubidCharDquoteMany DQUOTE
+                                | DQUOTE                     DQUOTE
+                                | SQUOTE PubidCharSquoteMany SQUOTE
+                                | SQUOTE                     SQUOTE
 
 CharData                      ::= CHARDATAMANY
 
@@ -1112,8 +1111,8 @@ _ENCNAME ~ __ANYTHING
 _S ~ __ANYTHING
 _NCNAME ~ __ANYTHING
 _PREFIX ~ __ANYTHING
-_PUBIDCHARDQUOTE ~ __ANYTHING
-_PUBIDCHARSQUOTE ~ __ANYTHING
+_PUBIDCHARDQUOTEMANY ~ __ANYTHING
+_PUBIDCHARSQUOTEMANY ~ __ANYTHING
 _SPACE ~ __ANYTHING
 _DQUOTE ~ __ANYTHING
 _SQUOTE ~ __ANYTHING
@@ -1226,8 +1225,8 @@ ENCNAME ::= _ENCNAME
 S ::= _S
 NCNAME ::= _NCNAME
 PREFIX ::= _PREFIX
-PUBIDCHARDQUOTE ::= _PUBIDCHARDQUOTE
-PUBIDCHARSQUOTE ::= _PUBIDCHARSQUOTE
+PUBIDCHARDQUOTEMANY ::= _PUBIDCHARDQUOTEMANY
+PUBIDCHARSQUOTEMANY ::= _PUBIDCHARSQUOTEMANY
 SPACE ::= _SPACE
 DQUOTE ::= _DQUOTE
 SQUOTE ::= _SQUOTE
