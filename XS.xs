@@ -131,21 +131,96 @@ static UV PITARGET_EXCLUSION_LOWERCASE[PITARGET_EXCLUSION_LENGTH] = { 'x', 'm', 
 /* ======================================================================= */
 /*                  Static definitions for strings                         */
 /* ======================================================================= */
-static UV XML_SPACE_STRING[]         = { 0x020                                  };
-static UV XML_DQUOTE_STRING[]        = { '"'                                    };
-static UV XML_SQUOTE_STRING[]        = { '\''                                   };
-static UV XML_COMMENT_START_STRING[] = { '<', '!', '-', '-'                     };
-static UV XML_COMMENT_END_STRING[]   = { '-', '-', '>'                          };
-static UV XML_PI_START_STRING[]      = { '<', '?',                              };
-static UV XML_PI_END_STRING[]        = { '?', '>'                               };
-static UV XML_CDATA_START_STRING[]   = { '!', '[', 'C', 'D', 'A', 'T', 'A', '[' };
-static UV XML_CDATA_END_STRING[]     = { ']', ']', '>'                          };
-static UV XML_XMLDECL_START_STRING[] = { '<', '?', 'x', 'm', 'l'                };
-static UV XML_XMLDECL_END_STRING[]   = { '?', '>'                               };
-static UV XML_VERSION_STRING[]       = { 'v', 'e', 'r', 's', 'i', 'o', 'n'      };
-static UV XML_EQUAL_STRING[]         = { '='                                    };
-static UV XML10_VERSIONNUM_STRING[]  = { '1', '.', '0'                          };
-static UV XML11_VERSIONNUM_STRING[]  = { '1', '.', '1'                          };
+static UV XML_SPACE_STRING[]                        = { 0x020                                            };
+static UV XML_DQUOTE_STRING[]                       = { '"'                                              };
+static UV XML_SQUOTE_STRING[]                       = { '\''                                             };
+static UV XML_COMMENT_START_STRING[]                = { '<', '!', '-', '-'                               };
+static UV XML_COMMENT_END_STRING[]                  = { '-', '-', '>'                                    };
+static UV XML_PI_START_STRING[]                     = { '<', '?'                                         };
+static UV XML_PI_END_STRING[]                       = { '?', '>'                                         };
+static UV XML_CDATA_START_STRING[]                  = { '!', '[', 'C', 'D', 'A', 'T', 'A', '['           };
+static UV XML_CDATA_END_STRING[]                    = { ']', ']', '>'                                    };
+static UV XML_XMLDECL_START_STRING[]                = { '<', '?', 'x', 'm', 'l'                          };
+static UV XML_XMLDECL_END_STRING[]                  = { '?', '>'                                         };
+static UV XML_VERSION_STRING[]                      = { 'v', 'e', 'r', 's', 'i', 'o', 'n'                };
+static UV XML_EQUAL_STRING[]                        = { '='                                              };
+static UV XML10_VERSIONNUM_STRING[]                 = { '1', '.', '0'                                    };
+static UV XML11_VERSIONNUM_STRING[]                 = { '1', '.', '1'                                    };
+static UV XML_ANY_STRING[]                          = { 'A', 'N', 'Y'                                    };
+static UV XML_ATTLIST_END_STRING[]                  = { '>'                                              };
+static UV XML_ATTLIST_START_STRING[]                = { '<', '!', 'A', 'T', 'T', 'L', 'I', 'S', 'T'      };
+static UV XML_CDATA_STRING[]                        = { 'C', 'D', 'A', 'T', 'A'                          };
+static UV XML_CHARREF_END1_STRING[]                 = { ';'                                              };
+static UV XML_CHARREF_END2_STRING[]                 = { ';'                                              };
+static UV XML_CHARREF_START1_STRING[]               = { '&', '#'                                         };
+static UV XML_CHARREF_START2_STRING[]               = { '&', '#', 'x'                                    };
+static UV XML_CHOICE_END_STRING[]                   = { ')'                                              };
+static UV XML_CHOICE_START_STRING[]                 = { '('                                              };
+static UV XML_COLON_STRING[]                        = { ':'                                              };
+static UV XML_COMMA_STRING[]                        = { ','                                              };
+static UV XML_DOCTYPE_END_STRING[]                  = { '>'                                              };
+static UV XML_DOCTYPE_START_STRING[]                = { '<', '!', 'D', 'O', 'C', 'T', 'Y', 'P', 'E'      };
+static UV XML_ELEMENTDECL_END_STRING[]              = { '>'                                              };
+static UV XML_ELEMENTDECL_START_STRING[]            = { '<', '!', 'E', 'L', 'E', 'M', 'E', 'N', 'T'      };
+static UV XML_ELEMENT_END_STRING[]                  = { '>'                                              };
+static UV XML_ELEMENT_START_STRING[]                = { '<'                                              };
+static UV XML_EMPTY_STRING[]                        = { 'E', 'M', 'P', 'T', 'Y'                          };
+static UV XML_EMPTYELEM_END_STRING[]                = { '/', '>'                                         };
+static UV XML_ENCODING_STRING[]                     = { 'e', 'n', 'c', 'o', 'd', 'i', 'n', 'g'           };
+static UV XML_ENTITIES_STRING[]                     = { 'E', 'N', 'T', 'I', 'T', 'I', 'E', 'S'           };
+static UV XML_ENTITY_STRING[]                       = { 'E', 'N', 'T', 'I', 'T', 'Y'                     };
+static UV XML_ENTITYREF_END_STRING[]                = { ';'                                              };
+static UV XML_ENTITYREF_START_STRING[]              = { '&'                                              };
+static UV XML_ENTITY_END_STRING[]                   = { '>'                                              };
+static UV XML_ENTITY_START_STRING[]                 = { '<', '!', 'E', 'N', 'T', 'I', 'T', 'Y'           };
+static UV XML_ENUMERATION_END_STRING[]              = { ')'                                              };
+static UV XML_ENUMERATION_START_STRING[]            = { '('                                              };
+static UV XML_ETAG_END_STRING[]                     = { '>'                                              };
+static UV XML_ETAG_START_STRING[]                   = { '<', '/'                                         };
+static UV XML_FIXED_STRING[]                        = { '#', 'F', 'I', 'X', 'E', 'D'                     };
+static UV XML_ID_STRING[]                           = { 'I', 'D'                                         };
+static UV XML_IDREF_STRING[]                        = { 'I', 'D', 'R', 'E', 'F'                          };
+static UV XML_IDREFS_STRING[]                       = { 'I', 'D', 'R', 'E', 'F', 'S'                     };
+static UV XML_IGNORE_STRING[]                       = { 'I', 'G', 'N', 'O', 'R', 'E'                     };
+static UV XML_IGNORESECTCONTENTSUNIT_END_STRING[]   = { ']', ']', '>'                                    };
+static UV XML_IGNORESECTCONTENTSUNIT_START_STRING[] = { '<', '!', '['                                    };
+static UV XML_IGNORESECT_END_STRING[]               = { ']', ']', '>'                                    };
+static UV XML_IGNORESECT_START_STRING[]             = { '<', '!', '['                                    };
+static UV XML_IMPLIED_STRING[]                      = { '#', 'I', 'M', 'P', 'L', 'I', 'E', 'D'           };
+static UV XML_INCLUDE_STRING[]                      = { 'I', 'N', 'C', 'L', 'U', 'D', 'E'                };
+static UV XML_INCLUDESECT_END_STRING[]              = { ']', ']', '>'                                    };
+static UV XML_INCLUDESECT_START_STRING[]            = { '<', '!', '['                                    };
+static UV XML_LBRACKET_STRING[]                     = { '['                                              };
+static UV XML_MIXED_END1_STRING[]                   = { ')', '*'                                         };
+static UV XML_MIXED_END2_STRING[]                   = { ')'                                              };
+static UV XML_MIXED_START_STRING[]                  = { '('                                              };
+static UV XML_NDATA_STRING[]                        = { 'N', 'D', 'A', 'T', 'A'                          };
+static UV XML_NMTOKEN_STRING[]                      = { 'N', 'M', 'T', 'O', 'K', 'E', 'N'                };
+static UV XML_NMTOKENS_STRING[]                     = { 'N', 'M', 'T', 'O', 'K', 'E', 'N', 'S'           };
+static UV XML_NO_STRING[]                           = { 'n', 'o'                                         };
+static UV XML_NOTATION_STRING[]                     = { 'N', 'O', 'T', 'A', 'T', 'I', 'O', 'N'           };
+static UV XML_NOTATIONDECL_END_STRING[]             = { '>'                                              };
+static UV XML_NOTATIONDECL_START_STRING[]           = { '<', '!', 'N', 'O', 'T', 'A', 'T', 'I', 'O', 'N' };
+static UV XML_NOTATION_END_STRING[]                 = { ')'                                              };
+static UV XML_NOTATION_START_STRING[]               = { '('                                              };
+static UV XML_OR_STRING[]                           = { '|'                                              };
+static UV XML_PCDATA_STRING[]                       = { '#', 'P', 'C', 'D', 'A', 'T', 'A'                };
+static UV XML_PERCENT_STRING[]                      = { '%'                                              };
+static UV XML_PEREFERENCE_END_STRING[]              = { ';'                                              };
+static UV XML_PEREFERENCE_START_STRING[]            = { '%'                                              };
+static UV XML_PLUS_STRING[]                         = { '+'                                              };
+static UV XML_PUBLIC_STRING[]                       = { 'P', 'U', 'B', 'L', 'I', 'C'                     };
+static UV XML_QUESTIONMARK_STRING[]                 = { '?'                                              };
+static UV XML_RBRACKET_STRING[]                     = { ']'                                              };
+static UV XML_REQUIRED_STRING[]                     = { '#', 'R', 'E', 'Q', 'U', 'I', 'R', 'E', 'D'      };
+static UV XML_SEQ_END_STRING[]                      = { ')'                                              };
+static UV XML_SEQ_START_STRING[]                    = { '('                                              };
+static UV XML_STANDALONE_STRING[]                   = { 's', 't', 'a', 'n', 'd', 'a', 'l', 'o', 'n', 'e' };
+static UV XML_STAR_STRING[]                         = { '*'                                              };
+static UV XML_SYSTEM_STRING[]                       = { 'S', 'Y', 'S', 'T', 'E', 'M'                     };
+static UV XML_TEXTDECL_END_STRING[]                 = { '?', '>'                                         };
+static UV XML_TEXTDECL_START_STRING[]               = { '<', '?', 'x', 'm', 'l'                          };
+static UV XML_YES_STRING[]                          = { 'y', 'e', 's'                                    };
 
 /* ======================================================================= */
 /*          Internal function used to search for a string                  */
@@ -1001,9 +1076,85 @@ XML_STRING_DECL(VERSION)
 XML_STRING_DECL(EQUAL)
 XML10_STRING_DECL(VERSIONNUM)
 XML11_STRING_DECL(VERSIONNUM)
+XML_STRING_DECL(ANY)
+XML_STRING_DECL(ATTLIST_END)
+XML_STRING_DECL(ATTLIST_START)
+XML_STRING_DECL(CDATA)
+XML_STRING_DECL(CHARREF_END1)
+XML_STRING_DECL(CHARREF_END2)
+XML_STRING_DECL(CHARREF_START1)
+XML_STRING_DECL(CHARREF_START2)
+XML_STRING_DECL(CHOICE_END)
+XML_STRING_DECL(CHOICE_START)
+XML_STRING_DECL(COLON)
+XML_STRING_DECL(COMMA)
+XML_STRING_DECL(DOCTYPE_END)
+XML_STRING_DECL(DOCTYPE_START)
+XML_STRING_DECL(ELEMENTDECL_END)
+XML_STRING_DECL(ELEMENTDECL_START)
+XML_STRING_DECL(ELEMENT_END)
+XML_STRING_DECL(ELEMENT_START)
+XML_STRING_DECL(EMPTY)
+XML_STRING_DECL(EMPTYELEM_END)
+XML_STRING_DECL(ENCODING)
+XML_STRING_DECL(ENTITIES)
+XML_STRING_DECL(ENTITY)
+XML_STRING_DECL(ENTITYREF_END)
+XML_STRING_DECL(ENTITYREF_START)
+XML_STRING_DECL(ENTITY_END)
+XML_STRING_DECL(ENTITY_START)
+XML_STRING_DECL(ENUMERATION_END)
+XML_STRING_DECL(ENUMERATION_START)
+XML_STRING_DECL(ETAG_END)
+XML_STRING_DECL(ETAG_START)
+XML_STRING_DECL(FIXED)
+XML_STRING_DECL(ID)
+XML_STRING_DECL(IDREF)
+XML_STRING_DECL(IDREFS)
+XML_STRING_DECL(IGNORE)
+XML_STRING_DECL(IGNORESECTCONTENTSUNIT_END)
+XML_STRING_DECL(IGNORESECTCONTENTSUNIT_START)
+XML_STRING_DECL(IGNORESECT_END)
+XML_STRING_DECL(IGNORESECT_START)
+XML_STRING_DECL(IMPLIED)
+XML_STRING_DECL(INCLUDE)
+XML_STRING_DECL(INCLUDESECT_END)
+XML_STRING_DECL(INCLUDESECT_START)
+XML_STRING_DECL(LBRACKET)
+XML_STRING_DECL(MIXED_END1)
+XML_STRING_DECL(MIXED_END2)
+XML_STRING_DECL(MIXED_START)
+XML_STRING_DECL(NDATA)
+XML_STRING_DECL(NMTOKEN)
+XML_STRING_DECL(NMTOKENS)
+XML_STRING_DECL(NO)
+XML_STRING_DECL(NOTATION)
+XML_STRING_DECL(NOTATIONDECL_END)
+XML_STRING_DECL(NOTATIONDECL_START)
+XML_STRING_DECL(NOTATION_END)
+XML_STRING_DECL(NOTATION_START)
+XML_STRING_DECL(OR)
+XML_STRING_DECL(PCDATA)
+XML_STRING_DECL(PERCENT)
+XML_STRING_DECL(PEREFERENCE_END)
+XML_STRING_DECL(PEREFERENCE_START)
+XML_STRING_DECL(PLUS)
+XML_STRING_DECL(PUBLIC)
+XML_STRING_DECL(QUESTIONMARK)
+XML_STRING_DECL(RBRACKET)
+XML_STRING_DECL(REQUIRED)
+XML_STRING_DECL(SEQ_END)
+XML_STRING_DECL(SEQ_START)
+XML_STRING_DECL(STANDALONE)
+XML_STRING_DECL(STAR)
+XML_STRING_DECL(SYSTEM)
+XML_STRING_DECL(TEXTDECL_END)
+XML_STRING_DECL(TEXTDECL_START)
+XML_STRING_DECL(YES)
 
 /* ======================================================================= */
 /*                                 XML 1.0                                 */
+/*           These symbols map to a method common between 1.0 and 1.1      */
 /* ======================================================================= */
 XML_FUNC_ALIAS(is_XML10_NAME,                          is_XML_NAME)
 XML_FUNC_ALIAS(is_XML10_NMTOKENMANY,                   is_XML_NMTOKENMANY)
@@ -1039,9 +1190,85 @@ XML_FUNC_ALIAS(is_XML10_XMLDECL_START,                 is_XML_XMLDECL_START)
 XML_FUNC_ALIAS(is_XML10_XMLDECL_END,                   is_XML_XMLDECL_END)
 XML_FUNC_ALIAS(is_XML10_VERSION,                       is_XML_VERSION)
 XML_FUNC_ALIAS(is_XML10_EQUAL,                         is_XML_EQUAL)
+XML_FUNC_ALIAS(is_XML10_ANY,                           is_XML_ANY)
+XML_FUNC_ALIAS(is_XML10_ATTLIST_END,                   is_XML_ATTLIST_END)
+XML_FUNC_ALIAS(is_XML10_ATTLIST_START,                 is_XML_ATTLIST_START)
+XML_FUNC_ALIAS(is_XML10_CDATA,                         is_XML_CDATA)
+XML_FUNC_ALIAS(is_XML10_CHARREF_END1,                  is_XML_CHARREF_END1)
+XML_FUNC_ALIAS(is_XML10_CHARREF_END2,                  is_XML_CHARREF_END2)
+XML_FUNC_ALIAS(is_XML10_CHARREF_START1,                is_XML_CHARREF_START1)
+XML_FUNC_ALIAS(is_XML10_CHARREF_START2,                is_XML_CHARREF_START2)
+XML_FUNC_ALIAS(is_XML10_CHOICE_END,                    is_XML_CHOICE_END)
+XML_FUNC_ALIAS(is_XML10_CHOICE_START,                  is_XML_CHOICE_START)
+XML_FUNC_ALIAS(is_XML10_COLON,                         is_XML_COLON)
+XML_FUNC_ALIAS(is_XML10_COMMA,                         is_XML_COMMA)
+XML_FUNC_ALIAS(is_XML10_DOCTYPE_END,                   is_XML_DOCTYPE_END)
+XML_FUNC_ALIAS(is_XML10_DOCTYPE_START,                 is_XML_DOCTYPE_START)
+XML_FUNC_ALIAS(is_XML10_ELEMENTDECL_END,               is_XML_ELEMENTDECL_END)
+XML_FUNC_ALIAS(is_XML10_ELEMENTDECL_START,             is_XML_ELEMENTDECL_START)
+XML_FUNC_ALIAS(is_XML10_ELEMENT_END,                   is_XML_ELEMENT_END)
+XML_FUNC_ALIAS(is_XML10_ELEMENT_START,                 is_XML_ELEMENT_START)
+XML_FUNC_ALIAS(is_XML10_EMPTY,                         is_XML_EMPTY)
+XML_FUNC_ALIAS(is_XML10_EMPTYELEM_END,                 is_XML_EMPTYELEM_END)
+XML_FUNC_ALIAS(is_XML10_ENCODING,                      is_XML_ENCODING)
+XML_FUNC_ALIAS(is_XML10_ENTITIES,                      is_XML_ENTITIES)
+XML_FUNC_ALIAS(is_XML10_ENTITY,                        is_XML_ENTITY)
+XML_FUNC_ALIAS(is_XML10_ENTITYREF_END,                 is_XML_ENTITYREF_END)
+XML_FUNC_ALIAS(is_XML10_ENTITYREF_START,               is_XML_ENTITYREF_START)
+XML_FUNC_ALIAS(is_XML10_ENTITY_END,                    is_XML_ENTITY_END)
+XML_FUNC_ALIAS(is_XML10_ENTITY_START,                  is_XML_ENTITY_START)
+XML_FUNC_ALIAS(is_XML10_ENUMERATION_END,               is_XML_ENUMERATION_END)
+XML_FUNC_ALIAS(is_XML10_ENUMERATION_START,             is_XML_ENUMERATION_START)
+XML_FUNC_ALIAS(is_XML10_ETAG_END,                      is_XML_ETAG_END)
+XML_FUNC_ALIAS(is_XML10_ETAG_START,                    is_XML_ETAG_START)
+XML_FUNC_ALIAS(is_XML10_FIXED,                         is_XML_FIXED)
+XML_FUNC_ALIAS(is_XML10_ID,                            is_XML_ID)
+XML_FUNC_ALIAS(is_XML10_IDREF,                         is_XML_IDREF)
+XML_FUNC_ALIAS(is_XML10_IDREFS,                        is_XML_IDREFS)
+XML_FUNC_ALIAS(is_XML10_IGNORE,                        is_XML_IGNORE)
+XML_FUNC_ALIAS(is_XML10_IGNORESECTCONTENTSUNIT_END,    is_XML_IGNORESECTCONTENTSUNIT_END)
+XML_FUNC_ALIAS(is_XML10_IGNORESECTCONTENTSUNIT_START,  is_XML_IGNORESECTCONTENTSUNIT_START)
+XML_FUNC_ALIAS(is_XML10_IGNORESECT_END,                is_XML_IGNORESECT_END)
+XML_FUNC_ALIAS(is_XML10_IGNORESECT_START,              is_XML_IGNORESECT_START)
+XML_FUNC_ALIAS(is_XML10_IMPLIED,                       is_XML_IMPLIED)
+XML_FUNC_ALIAS(is_XML10_INCLUDE,                       is_XML_INCLUDE)
+XML_FUNC_ALIAS(is_XML10_INCLUDESECT_END,               is_XML_INCLUDESECT_END)
+XML_FUNC_ALIAS(is_XML10_INCLUDESECT_START,             is_XML_INCLUDESECT_START)
+XML_FUNC_ALIAS(is_XML10_LBRACKET,                      is_XML_LBRACKET)
+XML_FUNC_ALIAS(is_XML10_MIXED_END1,                    is_XML_MIXED_END1)
+XML_FUNC_ALIAS(is_XML10_MIXED_END2,                    is_XML_MIXED_END2)
+XML_FUNC_ALIAS(is_XML10_MIXED_START,                   is_XML_MIXED_START)
+XML_FUNC_ALIAS(is_XML10_NDATA,                         is_XML_NDATA)
+XML_FUNC_ALIAS(is_XML10_NMTOKEN,                       is_XML_NMTOKEN)
+XML_FUNC_ALIAS(is_XML10_NMTOKENS,                      is_XML_NMTOKENS)
+XML_FUNC_ALIAS(is_XML10_NO,                            is_XML_NO)
+XML_FUNC_ALIAS(is_XML10_NOTATION,                      is_XML_NOTATION)
+XML_FUNC_ALIAS(is_XML10_NOTATIONDECL_END,              is_XML_NOTATIONDECL_END)
+XML_FUNC_ALIAS(is_XML10_NOTATIONDECL_START,            is_XML_NOTATIONDECL_START)
+XML_FUNC_ALIAS(is_XML10_NOTATION_END,                  is_XML_NOTATION_END)
+XML_FUNC_ALIAS(is_XML10_NOTATION_START,                is_XML_NOTATION_START)
+XML_FUNC_ALIAS(is_XML10_OR,                            is_XML_OR)
+XML_FUNC_ALIAS(is_XML10_PCDATA,                        is_XML_PCDATA)
+XML_FUNC_ALIAS(is_XML10_PERCENT,                       is_XML_PERCENT)
+XML_FUNC_ALIAS(is_XML10_PEREFERENCE_END,               is_XML_PEREFERENCE_END)
+XML_FUNC_ALIAS(is_XML10_PEREFERENCE_START,             is_XML_PEREFERENCE_START)
+XML_FUNC_ALIAS(is_XML10_PLUS,                          is_XML_PLUS)
+XML_FUNC_ALIAS(is_XML10_PUBLIC,                        is_XML_PUBLIC)
+XML_FUNC_ALIAS(is_XML10_QUESTIONMARK,                  is_XML_QUESTIONMARK)
+XML_FUNC_ALIAS(is_XML10_RBRACKET,                      is_XML_RBRACKET)
+XML_FUNC_ALIAS(is_XML10_REQUIRED,                      is_XML_REQUIRED)
+XML_FUNC_ALIAS(is_XML10_SEQ_END,                       is_XML_SEQ_END)
+XML_FUNC_ALIAS(is_XML10_SEQ_START,                     is_XML_SEQ_START)
+XML_FUNC_ALIAS(is_XML10_STANDALONE,                    is_XML_STANDALONE)
+XML_FUNC_ALIAS(is_XML10_STAR,                          is_XML_STAR)
+XML_FUNC_ALIAS(is_XML10_SYSTEM,                        is_XML_SYSTEM)
+XML_FUNC_ALIAS(is_XML10_TEXTDECL_END,                  is_XML_TEXTDECL_END)
+XML_FUNC_ALIAS(is_XML10_TEXTDECL_START,                is_XML_TEXTDECL_START)
+XML_FUNC_ALIAS(is_XML10_YES,                           is_XML_YES)
 
 /* ======================================================================= */
 /*                                 XML 1.1                                 */
+/*           These symbols map to a method common between 1.0 and 1.1      */
 /* ======================================================================= */
 XML_FUNC_ALIAS(is_XML11_NAME,                          is_XML_NAME)
 XML_FUNC_ALIAS(is_XML11_NMTOKENMANY,                   is_XML_NMTOKENMANY)
@@ -1077,6 +1304,81 @@ XML_FUNC_ALIAS(is_XML11_XMLDECL_START,                 is_XML_XMLDECL_START)
 XML_FUNC_ALIAS(is_XML11_XMLDECL_END,                   is_XML_XMLDECL_END)
 XML_FUNC_ALIAS(is_XML11_VERSION,                       is_XML_VERSION)
 XML_FUNC_ALIAS(is_XML11_EQUAL,                         is_XML_EQUAL)
+XML_FUNC_ALIAS(is_XML11_ANY,                           is_XML_ANY)
+XML_FUNC_ALIAS(is_XML11_ATTLIST_END,                   is_XML_ATTLIST_END)
+XML_FUNC_ALIAS(is_XML11_ATTLIST_START,                 is_XML_ATTLIST_START)
+XML_FUNC_ALIAS(is_XML11_CDATA,                         is_XML_CDATA)
+XML_FUNC_ALIAS(is_XML11_CHARREF_END1,                  is_XML_CHARREF_END1)
+XML_FUNC_ALIAS(is_XML11_CHARREF_END2,                  is_XML_CHARREF_END2)
+XML_FUNC_ALIAS(is_XML11_CHARREF_START1,                is_XML_CHARREF_START1)
+XML_FUNC_ALIAS(is_XML11_CHARREF_START2,                is_XML_CHARREF_START2)
+XML_FUNC_ALIAS(is_XML11_CHOICE_END,                    is_XML_CHOICE_END)
+XML_FUNC_ALIAS(is_XML11_CHOICE_START,                  is_XML_CHOICE_START)
+XML_FUNC_ALIAS(is_XML11_COLON,                         is_XML_COLON)
+XML_FUNC_ALIAS(is_XML11_COMMA,                         is_XML_COMMA)
+XML_FUNC_ALIAS(is_XML11_DOCTYPE_END,                   is_XML_DOCTYPE_END)
+XML_FUNC_ALIAS(is_XML11_DOCTYPE_START,                 is_XML_DOCTYPE_START)
+XML_FUNC_ALIAS(is_XML11_ELEMENTDECL_END,               is_XML_ELEMENTDECL_END)
+XML_FUNC_ALIAS(is_XML11_ELEMENTDECL_START,             is_XML_ELEMENTDECL_START)
+XML_FUNC_ALIAS(is_XML11_ELEMENT_END,                   is_XML_ELEMENT_END)
+XML_FUNC_ALIAS(is_XML11_ELEMENT_START,                 is_XML_ELEMENT_START)
+XML_FUNC_ALIAS(is_XML11_EMPTY,                         is_XML_EMPTY)
+XML_FUNC_ALIAS(is_XML11_EMPTYELEM_END,                 is_XML_EMPTYELEM_END)
+XML_FUNC_ALIAS(is_XML11_ENCODING,                      is_XML_ENCODING)
+XML_FUNC_ALIAS(is_XML11_ENTITIES,                      is_XML_ENTITIES)
+XML_FUNC_ALIAS(is_XML11_ENTITY,                        is_XML_ENTITY)
+XML_FUNC_ALIAS(is_XML11_ENTITYREF_END,                 is_XML_ENTITYREF_END)
+XML_FUNC_ALIAS(is_XML11_ENTITYREF_START,               is_XML_ENTITYREF_START)
+XML_FUNC_ALIAS(is_XML11_ENTITY_END,                    is_XML_ENTITY_END)
+XML_FUNC_ALIAS(is_XML11_ENTITY_START,                  is_XML_ENTITY_START)
+XML_FUNC_ALIAS(is_XML11_ENUMERATION_END,               is_XML_ENUMERATION_END)
+XML_FUNC_ALIAS(is_XML11_ENUMERATION_START,             is_XML_ENUMERATION_START)
+XML_FUNC_ALIAS(is_XML11_ETAG_END,                      is_XML_ETAG_END)
+XML_FUNC_ALIAS(is_XML11_ETAG_START,                    is_XML_ETAG_START)
+XML_FUNC_ALIAS(is_XML11_FIXED,                         is_XML_FIXED)
+XML_FUNC_ALIAS(is_XML11_ID,                            is_XML_ID)
+XML_FUNC_ALIAS(is_XML11_IDREF,                         is_XML_IDREF)
+XML_FUNC_ALIAS(is_XML11_IDREFS,                        is_XML_IDREFS)
+XML_FUNC_ALIAS(is_XML11_IGNORE,                        is_XML_IGNORE)
+XML_FUNC_ALIAS(is_XML11_IGNORESECTCONTENTSUNIT_END,    is_XML_IGNORESECTCONTENTSUNIT_END)
+XML_FUNC_ALIAS(is_XML11_IGNORESECTCONTENTSUNIT_START,  is_XML_IGNORESECTCONTENTSUNIT_START)
+XML_FUNC_ALIAS(is_XML11_IGNORESECT_END,                is_XML_IGNORESECT_END)
+XML_FUNC_ALIAS(is_XML11_IGNORESECT_START,              is_XML_IGNORESECT_START)
+XML_FUNC_ALIAS(is_XML11_IMPLIED,                       is_XML_IMPLIED)
+XML_FUNC_ALIAS(is_XML11_INCLUDE,                       is_XML_INCLUDE)
+XML_FUNC_ALIAS(is_XML11_INCLUDESECT_END,               is_XML_INCLUDESECT_END)
+XML_FUNC_ALIAS(is_XML11_INCLUDESECT_START,             is_XML_INCLUDESECT_START)
+XML_FUNC_ALIAS(is_XML11_LBRACKET,                      is_XML_LBRACKET)
+XML_FUNC_ALIAS(is_XML11_MIXED_END1,                    is_XML_MIXED_END1)
+XML_FUNC_ALIAS(is_XML11_MIXED_END2,                    is_XML_MIXED_END2)
+XML_FUNC_ALIAS(is_XML11_MIXED_START,                   is_XML_MIXED_START)
+XML_FUNC_ALIAS(is_XML11_NDATA,                         is_XML_NDATA)
+XML_FUNC_ALIAS(is_XML11_NMTOKEN,                       is_XML_NMTOKEN)
+XML_FUNC_ALIAS(is_XML11_NMTOKENS,                      is_XML_NMTOKENS)
+XML_FUNC_ALIAS(is_XML11_NO,                            is_XML_NO)
+XML_FUNC_ALIAS(is_XML11_NOTATION,                      is_XML_NOTATION)
+XML_FUNC_ALIAS(is_XML11_NOTATIONDECL_END,              is_XML_NOTATIONDECL_END)
+XML_FUNC_ALIAS(is_XML11_NOTATIONDECL_START,            is_XML_NOTATIONDECL_START)
+XML_FUNC_ALIAS(is_XML11_NOTATION_END,                  is_XML_NOTATION_END)
+XML_FUNC_ALIAS(is_XML11_NOTATION_START,                is_XML_NOTATION_START)
+XML_FUNC_ALIAS(is_XML11_OR,                            is_XML_OR)
+XML_FUNC_ALIAS(is_XML11_PCDATA,                        is_XML_PCDATA)
+XML_FUNC_ALIAS(is_XML11_PERCENT,                       is_XML_PERCENT)
+XML_FUNC_ALIAS(is_XML11_PEREFERENCE_END,               is_XML_PEREFERENCE_END)
+XML_FUNC_ALIAS(is_XML11_PEREFERENCE_START,             is_XML_PEREFERENCE_START)
+XML_FUNC_ALIAS(is_XML11_PLUS,                          is_XML_PLUS)
+XML_FUNC_ALIAS(is_XML11_PUBLIC,                        is_XML_PUBLIC)
+XML_FUNC_ALIAS(is_XML11_QUESTIONMARK,                  is_XML_QUESTIONMARK)
+XML_FUNC_ALIAS(is_XML11_RBRACKET,                      is_XML_RBRACKET)
+XML_FUNC_ALIAS(is_XML11_REQUIRED,                      is_XML_REQUIRED)
+XML_FUNC_ALIAS(is_XML11_SEQ_END,                       is_XML_SEQ_END)
+XML_FUNC_ALIAS(is_XML11_SEQ_START,                     is_XML_SEQ_START)
+XML_FUNC_ALIAS(is_XML11_STANDALONE,                    is_XML_STANDALONE)
+XML_FUNC_ALIAS(is_XML11_STAR,                          is_XML_STAR)
+XML_FUNC_ALIAS(is_XML11_SYSTEM,                        is_XML_SYSTEM)
+XML_FUNC_ALIAS(is_XML11_TEXTDECL_END,                  is_XML_TEXTDECL_END)
+XML_FUNC_ALIAS(is_XML11_TEXTDECL_START,                is_XML_TEXTDECL_START)
+XML_FUNC_ALIAS(is_XML11_YES,                           is_XML_YES)
 
 MODULE = MarpaX::Languages::XML		PACKAGE = MarpaX::Languages::XML::XS
 PROTOTYPES: DISABLE
@@ -1708,5 +2010,1355 @@ is_XML11_VERSIONNUM(sv, pos)
     STRLEN pos
   CODE:
   RETVAL = is_XML11_VERSIONNUM(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_ANY(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_ANY(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_ANY(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_ANY(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_ATTLIST_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_ATTLIST_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_ATTLIST_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_ATTLIST_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_ATTLIST_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_ATTLIST_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_ATTLIST_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_ATTLIST_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_CDATA(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_CDATA(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_CDATA(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_CDATA(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_CHARREF_END1(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_CHARREF_END1(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_CHARREF_END1(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_CHARREF_END1(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_CHARREF_END2(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_CHARREF_END2(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_CHARREF_END2(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_CHARREF_END2(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_CHARREF_START1(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_CHARREF_START1(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_CHARREF_START1(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_CHARREF_START1(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_CHARREF_START2(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_CHARREF_START2(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_CHARREF_START2(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_CHARREF_START2(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_CHOICE_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_CHOICE_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_CHOICE_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_CHOICE_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_CHOICE_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_CHOICE_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_CHOICE_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_CHOICE_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_COLON(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_COLON(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_COLON(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_COLON(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_COMMA(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_COMMA(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_COMMA(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_COMMA(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_DOCTYPE_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_DOCTYPE_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_DOCTYPE_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_DOCTYPE_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_DOCTYPE_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_DOCTYPE_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_DOCTYPE_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_DOCTYPE_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_ELEMENTDECL_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_ELEMENTDECL_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_ELEMENTDECL_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_ELEMENTDECL_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_ELEMENTDECL_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_ELEMENTDECL_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_ELEMENTDECL_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_ELEMENTDECL_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_ELEMENT_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_ELEMENT_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_ELEMENT_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_ELEMENT_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_ELEMENT_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_ELEMENT_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_ELEMENT_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_ELEMENT_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_EMPTY(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_EMPTY(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_EMPTY(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_EMPTY(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_EMPTYELEM_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_EMPTYELEM_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_EMPTYELEM_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_EMPTYELEM_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_ENCODING(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_ENCODING(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_ENCODING(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_ENCODING(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_ENTITIES(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_ENTITIES(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_ENTITIES(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_ENTITIES(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_ENTITY(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_ENTITY(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_ENTITY(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_ENTITY(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_ENTITYREF_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_ENTITYREF_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_ENTITYREF_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_ENTITYREF_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_ENTITYREF_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_ENTITYREF_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_ENTITYREF_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_ENTITYREF_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_ENTITY_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_ENTITY_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_ENTITY_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_ENTITY_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_ENTITY_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_ENTITY_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_ENTITY_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_ENTITY_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_ENUMERATION_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_ENUMERATION_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_ENUMERATION_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_ENUMERATION_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_ENUMERATION_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_ENUMERATION_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_ENUMERATION_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_ENUMERATION_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_ETAG_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_ETAG_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_ETAG_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_ETAG_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_ETAG_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_ETAG_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_ETAG_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_ETAG_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_FIXED(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_FIXED(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_FIXED(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_FIXED(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_ID(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_ID(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_ID(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_ID(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_IDREF(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_IDREF(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_IDREF(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_IDREF(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_IDREFS(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_IDREFS(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_IDREFS(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_IDREFS(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_IGNORE(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_IGNORE(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_IGNORE(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_IGNORE(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_IGNORESECTCONTENTSUNIT_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_IGNORESECTCONTENTSUNIT_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_IGNORESECTCONTENTSUNIT_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_IGNORESECTCONTENTSUNIT_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_IGNORESECTCONTENTSUNIT_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_IGNORESECTCONTENTSUNIT_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_IGNORESECTCONTENTSUNIT_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_IGNORESECTCONTENTSUNIT_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_IGNORESECT_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_IGNORESECT_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_IGNORESECT_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_IGNORESECT_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_IGNORESECT_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_IGNORESECT_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_IGNORESECT_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_IGNORESECT_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_IMPLIED(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_IMPLIED(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_IMPLIED(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_IMPLIED(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_INCLUDE(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_INCLUDE(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_INCLUDE(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_INCLUDE(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_INCLUDESECT_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_INCLUDESECT_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_INCLUDESECT_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_INCLUDESECT_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_INCLUDESECT_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_INCLUDESECT_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_INCLUDESECT_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_INCLUDESECT_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_LBRACKET(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_LBRACKET(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_LBRACKET(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_LBRACKET(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_MIXED_END1(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_MIXED_END1(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_MIXED_END1(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_MIXED_END1(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_MIXED_END2(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_MIXED_END2(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_MIXED_END2(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_MIXED_END2(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_MIXED_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_MIXED_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_MIXED_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_MIXED_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_NDATA(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_NDATA(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_NDATA(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_NDATA(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_NMTOKEN(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_NMTOKEN(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_NMTOKEN(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_NMTOKEN(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_NMTOKENS(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_NMTOKENS(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_NMTOKENS(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_NMTOKENS(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_NO(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_NO(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_NO(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_NO(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_NOTATION(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_NOTATION(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_NOTATION(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_NOTATION(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_NOTATIONDECL_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_NOTATIONDECL_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_NOTATIONDECL_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_NOTATIONDECL_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_NOTATIONDECL_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_NOTATIONDECL_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_NOTATIONDECL_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_NOTATIONDECL_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_NOTATION_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_NOTATION_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_NOTATION_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_NOTATION_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_NOTATION_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_NOTATION_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_NOTATION_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_NOTATION_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_OR(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_OR(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_OR(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_OR(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_PCDATA(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_PCDATA(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_PCDATA(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_PCDATA(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_PERCENT(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_PERCENT(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_PERCENT(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_PERCENT(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_PEREFERENCE_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_PEREFERENCE_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_PEREFERENCE_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_PEREFERENCE_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_PEREFERENCE_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_PEREFERENCE_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_PEREFERENCE_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_PEREFERENCE_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_PLUS(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_PLUS(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_PLUS(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_PLUS(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_PUBLIC(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_PUBLIC(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_PUBLIC(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_PUBLIC(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_QUESTIONMARK(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_QUESTIONMARK(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_QUESTIONMARK(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_QUESTIONMARK(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_RBRACKET(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_RBRACKET(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_RBRACKET(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_RBRACKET(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_REQUIRED(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_REQUIRED(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_REQUIRED(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_REQUIRED(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_SEQ_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_SEQ_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_SEQ_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_SEQ_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_SEQ_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_SEQ_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_SEQ_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_SEQ_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_STANDALONE(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_STANDALONE(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_STANDALONE(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_STANDALONE(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_STAR(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_STAR(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_STAR(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_STAR(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_SYSTEM(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_SYSTEM(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_SYSTEM(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_SYSTEM(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_TEXTDECL_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_TEXTDECL_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_TEXTDECL_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_TEXTDECL_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_TEXTDECL_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_TEXTDECL_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_TEXTDECL_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_TEXTDECL_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_YES(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_YES(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_YES(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_YES(aTHX_ sv, pos, NULL, NULL);
   OUTPUT:
     RETVAL
