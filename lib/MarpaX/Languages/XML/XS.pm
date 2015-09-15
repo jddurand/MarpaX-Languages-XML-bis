@@ -93,4 +93,54 @@ print "==> is_XML10_COMMENT_END(\"$string\"): $length\n\n";
 $length = is_XML10_COMMENT_END($string = "0-->", 0);
 print "==> is_XML10_COMMENT_END(\"$string\"): $length\n\n";
 
+$length = is_XML10_PI_START($string = "<?--", 0);
+print "==> is_XML10_PI_START(\"$string\"): $length\n\n";
+$length = is_XML10_PI_START($string = "0<?--", 0);
+print "==> is_XML10_PI_START(\"$string\"): $length\n\n";
+
+$length = is_XML10_PI_END($string = "?>-->", 0);
+print "==> is_XML10_PI_END(\"$string\"): $length\n\n";
+$length = is_XML10_PI_END($string = "0?>-->", 0);
+print "==> is_XML10_PI_END(\"$string\"): $length\n\n";
+
+$length = is_XML10_CDATA_START($string = "![CDATA[", 0);
+print "==> is_XML10_CDATA_START(\"$string\"): $length\n\n";
+$length = is_XML10_CDATA_START($string = "0![CDATA[", 0);
+print "==> is_XML10_CDATA_START(\"$string\"): $length\n\n";
+
+$length = is_XML10_CDATA_END($string = "]]>", 0);
+print "==> is_XML10_CDATA_END(\"$string\"): $length\n\n";
+$length = is_XML10_CDATA_END($string = "0]]>", 0);
+print "==> is_XML10_CDATA_END(\"$string\"): $length\n\n";
+
+$length = is_XML10_XMLDECL_START($string = "<?xml", 0);
+print "==> is_XML10_XMLDECL_START(\"$string\"): $length\n\n";
+$length = is_XML10_XMLDECL_START($string = "0<?xml", 0);
+print "==> is_XML10_XMLDECL_START(\"$string\"): $length\n\n";
+
+$length = is_XML10_XMLDECL_END($string = "?>", 0);
+print "==> is_XML10_XMLDECL_END(\"$string\"): $length\n\n";
+$length = is_XML10_XMLDECL_END($string = "0?>", 0);
+print "==> is_XML10_XMLDECL_END(\"$string\"): $length\n\n";
+
+$length = is_XML10_VERSION($string = "version", 0);
+print "==> is_XML10_VERSION(\"$string\"): $length\n\n";
+$length = is_XML10_VERSION($string = "0version", 0);
+print "==> is_XML10_VERSION(\"$string\"): $length\n\n";
+
+$length = is_XML10_EQUAL($string = "=", 0);
+print "==> is_XML10_EQUAL(\"$string\"): $length\n\n";
+$length = is_XML10_EQUAL($string = "0=", 0);
+print "==> is_XML10_EQUAL(\"$string\"): $length\n\n";
+
+$length = is_XML10_VERSIONNUM($string = "1.0", 0);
+print "==> is_XML10_VERSIONNUM(\"$string\"): $length\n\n";
+$length = is_XML10_VERSIONNUM($string = "1.1", 0);
+print "==> is_XML10_VERSIONNUM(\"$string\"): $length\n\n";
+
+$length = is_XML10_VERSIONNUM($string = "1.1", 0);
+print "==> is_XML10_VERSIONNUM(\"$string\"): $length\n\n";
+$length = is_XML10_VERSIONNUM($string = "1.0", 0);
+print "==> is_XML10_VERSIONNUM(\"$string\"): $length\n\n";
+
 1;

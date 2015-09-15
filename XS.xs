@@ -98,7 +98,17 @@ STRLEN funcname(pTHX_ SV *sv, STRLEN pos, U8 *s_force, U8 *send_force) {   \
 #define XML_STRING_DECL(stringname)                                     \
 static                                                                  \
 STRLEN is_XML_##stringname(pTHX_ SV *sv, STRLEN pos, U8 *s_force, U8 *send_force) { \
-  return _is_XML_STRING(aTHX_ sv, pos, s_force, send_force, XML_ARRAY_LENGTH(stringname##_STRING), stringname##_STRING); \
+  return _is_XML_STRING(aTHX_ sv, pos, s_force, send_force, XML_ARRAY_LENGTH(XML_##stringname##_STRING), XML_##stringname##_STRING); \
+}
+#define XML10_STRING_DECL(stringname)                                     \
+static                                                                  \
+STRLEN is_XML10_##stringname(pTHX_ SV *sv, STRLEN pos, U8 *s_force, U8 *send_force) { \
+  return _is_XML_STRING(aTHX_ sv, pos, s_force, send_force, XML_ARRAY_LENGTH(XML10_##stringname##_STRING), XML10_##stringname##_STRING); \
+}
+#define XML11_STRING_DECL(stringname)                                     \
+static                                                                  \
+STRLEN is_XML11_##stringname(pTHX_ SV *sv, STRLEN pos, U8 *s_force, U8 *send_force) { \
+  return _is_XML_STRING(aTHX_ sv, pos, s_force, send_force, XML_ARRAY_LENGTH(XML11_##stringname##_STRING), XML11_##stringname##_STRING); \
 }
 
 /* ======================================================================= */
@@ -121,11 +131,21 @@ static UV PITARGET_EXCLUSION_LOWERCASE[PITARGET_EXCLUSION_LENGTH] = { 'x', 'm', 
 /* ======================================================================= */
 /*                  Static definitions for strings                         */
 /* ======================================================================= */
-static UV SPACE_STRING[]         = { 0x020 };
-static UV DQUOTE_STRING[]        = { '"' };
-static UV SQUOTE_STRING[]        = { '\'' };
-static UV COMMENT_START_STRING[] = { '<', '!', '-', '-' };
-static UV COMMENT_END_STRING[]   = { '-', '-', '>' };
+static UV XML_SPACE_STRING[]         = { 0x020                                  };
+static UV XML_DQUOTE_STRING[]        = { '"'                                    };
+static UV XML_SQUOTE_STRING[]        = { '\''                                   };
+static UV XML_COMMENT_START_STRING[] = { '<', '!', '-', '-'                     };
+static UV XML_COMMENT_END_STRING[]   = { '-', '-', '>'                          };
+static UV XML_PI_START_STRING[]      = { '<', '?',                              };
+static UV XML_PI_END_STRING[]        = { '?', '>'                               };
+static UV XML_CDATA_START_STRING[]   = { '!', '[', 'C', 'D', 'A', 'T', 'A', '[' };
+static UV XML_CDATA_END_STRING[]     = { ']', ']', '>'                          };
+static UV XML_XMLDECL_START_STRING[] = { '<', '?', 'x', 'm', 'l'                };
+static UV XML_XMLDECL_END_STRING[]   = { '?', '>'                               };
+static UV XML_VERSION_STRING[]       = { 'v', 'e', 'r', 's', 'i', 'o', 'n'      };
+static UV XML_EQUAL_STRING[]         = { '='                                    };
+static UV XML10_VERSIONNUM_STRING[]  = { '1', '.', '0'                          };
+static UV XML11_VERSIONNUM_STRING[]  = { '1', '.', '1'                          };
 
 /* ======================================================================= */
 /*          Internal function used to search for a string                  */
@@ -971,6 +991,16 @@ XML_STRING_DECL(DQUOTE)
 XML_STRING_DECL(SQUOTE)
 XML_STRING_DECL(COMMENT_START)
 XML_STRING_DECL(COMMENT_END)
+XML_STRING_DECL(PI_START)
+XML_STRING_DECL(PI_END)
+XML_STRING_DECL(CDATA_START)
+XML_STRING_DECL(CDATA_END)
+XML_STRING_DECL(XMLDECL_START)
+XML_STRING_DECL(XMLDECL_END)
+XML_STRING_DECL(VERSION)
+XML_STRING_DECL(EQUAL)
+XML10_STRING_DECL(VERSIONNUM)
+XML11_STRING_DECL(VERSIONNUM)
 
 /* ======================================================================= */
 /*                                 XML 1.0                                 */
@@ -1001,6 +1031,14 @@ XML_FUNC_ALIAS(is_XML10_DQUOTE,                        is_XML_DQUOTE)
 XML_FUNC_ALIAS(is_XML10_SQUOTE,                        is_XML_SQUOTE)
 XML_FUNC_ALIAS(is_XML10_COMMENT_START,                 is_XML_COMMENT_START)
 XML_FUNC_ALIAS(is_XML10_COMMENT_END,                   is_XML_COMMENT_END)
+XML_FUNC_ALIAS(is_XML10_PI_START,                      is_XML_PI_START)
+XML_FUNC_ALIAS(is_XML10_PI_END,                        is_XML_PI_END)
+XML_FUNC_ALIAS(is_XML10_CDATA_START,                   is_XML_CDATA_START)
+XML_FUNC_ALIAS(is_XML10_CDATA_END,                     is_XML_CDATA_END)
+XML_FUNC_ALIAS(is_XML10_XMLDECL_START,                 is_XML_XMLDECL_START)
+XML_FUNC_ALIAS(is_XML10_XMLDECL_END,                   is_XML_XMLDECL_END)
+XML_FUNC_ALIAS(is_XML10_VERSION,                       is_XML_VERSION)
+XML_FUNC_ALIAS(is_XML10_EQUAL,                         is_XML_EQUAL)
 
 /* ======================================================================= */
 /*                                 XML 1.1                                 */
@@ -1031,6 +1069,14 @@ XML_FUNC_ALIAS(is_XML11_DQUOTE,                        is_XML_DQUOTE)
 XML_FUNC_ALIAS(is_XML11_SQUOTE,                        is_XML_SQUOTE)
 XML_FUNC_ALIAS(is_XML11_COMMENT_START,                 is_XML_COMMENT_START)
 XML_FUNC_ALIAS(is_XML11_COMMENT_END,                   is_XML_COMMENT_END)
+XML_FUNC_ALIAS(is_XML11_PI_START,                      is_XML_PI_START)
+XML_FUNC_ALIAS(is_XML11_PI_END,                        is_XML_PI_END)
+XML_FUNC_ALIAS(is_XML11_CDATA_START,                   is_XML_CDATA_START)
+XML_FUNC_ALIAS(is_XML11_CDATA_END,                     is_XML_CDATA_END)
+XML_FUNC_ALIAS(is_XML11_XMLDECL_START,                 is_XML_XMLDECL_START)
+XML_FUNC_ALIAS(is_XML11_XMLDECL_END,                   is_XML_XMLDECL_END)
+XML_FUNC_ALIAS(is_XML11_VERSION,                       is_XML_VERSION)
+XML_FUNC_ALIAS(is_XML11_EQUAL,                         is_XML_EQUAL)
 
 MODULE = MarpaX::Languages::XML		PACKAGE = MarpaX::Languages::XML::XS
 PROTOTYPES: DISABLE
@@ -1500,5 +1546,167 @@ is_XML11_COMMENT_END(sv, pos)
     STRLEN pos
   CODE:
   RETVAL = is_XML11_COMMENT_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_PI_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_PI_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_PI_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_PI_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_PI_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_PI_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_PI_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_PI_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_CDATA_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_CDATA_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_CDATA_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_CDATA_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_CDATA_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_CDATA_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_CDATA_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_CDATA_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_XMLDECL_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_XMLDECL_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_XMLDECL_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_XMLDECL_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_XMLDECL_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_XMLDECL_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_XMLDECL_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_XMLDECL_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_VERSION(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_VERSION(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_VERSION(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_VERSION(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_EQUAL(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_EQUAL(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_EQUAL(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_EQUAL(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_VERSIONNUM(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_VERSIONNUM(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_VERSIONNUM(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_VERSIONNUM(aTHX_ sv, pos, NULL, NULL);
   OUTPUT:
     RETVAL
