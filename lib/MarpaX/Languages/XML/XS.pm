@@ -69,4 +69,28 @@ print "==> is_XML10_PITARGET(\"$string\"): $length\n\n";
 $length = is_XML10_PITARGET($string = "XmL", 0);
 print "==> is_XML10_PITARGET(\"$string\"): $length\n\n";
 
+$length = is_XML10_DQUOTE($string = "\"", 0);
+print "==> is_XML10_DQUOTE(\"$string\"): $length\n\n";
+$length = is_XML10_DQUOTE($string = "\"\"", 0);
+print "==> is_XML10_DQUOTE(\"$string\"): $length\n\n";
+$length = is_XML10_DQUOTE($string = "0\"\"", 0);
+print "==> is_XML10_DQUOTE(\"$string\"): $length\n\n";
+
+$length = is_XML10_SQUOTE($string = "'", 0);
+print "==> is_XML10_SQUOTE(\"$string\"): $length\n\n";
+$length = is_XML10_SQUOTE($string = "''", 0);
+print "==> is_XML10_SQUOTE(\"$string\"): $length\n\n";
+$length = is_XML10_SQUOTE($string = "0''", 0);
+print "==> is_XML10_SQUOTE(\"$string\"): $length\n\n";
+
+$length = is_XML10_COMMENT_START($string = "<!--", 0);
+print "==> is_XML10_COMMENT_START(\"$string\"): $length\n\n";
+$length = is_XML10_COMMENT_START($string = "0<!--", 0);
+print "==> is_XML10_COMMENT_START(\"$string\"): $length\n\n";
+
+$length = is_XML10_COMMENT_END($string = "-->", 0);
+print "==> is_XML10_COMMENT_END(\"$string\"): $length\n\n";
+$length = is_XML10_COMMENT_END($string = "0-->", 0);
+print "==> is_XML10_COMMENT_END(\"$string\"): $length\n\n";
+
 1;

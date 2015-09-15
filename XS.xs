@@ -95,22 +95,37 @@ STRLEN funcname(pTHX_ SV *sv, STRLEN pos, U8 *s_force, U8 *send_force) {   \
   return retval;                                                           \
 }
 
+#define XML_STRING_DECL(stringname)                                     \
+static                                                                  \
+STRLEN is_XML_##stringname(pTHX_ SV *sv, STRLEN pos, U8 *s_force, U8 *send_force) { \
+  return _is_XML_STRING(aTHX_ sv, pos, s_force, send_force, XML_ARRAY_LENGTH(stringname##_STRING), stringname##_STRING); \
+}
+
 /* ======================================================================= */
 /*              Static definitions used for lookaheads                     */
 /* ======================================================================= */
-UV CHARDATAMANY_LOOKAHEAD[]    = { /* ']', */ ']', '>' };
-UV COMMENTCHARMANY_LOOKAHEAD[] = { /* '-', */ '-'      };
-UV CDATAMANY_LOOKAHEAD[]       = { /* ']', */ ']', '>' };
-UV PICHARDATAMANY_LOOKAHEAD[]  = { /* '?', */ '>'      };
-UV IGNOREMANY_LOOKAHEAD1[]     = { /* '<', */ '!', '[' };
-UV IGNOREMANY_LOOKAHEAD2[]     = { /* ']', */ ']', '>' };
+static UV CHARDATAMANY_LOOKAHEAD[]    = { /* ']', */ ']', '>' };
+static UV COMMENTCHARMANY_LOOKAHEAD[] = { /* '-', */ '-'      };
+static UV CDATAMANY_LOOKAHEAD[]       = { /* ']', */ ']', '>' };
+static UV PICHARDATAMANY_LOOKAHEAD[]  = { /* '?', */ '>'      };
+static UV IGNOREMANY_LOOKAHEAD1[]     = { /* '<', */ '!', '[' };
+static UV IGNOREMANY_LOOKAHEAD2[]     = { /* ']', */ ']', '>' };
 
 /* ======================================================================= */
 /*              Static definitions used for exclusions                     */
 /* ======================================================================= */
 #define PITARGET_EXCLUSION_LENGTH 3
-UV PITARGET_EXCLUSION_UPPERCASE[PITARGET_EXCLUSION_LENGTH] = { 'X', 'M', 'L' };
-UV PITARGET_EXCLUSION_LOWERCASE[PITARGET_EXCLUSION_LENGTH] = { 'x', 'm', 'l' };
+static UV PITARGET_EXCLUSION_UPPERCASE[PITARGET_EXCLUSION_LENGTH] = { 'X', 'M', 'L' };
+static UV PITARGET_EXCLUSION_LOWERCASE[PITARGET_EXCLUSION_LENGTH] = { 'x', 'm', 'l' };
+
+/* ======================================================================= */
+/*                  Static definitions for strings                         */
+/* ======================================================================= */
+static UV SPACE_STRING[]         = { 0x020 };
+static UV DQUOTE_STRING[]        = { '"' };
+static UV SQUOTE_STRING[]        = { '\'' };
+static UV COMMENT_START_STRING[] = { '<', '!', '-', '-' };
+static UV COMMENT_END_STRING[]   = { '-', '-', '>' };
 
 /* ======================================================================= */
 /*          Internal function used to search for a string                  */
@@ -950,23 +965,12 @@ XML_FUNC_DECL(
               XML_NO_USERCODE()
               )
 
-/* For fixed strings sometimes doing explicit test is faster than using is_XML_STRING */
-/* _SPACE => "\x{20}" */
-#define XML_SPACE_ASCII() (                                             \
-                           XML_IS_CHAR(0x20)                            \
-                          )
-
-#define XML_SPACE_UTF8()        \
-  XML_SPACE_ASCII()
-
-XML_FUNC_DECL(
-              is_XML_SPACE,
-              (! rc) && XML_SPACE_ASCII(),
-              (! rc) && XML_SPACE_UTF8(),
-              rc,
-              XML_NO_USERCODE()
-              )
-
+/* Fixed strings */
+XML_STRING_DECL(SPACE)
+XML_STRING_DECL(DQUOTE)
+XML_STRING_DECL(SQUOTE)
+XML_STRING_DECL(COMMENT_START)
+XML_STRING_DECL(COMMENT_END)
 
 /* ======================================================================= */
 /*                                 XML 1.0                                 */
@@ -993,6 +997,10 @@ XML_FUNC_ALIAS(is_XML10_S,                             is_XML_S)
 XML_FUNC_ALIAS(is_XML10_PUBIDCHARDQUOTEMANY,           is_XML_PUBIDCHARDQUOTEMANY)
 XML_FUNC_ALIAS(is_XML10_PUBIDCHARSQUOTEMANY,           is_XML_PUBIDCHARSQUOTEMANY)
 XML_FUNC_ALIAS(is_XML10_SPACE,                         is_XML_SPACE)
+XML_FUNC_ALIAS(is_XML10_DQUOTE,                        is_XML_DQUOTE)
+XML_FUNC_ALIAS(is_XML10_SQUOTE,                        is_XML_SQUOTE)
+XML_FUNC_ALIAS(is_XML10_COMMENT_START,                 is_XML_COMMENT_START)
+XML_FUNC_ALIAS(is_XML10_COMMENT_END,                   is_XML_COMMENT_END)
 
 /* ======================================================================= */
 /*                                 XML 1.1                                 */
@@ -1019,6 +1027,10 @@ XML_FUNC_ALIAS(is_XML11_S,                             is_XML_S)
 XML_FUNC_ALIAS(is_XML11_PUBIDCHARDQUOTEMANY,           is_XML_PUBIDCHARDQUOTEMANY)
 XML_FUNC_ALIAS(is_XML11_PUBIDCHARSQUOTEMANY,           is_XML_PUBIDCHARSQUOTEMANY)
 XML_FUNC_ALIAS(is_XML11_SPACE,                         is_XML_SPACE)
+XML_FUNC_ALIAS(is_XML11_DQUOTE,                        is_XML_DQUOTE)
+XML_FUNC_ALIAS(is_XML11_SQUOTE,                        is_XML_SQUOTE)
+XML_FUNC_ALIAS(is_XML11_COMMENT_START,                 is_XML_COMMENT_START)
+XML_FUNC_ALIAS(is_XML11_COMMENT_END,                   is_XML_COMMENT_END)
 
 MODULE = MarpaX::Languages::XML		PACKAGE = MarpaX::Languages::XML::XS
 PROTOTYPES: DISABLE
@@ -1416,5 +1428,77 @@ is_XML11_SPACE(sv, pos)
     STRLEN pos
   CODE:
   RETVAL = is_XML11_SPACE(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_DQUOTE(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_DQUOTE(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_DQUOTE(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_DQUOTE(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_SQUOTE(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_SQUOTE(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_SQUOTE(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_SQUOTE(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_COMMENT_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_COMMENT_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_COMMENT_START(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_COMMENT_START(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_COMMENT_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_COMMENT_END(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_COMMENT_END(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_COMMENT_END(aTHX_ sv, pos, NULL, NULL);
   OUTPUT:
     RETVAL
