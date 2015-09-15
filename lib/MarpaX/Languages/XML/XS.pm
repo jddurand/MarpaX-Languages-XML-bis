@@ -43,5 +43,13 @@ $length = is_XML10_ALPHAMANY("12345678901ff]]>x<![?>>0", 0);
 print "==> is_XML10_ALPHAMANY: $length\n";
 $length = is_XML10_ENCNAME("ISO-8859-1 12345678901ff]]>x<![?>>0", 0);
 print "==> is_XML10_ENCNAME: $length\n";
+$length = is_XML10_NCNAME("xmlns:env:", 0);
+print "==> is_XML10_NCNAME: $length\n";
+$length = is_XML10_NCNAME("xmlns:env", 0);
+print "==> is_XML10_NCNAME: $length\n";
+$length = is_XML10_NCNAME("xmlns::env", 0);
+print "==> is_XML10_NCNAME: $length\n";
+$length = is_XML10_NCNAME("xmlns", 0);
+print "==> is_XML10_NCNAME: $length\n";
 
 1;
