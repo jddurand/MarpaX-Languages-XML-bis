@@ -306,10 +306,10 @@ our %GRAMMAR_EVENT_COMMON =
    # xmlns lexemes are using predicted_length < 0, even if at the end, except for PREFIX and NCNAME, the length is predictable.
    # When length is < 0, the predicted size is abs(predicted_length).
    #
-   '^NCNAME'                        => { type => 'predicted',                         symbol_name => 'NCNAME',                       lexeme => '_NCNAME', priority => 1 },
-   '^PREFIX'                        => { type => 'predicted',                         symbol_name => 'PREFIX',                       lexeme => '_PREFIX', priority => 1 },
-   '^XMLNSCOLON'                    => { type => 'predicted', predicted_length => -6, symbol_name => 'XMLNSCOLON',                   lexeme => '_XMLNSCOLON', priority => 2 },
-   '^XMLNS'                         => { type => 'predicted', predicted_length => -5, symbol_name => 'XMLNS',                        lexeme => '_XMLNS', priority => 2 },
+   '^NCNAME'                        => { type => 'predicted',                         symbol_name => 'NCNAME',                       lexeme => '_NCNAME' }, # priority => 1
+   '^PREFIX'                        => { type => 'predicted',                         symbol_name => 'PREFIX',                       lexeme => '_PREFIX' }, # priority => 1
+   '^XMLNSCOLON'                    => { type => 'predicted', predicted_length => -6, symbol_name => 'XMLNSCOLON',                   lexeme => '_XMLNSCOLON' }, # priority => 2
+   '^XMLNS'                         => { type => 'predicted', predicted_length => -5, symbol_name => 'XMLNS',                        lexeme => '_XMLNS' }, # priority => 2
   );
 
 our %GRAMMAR_EVENT =
@@ -1109,7 +1109,9 @@ _DIGITMANY ~ __ANYTHING
 _ALPHAMANY ~ __ANYTHING
 _ENCNAME ~ __ANYTHING
 _S ~ __ANYTHING
+:lexeme ~ <_NCNAME> priority => 1
 _NCNAME ~ __ANYTHING
+:lexeme ~ <_PREFIX> priority => 1
 _PREFIX ~ __ANYTHING
 _PUBIDCHARDQUOTEMANY ~ __ANYTHING
 _PUBIDCHARSQUOTEMANY ~ __ANYTHING
@@ -1201,7 +1203,9 @@ _TEXTDECL_END ~ __ANYTHING
 _ENCODING ~ __ANYTHING
 _NOTATIONDECL_START ~ __ANYTHING
 _NOTATIONDECL_END ~ __ANYTHING
+:lexeme ~ <_XMLNSCOLON> priority => 2
 _XMLNSCOLON ~ __ANYTHING
+:lexeme ~ <_XMLNS> priority => 2
 _XMLNS ~ __ANYTHING
 _COLON ~ __ANYTHING
 
