@@ -42,6 +42,15 @@ our $LOG_LINECOLUMN_FORMAT_HERE = '%6d:%-4d             :';
 # -------------------
 
 #
+# EOF (let's say end of input instead)
+#
+has _eof => (
+             is => 'rw',
+             isa => Bool,
+             default => undef
+            );
+
+#
 # Namespace
 #
 has _namespace => (
@@ -98,15 +107,6 @@ has _attribute => (
                                _elements__attribute => 'elements'
                               },
                   );
-
-#
-# EOF
-#
-has _eof => (
-             is => 'rw',
-             isa => Bool,
-             default => 0
-            );
 
 #
 # XmlDecl or TextDecl context because of XML1.1 restriction on #x85 and #x2028
@@ -392,84 +392,26 @@ sub _find_encoding {
   #
   return ($bom_encoding, $guess_encoding, $found_encoding, $byte_start);
 }
-
-sub _event_names {
-  my ($self, $r, $grammar_event, $LineNumber, $ColumnNumber) = @_;
-
-  my @event_names = map { $_->[0] } @{$r->events()};
-  #
-  # Marpa already orders events in this order: predictions, nulled, completions
-  # We also know what are the predictions, but want to arrange them also by:
-  # - lexeme type
-  # - length
-  # Priority is handled directly in the grammar
-  #
-  my @predictions;
-  my @not_predictions;
-  foreach (@event_names) {
-    if ($grammar_event->{$_}->{is_prediction}) {
-      push(@predictions, $_);
-    } else {
-      push(@not_predictions, $_);
-    }
-  }
-
-  my @lexeme_predictions;
-  my @not_lexeme_predictions;
-  foreach (@predictions) {
-    if ($grammar_event->{$_}->{lexeme}) {
-      push(@lexeme_predictions, $_);
-    } else {
-      push(@not_lexeme_predictions, $_);
-    }
-  }
-
-  @event_names = (@lexeme_predictions, @not_lexeme_predictions, @not_predictions);
-  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-    $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Events: %s", $LineNumber, $ColumnNumber, \@event_names);
-  }
-
-  return \@event_names;
-}
-
 #
-# It is assumed that caller ONLY USE completed or nulled events
-# The predicted events are RESERVED for lexeme prediction.
 # This routine is the core of the package, so quite highly optimized, making it
-# less readable -;
+# less readable -; For instance setters and getters are avoided.
 #
-#use Time::HiRes qw/gettimeofday/;
-#my %stat;
-#my %time;
-#sub END {
-#  foreach (keys %time) {
-#    $time{$_} /= $stat{$_};
-#  }
-#  foreach (sort {$time{$a} <=> $time{$b} } keys %time) {
-#    printf STDERR "%s: %d microseconds (%d calls)\n", $_, $time{$_}, $stat{$_};
-#  }
-#}
-
 sub _generic_parse {
   #
   # buffer is accessed using $_[1] to avoid dereferencing $self->io->buffer everytime
   #
   my ($self, undef, $grammar, $end_event_name, $callback_ref, $eol) = @_;
-
   #
   # Create a recognizer
   #
   my $r = Marpa::R2::Scanless::R->new({ grammar => $grammar->scanless });
-
+  $r->read(\'  ');
   #
-  # Mapping event <=> lexeme cached for performance
+  # Variables that need initialization
   #
   my %grammar_event    = $grammar->elements_grammar_event;
   my %lexeme_match     = $grammar->elements_lexeme_match;
   my %lexeme_exclusion = $grammar->elements_lexeme_exclusion;
-  #
-  # Variables that need initialization
-  #
   my $global_pos   = $self->_global_pos;
   my $LineNumber   = $self->LineNumber;
   my $ColumnNumber = $self->ColumnNumber;
@@ -477,150 +419,75 @@ sub _generic_parse {
   my $length       = $self->_length;
   my $remaining    = $self->_remaining;
   #
-  # Variables that does not need re-initialization
+  # Infinite loop until user says to stop or error
   #
-  my $data;
-  my $predicted_length;
-  my $abs_predicted_length;
-  my $matched_data;
-  my $lexeme_match;
-  my $lexeme_exclusion;
-  my $length_matched_data;
-  my $use_index;
-  #
-  # Variables used in the loop: writen like because of goto label that would redo the ops
-  #
-  my %length;
-  my $max_length;
-  my @predicted_lexemes;
-
-  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-    $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Pos: %d, Length: %d, Remaining: %d", $LineNumber, $ColumnNumber, $pos, $length, $remaining);
-    if ($self->_remaining > 0) {
-      $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Data: %s", $LineNumber, $ColumnNumber,
-                             hexdump(data              => substr($_[1], $pos, 15),
-                                     suppress_warnings => 1,
-                                    ));
+  while (1) {
+    my @event_names = map { $_->[0] } @{$r->events()};
+    my @terminals_expected = @{$r->terminals_expected()};
+    if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+      $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Pos: %d, Length: %d, Remaining: %d", $LineNumber, $ColumnNumber, $pos, $length, $remaining);
+      if ($self->_remaining > 0) {
+        $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Data: %s", $LineNumber, $ColumnNumber,
+                               hexdump(data              => substr($_[1], $pos, 15),
+                                       suppress_warnings => 1,
+                                      ));
+      }
+      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Events: %s", $LineNumber, $ColumnNumber, \@event_names);
+      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Expect: %s", $LineNumber, $ColumnNumber, \@terminals_expected);
     }
-  }
-  #
-  # Loop on input
-  #
-  for (
-       #
-       # The buffer for Marpa is not of importance here, but two bytes at least for the length to avoid exhaustion.
-       # Since we pause on everything, read() and resume() always never change position in the virtual buffer
-       #
-       $r->read(\'  ')
-       ;
-       ;
-       #
-       # Resume will croak if grammar is exhausted. We handle this case ourself (absence of prediction + remaining chargs)
-       #
-       $r->resume()
-      ) {
-    my $can_stop     = 0;
-
-    my $event_names_ref = $self->_event_names($r, \%grammar_event, $LineNumber, $ColumnNumber);
-  manage_events:
     #
-    # Predicted events always come first -;
+    # First the events
     #
-    %length = ();
-    $max_length = 0;
-    @predicted_lexemes = ();
-    #
-    # Our regexps are always in in the form qr/\G.../p, i.e. if there is no match
-    # the position is not changing. Furthermore we are always reading forward.
-    # So the position is always implicitely correct at this stage.
-    #
-    # pos($_[1]) = $pos;
-
-    foreach (@{$event_names_ref}) {
-      my $lexeme = $grammar_event{$_}->{lexeme};
-
-      if ($lexeme && $grammar_event{$_}->{is_prediction}) {
-        #
-        # INTERNAL PREDICTION EVENTS
-        # --------------------------
-        push(@predicted_lexemes, $lexeme);
-        #
-        # Check if the decision about this lexeme can be done
-        #
-        if (($predicted_length = $grammar_event{$_}->{predicted_length}) > 0) {
-          $abs_predicted_length = $predicted_length;
-        } else {
-          $abs_predicted_length = - $predicted_length;
+    my $can_stop = 0;
+    foreach (@event_names) {
+      #
+      # The end event name ?
+      #
+      if ($_ eq $end_event_name) {
+        $can_stop = 1;
+        if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+          $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Grammar end event %s", $LineNumber, $ColumnNumber, $_);
         }
+      }
+      #
+      # Callback ?
+      #
+      my $code = $callback_ref->{$_};
+      #
+      # A G1 callback has no other argument but the recognizer
+      #
+      if ($code && ! $self->$code($_[1], $r)) {
         #
-        # It happen much more frequently that that lexeme should not be matched
-        # than that we are at the end of buffer
+        # Any false return value mean immediate stop
         #
-        if ($abs_predicted_length && ($abs_predicted_length < $max_length)) {
+        if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+          $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Event callback %s says to stop", $LineNumber, $ColumnNumber, $_);
+        }
+        return;
+      }
+    }
+    #
+    # Then the expected lexemes
+    # This is a do {} while () because of end-of-buffer management
+    #
+    my $terminals_expected_again = 0;
+    do {
+      my %length = ();
+      my $max_length = 0;
+      foreach (@terminals_expected) {
+        #
+        # It is a configuration error to have $lexeme_match{$_} undef at this stage
+        # Note: all our patterns are compiled with the /p modifier for perl < 5.20
+        #
+        if ($_[1] =~ $lexeme_match{$_}) {
+          my $matched_data = ${^MATCH};
+          my $length_matched_data = length($matched_data);
           #
-          # No need to check for this lexeme: its predicted length is lower of another that has already matched.
+          # Match reaches end of buffer ?
           #
-          next;
-        } elsif (($remaining <= 0) || ($predicted_length > $remaining)) {     # Second test imply that $predicted_length is > 1. Some XMLNS lexemes just always avoid EOF.
-          my $old_remaining = $remaining;
-          if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-            if ($remaining > 0) {
-              $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Lexeme %s requires %d chars > %d remaining for decidability", $LineNumber, $ColumnNumber, $lexeme, $predicted_length, $remaining);
-            }
-          }
-          $self->_reduceAndRead($_[1], $r, $pos, $length, $remaining, \$pos, \$length, \$remaining, $grammar, $eol);
-          if ($remaining > $old_remaining) {
-            #
-            # Something was read
-            #
-            goto manage_events;
-          } else {
-            if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-              $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Nothing more read", $LineNumber, $ColumnNumber);
-            }
-          }
-        }
-        #
-        # It is assumed that if the caller setted a lexeme name, he also setted a lexeme regexp
-        #
-        $length_matched_data = undef;
-        #
-        # It is a configuration error to have $lexeme_match{$lexeme} undef at this stage
-        #
-        if (0) {
-          use MarpaX::Languages::XML::XS;
-          my $lexeme_name = $_;
-          substr($lexeme_name, 0, 1, '');
-          my $method = "MarpaX::Languages::XML::XS::is_XML" . (($self->{xml_version} || '1.0') eq '1.0' ? '10' : '11') . "_$lexeme_name";
-          no strict 'refs';
-          $length_matched_data = &$method($_[1], $pos);
-          if ($length_matched_data) {
-            $matched_data = substr($_[1], $pos, $length_matched_data);
-          }
-        }
-        else {
-          $use_index = $grammar_event{$_}->{index};                                  # It is important that the grammar sets index to true ONLY when $predicted_length != 0
-          if ($use_index) {
-            $lexeme_match = $lexeme_match{$lexeme};
-            if (substr($_[1], $pos, $abs_predicted_length) eq $lexeme_match) {
-              $matched_data        = $lexeme_match;
-              $length_matched_data = $abs_predicted_length;
-            }
-          } else {
-            #my ($seconds0, $microseconds0) = gettimeofday;
-            if ($_[1] =~ $lexeme_match{$lexeme}) {
-              #my ($seconds1, $microseconds1) = gettimeofday;
-              #$stat{$lexeme}++;
-              #$time{$lexeme} += $microseconds1 - $microseconds0;
-              $matched_data        = ${^MATCH};
-              $length_matched_data = length($matched_data);
-            }
-          }
-        }
-        if ($length_matched_data) {
-          if (($predicted_length <= 0) && (($pos + $length_matched_data) >= $length)) { # Match up to the end of buffer is avoided as much as possible
+          if ((($pos + $length_matched_data) >= $length) && ! $self->{_eof}) { # Match up to the end of buffer is avoided as much as possible
             if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-              $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Lexeme %s is of unpredicted size and currently reaches end-of-buffer", $LineNumber, $ColumnNumber, $lexeme);
+              $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Lexeme %s is reaching end-of-buffer", $LineNumber, $ColumnNumber, $_);
             }
             my $old_remaining = $remaining;
             $self->_reduceAndRead($_[1], $r, $pos, $length, $remaining, \$pos, \$length, \$remaining, $grammar, $eol);
@@ -628,196 +495,145 @@ sub _generic_parse {
               #
               # Something was read
               #
-              goto manage_events;
+              $terminals_expected_again = 1;
+              last;
             } else {
+              $self->{_eof} = 1;
               if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
                 $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Nothing more read", $LineNumber, $ColumnNumber);
               }
             }
           }
           #
-          # Note: all our patterns are compiled with the /p modifier for perl < 5.20
+          # Match excluded ?
           #
-          $lexeme_exclusion = $lexeme_exclusion{$lexeme};
+          my $lexeme_exclusion = $lexeme_exclusion{$_};
           if ($lexeme_exclusion && ($matched_data =~ $lexeme_exclusion)) {
             if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-              $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Lexeme %s match excluded", $LineNumber, $ColumnNumber, $lexeme);
+              $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Lexeme %s match excluded", $LineNumber, $ColumnNumber, $_);
             }
-          } else {
-            if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-              $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Match %s with length=%d", $LineNumber, $ColumnNumber, $lexeme, length($matched_data));
-              foreach (split(/\R/, hexdump(data => $matched_data, suppress_warnings => 1))) {
-                $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE ... %s", $LineNumber, $ColumnNumber, $_);
-              }
+            next;
+          }
+          #
+          # Lexeme ok
+          #
+          if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+            $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Match %s with length=%d", $LineNumber, $ColumnNumber, $_, length($matched_data));
+            foreach (split(/\R/, hexdump(data => $matched_data, suppress_warnings => 1))) {
+              $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE ... %s", $LineNumber, $ColumnNumber, $_);
             }
-            #
-            # This test is not needed until events are sorted by abs(predicted_length)
-            #
-            if (%length && ($length_matched_data > $max_length)) {
-              #
-              # Everything previously matched is reset
-              #
-              %length = ();
-            }
-            $data = $matched_data;
+          }
+          $length{$_} = $length_matched_data;
+          if ($length_matched_data > $max_length) {
             $max_length = $length_matched_data;
-            $length{$lexeme} = $length_matched_data;
           }
-        }
-      } else {
-        #
-        # ANY OTHER EVENT
-        # ---------------
-        if ($_ eq $end_event_name) {
-          $can_stop = 1;
-          if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-            $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Grammar end event %s", $LineNumber, $ColumnNumber, $_);
-          }
-        }
-        #
-        # Callback ?
-        #
-        my $code = $callback_ref->{$_};
-        #
-        # A G1 callback has no argument
-        #
-        my $rc_switch = $code ? $self->$code($_[1], $r) : 1;
-        #
-        # Any false return value mean immediate stop
-        #
-        if (! $rc_switch) {
-          if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-            $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Event callback %s says to stop", $LineNumber, $ColumnNumber, $_);
-          }
-          return;
         }
       }
-    }
-    if (@predicted_lexemes) {
-      if (! $max_length) {
-        if ($can_stop) {
-          if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-            $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE No predicted lexeme found but grammar end flag is on", $LineNumber, $ColumnNumber);
-          }
-          return;
-        } else {
-          $self->_parse_exception('No predicted lexeme found', $r);
-        }
-      } else {
-        #
-        # Update position and remaining chars in internal buffer, global line and column numbers. Wou might think it is too early, but
-        # this is to have the expected next positions when doing predicted lexeme callbacks.
-        #
-        # You will notice that we do NOT use the setter for one good reason: it takes time and we
-        # know what we are doing. I remind this routine should be ultra optimized.
-        #
-        # my $next_pos = $self->_set__next_pos($pos + $max_length);
-        my $next_pos = $self->{_next_pos} = $pos + $max_length;
-        # my $next_global_pos = $self->_set__next_global_pos($global_pos + $max_length);
-        my $next_global_pos = $self->{_next_global_pos} = $global_pos + $max_length;
-        my $linebreaks;
-        my $next_global_column;
-        my $next_global_line;
-        if ($linebreaks = () = $data =~ /\R/g) {
-          # $next_global_line = $self->_set__next_global_line($LineNumber + $linebreaks);
-          $next_global_line = $self->{_next_global_line} = $LineNumber + $linebreaks;
-          # $next_global_column = $self->_set__next_global_column(1 + ($max_length - $+[0]));
-          $next_global_column = $self->{_next_global_column} = 1 + ($max_length - $+[0]);
-        } else {
-          # $next_global_line = $self->_set__next_global_line($LineNumber);
-          $next_global_line = $self->{_next_global_line} = $LineNumber;
-          # $next_global_column = $self->_set__next_global_column($ColumnNumber + $max_length);
-          $next_global_column = $self->{_next_global_column} = $ColumnNumber + $max_length;
-        }
-        if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-          $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_MOVE %s", $LineNumber, $ColumnNumber, $next_global_line, $next_global_column, join(', ', keys %length));
-          #
-          # When trace is on, debug is necessary on -;
-          #
-          if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-            $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_MOVE Dump of %d characters:", $LineNumber, $ColumnNumber, $next_global_line, $next_global_column, $max_length);
-            foreach (split(/\R/, hexdump(data => $data, suppress_warnings => 1))) {
-              $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_MOVE ... %s", $LineNumber, $ColumnNumber, $next_global_line, $next_global_column, $_);
-            }
-          }
-        }
-        #
-        # If we are here, this mean that no eventual callback says to not be there -;
-        #
-        foreach (keys %length) {
-          #
-          # Callback on lexeme prediction ? Note: ONLY lexeme predictions are supported.
-          # The name of the event is the lexeme itself, i.e. ALWAYS "_XXX"
-          #
-          my $code = $callback_ref->{$_};
-          #
-          # An L0 callback has arguments: $r and $data
-          #
-          my $rc_switch = $code ? $self->$code($_[1], $r, $data) : 1;
-          if (! $rc_switch) {
-            if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-              $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Event callback %s says to stop", $LineNumber, $ColumnNumber, $_);
+      #
+      # Push terminals if any
+      #
+      if (@terminals_expected) {
+        if (! $max_length) {
+          if ($can_stop) {
+            if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+              $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE No predicted lexeme found but grammar end flag is on", $LineNumber, $ColumnNumber);
             }
             return;
+          } else {
+            $self->_parse_exception('No predicted lexeme found', $r);
           }
+        }
+        my $data = undef;
+        #
+        # Special case of _XMLNSCOLON and _XMLNS: we /know/ in advance they have
+        # higher priority
+        #
+        if (exists($length{_XMLNSCOLON})) {
+          %length = (_XMLNSCOLON => $length{_XMLNSCOLON});
+          $data = 'xmlns:';
+          $max_length = length($data);
+        } elsif (exists($length{_XMLNS})) {
+          %length = (_XMLNSCOLON => $length{_XMLNSCOLON});
+          $data = 'xmlns';
+          $max_length = length($data);
+        } else {
           #
-          # Push alternative
+          # Everything else has the same (default) priority of 0: keep the longests only
           #
+          %length = map {$_ => $length{$_}} grep {
+            if ($length{$_} == $max_length) {
+              $data //= substr($_[1], $pos, $max_length);
+              1;
+            } else {
+              0;
+            }
+          } keys %length;
+        }
+        #
+        # Push the alternatives and complete
+        #
+        foreach (keys %length) {
           $r->lexeme_alternative($_);
           #
-          # Remember data
+          # Remember last data for this lexeme
           #
-          # $self->_set__last_lexeme($_, $data);
           $self->{_last_lexeme}->{$_} = $data;
         }
         #
         # Position 0 and length 1: the Marpa input buffer is virtual
         #
         $r->lexeme_complete(0, 1);
-        # $LineNumber   = $self->_set_LineNumber($next_global_line);
-        $LineNumber   = $self->{LineNumber} = $next_global_line;
-        # $ColumnNumber = $self->_set_ColumnNumber($next_global_column);
+        #
+        # Update all trackers
+        #
+        my $next_pos        = $self->{_next_pos}        = $pos + $max_length;
+        my $next_global_pos = $self->{_next_global_pos} = $global_pos + $max_length;
+        my $linebreaks;
+        my $next_global_column;
+        my $next_global_line;
+        if ($linebreaks = () = $data =~ /\R/g) {
+          $next_global_line   = $self->{_next_global_line}   = $LineNumber + $linebreaks;
+          $next_global_column = $self->{_next_global_column} = 1 + ($max_length - $+[0]);
+        } else {
+          $next_global_line   = $self->{_next_global_line}   = $LineNumber;
+          $next_global_column = $self->{_next_global_column} = $ColumnNumber + $max_length;
+        }
+        if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+          $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_MOVE Push %s", $LineNumber, $ColumnNumber, $next_global_line, $next_global_column, [ keys %length ]);
+          if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+            $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_MOVE Push spans on %d characters:", $LineNumber, $ColumnNumber, $next_global_line, $next_global_column, $max_length);
+            foreach (split(/\R/, hexdump(data => $data, suppress_warnings => 1))) {
+              $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_MOVE ... %s", $LineNumber, $ColumnNumber, $next_global_line, $next_global_column, $_);
+            }
+          }
+        }
+        $LineNumber   = $self->{LineNumber}   = $next_global_line;
         $ColumnNumber = $self->{ColumnNumber} = $next_global_column;
-        # $global_pos   = $self->_set__global_pos($next_global_pos);
-        $global_pos   = $self->{_global_pos} = $next_global_pos;
-        # $pos          = $self->_set__pos($next_pos);
-        $pos          = $self->{_pos} = $next_pos;
-        # $remaining    = $self->_set__remaining($length - $pos);
-        $remaining    = $self->{_remaining} = $length - $pos;
+        $global_pos   = $self->{_global_pos}  = $next_global_pos;
+        $pos          = $self->{_pos}         = $next_pos;
+        $remaining    = $self->{_remaining}   = $length - $pos;
         #
         # Reposition internal buffer
         #
         pos($_[1]) = $pos;
-        if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-          $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Pos: %d, Length: %d, Remaining: %d", $LineNumber, $ColumnNumber, $pos, $length, $remaining);
-          if ($remaining > 0) {
-            $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Data: %s", $LineNumber, $ColumnNumber,
-                                   hexdump(data              => substr($_[1], $pos, 15),
-                                           suppress_warnings => 1,
-                                          ));
-          }
-        }
-        #
-        # lexeme complete can generate new events: handle them before eventually resuming
-        #
-        $event_names_ref = $self->_event_names($r, \%grammar_event, $LineNumber, $ColumnNumber);
-        goto manage_events;
-      }
-    } else {
-      #
-      # No prediction: this is ok only if grammar end_of_grammar flag is set
-      #
-      if ($can_stop) {
-        if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-          $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE No prediction and grammar end flag is on", $LineNumber, $ColumnNumber);
-        }
-        return;
       } else {
-        $self->_parse_exception('No prediction and grammar end flag is not set', $r);
+        #
+        # No prediction: this is ok only if grammar end_of_grammar flag is set
+        #
+        if ($can_stop) {
+          if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+            $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE No prediction and grammar end flag is on", $LineNumber, $ColumnNumber);
+          }
+          return;
+        } else {
+          $self->_parse_exception('No prediction and grammar end flag is not set', $r);
+        }
       }
-    }
+    } while ($terminals_expected_again);
   }
-
+  #
+  # Never reached -;
+  #
   return;
 }
 
@@ -872,7 +688,7 @@ sub _eol {
   my ($self, undef, $r, $grammar, $orig_length, $decl) = @_;
 
   my $error_message;
-  my $eol_length = $grammar->eol($_[1], $self->_eof, $decl, \$error_message);
+  my $eol_length = $grammar->eol($_[1], $self->{_eof}, $decl, \$error_message);
   if ($eol_length < 0) {
     #
     # This is an error
@@ -896,7 +712,7 @@ sub _read {
       if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
         $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE EOF", $self->LineNumber, $self->ColumnNumber);
       }
-      $self->_eof(1);
+      $self->{_eof} = 1;
       return 0;
     } else {
       if ($eol) {
@@ -904,7 +720,7 @@ sub _read {
         # This can return 0
         #
         my $error_message;
-        my $eol_length = $grammar->eol($_[1], $self->_eof, \$error_message);
+        my $eol_length = $grammar->eol($_[1], $self->{_eof}, \$error_message);
         if ($eol_length < 0) {
           #
           # This is an error

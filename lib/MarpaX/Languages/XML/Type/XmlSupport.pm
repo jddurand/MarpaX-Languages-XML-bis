@@ -10,6 +10,6 @@ use Types::Standard -types;
 # AUTHORITY
 
 declare XmlSupport,
-  as Enum[qw/xml xmlns xml_or_xmlns/];
+  as Enum[qw/xml xmlns/];
 
 1;
