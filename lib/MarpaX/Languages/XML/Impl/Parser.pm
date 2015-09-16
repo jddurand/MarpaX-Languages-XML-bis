@@ -418,12 +418,13 @@ sub _generic_parse {
   my $pos          = $self->_pos;
   my $length       = $self->_length;
   my $remaining    = $self->_remaining;
+  my @lexeme_match_by_symbol_ids = $grammar->elements_lexeme_match_by_symbol_ids;
   #
   # Infinite loop until user says to stop or error
   #
   while (1) {
     my @event_names = map { $_->[0] } @{$r->events()};
-    my @terminals_expected = @{$r->terminals_expected()};
+    my @terminals_expected_to_symbol_ids = $r->terminals_expected_to_symbol_ids();
     if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
       $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Pos: %d, Length: %d, Remaining: %d", $LineNumber, $ColumnNumber, $pos, $length, $remaining);
       if ($self->_remaining > 0) {
@@ -433,7 +434,9 @@ sub _generic_parse {
                                       ));
       }
       $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Events: %s", $LineNumber, $ColumnNumber, \@event_names);
-      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Expect: %s", $LineNumber, $ColumnNumber, \@terminals_expected);
+      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE   IDs : %s", $LineNumber, $ColumnNumber, \@terminals_expected_to_symbol_ids);
+      my @terminals_expected = @{$r->terminals_expected()};
+      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE ID Map: %s", $LineNumber, $ColumnNumber, \@terminals_expected);
     }
     #
     # First the events
@@ -474,12 +477,13 @@ sub _generic_parse {
     do {
       my %length = ();
       my $max_length = 0;
-      foreach (@terminals_expected) {
+      foreach (@terminals_expected_to_symbol_ids) {
         #
         # It is a configuration error to have $lexeme_match{$_} undef at this stage
         # Note: all our patterns are compiled with the /p modifier for perl < 5.20
         #
-        if ($_[1] =~ $lexeme_match{$_}) {
+        # We use an optimized version to bypass the the Marpa::R2::Grammar::symbol_name call
+        if ($_[1] =~ $lexeme_match_by_symbol_ids[$_]) {
           my $matched_data = ${^MATCH};
           my $length_matched_data = length($matched_data);
           #
@@ -532,7 +536,7 @@ sub _generic_parse {
       #
       # Push terminals if any
       #
-      if (@terminals_expected) {
+      if (@terminals_expected_to_symbol_ids) {
         if (! $max_length) {
           if ($can_stop) {
             if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
@@ -573,7 +577,7 @@ sub _generic_parse {
         # Push the alternatives and complete
         #
         foreach (keys %length) {
-          $r->lexeme_alternative($_);
+          $r->lexeme_alternative_by_symbol_id($_);
           #
           # Remember last data for this lexeme
           #

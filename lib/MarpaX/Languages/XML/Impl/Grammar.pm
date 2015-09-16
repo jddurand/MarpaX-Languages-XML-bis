@@ -26,6 +26,12 @@ This module is an implementation of MarpaX::Languages::XML::Role::Grammar. It pr
 
 =cut
 
+has spec => (
+             is     => 'ro',
+             isa    => Str,
+             writer => 'set_spec'
+            );
+
 has _attvalue => (
                   is     => 'ro',
                   isa    => HashRef[CodeRef],
@@ -94,7 +100,7 @@ has xmlns_scanless => (
 
 has lexeme_match => (
                       is  => 'ro',
-                      isa => HashRef[RegexpRef|Str],
+                      isa => HashRef[RegexpRef],
                       lazy  => 1,
                       builder => '_build_lexeme_match',
                       handles_via => 'Hash',
@@ -104,6 +110,19 @@ has lexeme_match => (
                                   set_lexeme_match       => 'set',
                                   get_lexeme_match       => 'get',
                                   exists_lexeme_match    => 'exists'
+                                 }
+                      );
+
+has lexeme_match_by_symbol_ids => (
+                      is  => 'ro',
+                      isa => ArrayRef[RegexpRef|Undef],
+                      lazy  => 1,
+                      builder => '_build_lexeme_match_by_symbol_ids',
+                      handles_via => 'Array',
+                      handles => {
+                                  elements_lexeme_match_by_symbol_ids  => 'elements',
+                                  set_lexeme_match_by_symbol_ids       => 'set',
+                                  get_lexeme_match_by_symbol_ids       => 'get'
                                  }
                       );
 
@@ -369,6 +388,10 @@ sub _build_xmlns_scanless {
 sub _scanless {
   my ($self, $data, $spec) = @_;
   #
+  # Set spec
+  #
+  $self->set_spec($spec);
+  #
   # Add events
   #
   foreach ($self->keys_grammar_event) {
@@ -391,6 +414,25 @@ sub _scanless {
   }
 
   return Marpa::R2::Scanless::G->new({source => \$data});
+}
+
+sub _build_lexeme_match_by_symbol_ids {
+  my ($self) = @_;
+
+  my $symbol_by_name_hash = $self->scanless->symbol_by_name_hash;
+  if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+    $self->_logger->debugf('%s/%s/%s: Symbol By Name: %s', $self->spec, $self->xml_version, $self->start, $symbol_by_name_hash);
+  }
+  #
+  # Build the regexp list as an array using symbol ids as indice
+  #
+  my @array = ();
+  foreach (keys %{$symbol_by_name_hash}) {
+    if ($self->exists_lexeme_match($_)) {
+      $array[$symbol_by_name_hash->{$_}] = $self->get_lexeme_match($_);
+    }
+  }
+  return \@array;
 }
 
 sub _build_xml_scanless {
