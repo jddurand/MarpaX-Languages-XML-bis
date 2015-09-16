@@ -601,21 +601,34 @@ sub _generic_parse {
         #
         # It is a configuration error to have $lexeme_match{$lexeme} undef at this stage
         #
-        $use_index = $grammar_event{$_}->{index};                                  # It is important that the grammar sets index to true ONLY when $predicted_length != 0
-        if ($use_index) {
-          $lexeme_match = $lexeme_match{$lexeme};
-          if (substr($_[1], $pos, $abs_predicted_length) eq $lexeme_match) {
-            $matched_data        = $lexeme_match;
-            $length_matched_data = $abs_predicted_length;
+        if (0) {
+          use MarpaX::Languages::XML::XS;
+          my $lexeme_name = $_;
+          substr($lexeme_name, 0, 1, '');
+          my $method = "MarpaX::Languages::XML::XS::is_XML" . (($self->{xml_version} || '1.0') eq '1.0' ? '10' : '11') . "_$lexeme_name";
+          no strict 'refs';
+          $length_matched_data = &$method($_[1], $pos);
+          if ($length_matched_data) {
+            $matched_data = substr($_[1], $pos, $length_matched_data);
           }
-        } else {
-          #my ($seconds0, $microseconds0) = gettimeofday;
-          if ($_[1] =~ $lexeme_match{$lexeme}) {
-            #my ($seconds1, $microseconds1) = gettimeofday;
-            #$stat{$lexeme}++;
-            #$time{$lexeme} += $microseconds1 - $microseconds0;
-            $matched_data        = ${^MATCH};
-            $length_matched_data = length($matched_data);
+        }
+        else {
+          $use_index = $grammar_event{$_}->{index};                                  # It is important that the grammar sets index to true ONLY when $predicted_length != 0
+          if ($use_index) {
+            $lexeme_match = $lexeme_match{$lexeme};
+            if (substr($_[1], $pos, $abs_predicted_length) eq $lexeme_match) {
+              $matched_data        = $lexeme_match;
+              $length_matched_data = $abs_predicted_length;
+            }
+          } else {
+            #my ($seconds0, $microseconds0) = gettimeofday;
+            if ($_[1] =~ $lexeme_match{$lexeme}) {
+              #my ($seconds1, $microseconds1) = gettimeofday;
+              #$stat{$lexeme}++;
+              #$time{$lexeme} += $microseconds1 - $microseconds0;
+              $matched_data        = ${^MATCH};
+              $length_matched_data = length($matched_data);
+            }
           }
         }
         if ($length_matched_data) {
