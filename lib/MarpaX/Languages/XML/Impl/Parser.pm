@@ -401,8 +401,8 @@ sub _event_names {
   # Marpa already orders events in this order: predictions, nulled, completions
   # We also know what are the predictions, but want to arrange them also by:
   # - lexeme type
-  # - priority
   # - length
+  # Priority is handled directly in the grammar
   #
   my @predictions;
   my @not_predictions;
@@ -424,17 +424,7 @@ sub _event_names {
     }
   }
 
-  my @prioritized_lexeme_predictions;
-  if ($#lexeme_predictions > 0) {
-    @prioritized_lexeme_predictions = sort {   $grammar_event->{$b}->{priority} <=> $grammar_event->{$a}->{priority}
-                                                 ||
-                                                 abs($grammar_event->{$b}->{predicted_length}) <=> abs($grammar_event->{$a}->{predicted_length})
-                                               } @lexeme_predictions;
-  } else {
-    @prioritized_lexeme_predictions = @lexeme_predictions;
-  }
-
-  @event_names = (@prioritized_lexeme_predictions, @not_lexeme_predictions, @not_predictions);
+  @event_names = (@lexeme_predictions, @not_lexeme_predictions, @not_predictions);
   if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
     $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Events: %s", $LineNumber, $ColumnNumber, \@event_names);
   }
@@ -497,14 +487,12 @@ sub _generic_parse {
   my $lexeme_exclusion;
   my $length_matched_data;
   my $use_index;
-  my $priority;
   #
   # Variables used in the loop: writen like because of goto label that would redo the ops
   #
   my %length;
   my $max_length;
   my @predicted_lexemes;
-  my $max_priority;
 
   if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
     $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Pos: %d, Length: %d, Remaining: %d", $LineNumber, $ColumnNumber, $pos, $length, $remaining);
@@ -541,7 +529,6 @@ sub _generic_parse {
     %length = ();
     $max_length = 0;
     @predicted_lexemes = ();
-    $max_priority = 0;                 # Note: in our model a priority must be >= 0
     #
     # Our regexps are always in in the form qr/\G.../p, i.e. if there is no match
     # the position is not changing. Furthermore we are always reading forward.
@@ -569,10 +556,9 @@ sub _generic_parse {
         # It happen much more frequently that that lexeme should not be matched
         # than that we are at the end of buffer
         #
-        $priority = $grammar_event{$_}->{priority};
-        if (($priority < $max_priority) || ($abs_predicted_length && ($abs_predicted_length < $max_length))) {
+        if ($abs_predicted_length && ($abs_predicted_length < $max_length)) {
           #
-          # No need to check for this lexeme: its priority or predicted length is lower of another that has already matched.
+          # No need to check for this lexeme: its predicted length is lower of another that has already matched.
           #
           next;
         } elsif (($remaining <= 0) || ($predicted_length > $remaining)) {     # Second test imply that $predicted_length is > 1. Some XMLNS lexemes just always avoid EOF.
@@ -665,9 +651,9 @@ sub _generic_parse {
               }
             }
             #
-            # This test is not needed until events are sorted by priority and abs(predicted_length)
+            # This test is not needed until events are sorted by abs(predicted_length)
             #
-            if (%length && (($priority > $max_priority) || ($length_matched_data > $max_length))) {
+            if (%length && ($length_matched_data > $max_length)) {
               #
               # Everything previously matched is reset
               #
@@ -676,7 +662,6 @@ sub _generic_parse {
             $data = $matched_data;
             $max_length = $length_matched_data;
             $length{$lexeme} = $length_matched_data;
-            $max_priority = $priority;
           }
         }
       } else {
