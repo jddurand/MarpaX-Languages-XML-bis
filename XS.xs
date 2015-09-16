@@ -414,6 +414,29 @@ XML_FUNC_DECL(
 
 /* The following remains internal and is used when there is NameSpace support, which is doing special treatment of the ':' character */
 /* _NAME_WITHOUT_COLON = qr{\G[A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}][A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]*+} */
+#define XML_NAME_WITHOUT_COLON_HEADER_ASCII() (                                  \
+                                               XML_IS_RANGE('A', 'Z')         || \
+                                               XML_IS_CHAR('_')               || \
+                                               XML_IS_RANGE('a', 'z')         || \
+                                               XML_IS_RANGE(0xC0, 0xD6)       || \
+                                               XML_IS_RANGE(0xD8, 0xF6)       || \
+                                               XML_IS_RANGE(0xF8, 0xFF)          \
+                                              )
+
+#define XML_NAME_WITHOUT_COLON_HEADER_UTF8() (                                         \
+                                              XML_NAME_WITHOUT_COLON_HEADER_ASCII() || \
+                                              XML_IS_RANGE(0x100, 0x2FF)            || \
+                                              XML_IS_RANGE(0x370, 0x37D)            || \
+                                              XML_IS_RANGE(0x37F, 0x1FFF)           || \
+                                              XML_IS_RANGE(0x200C, 0x200D)          || \
+                                              XML_IS_RANGE(0x2070, 0x218F)          || \
+                                              XML_IS_RANGE(0x2C00, 0x2FEF)          || \
+                                              XML_IS_RANGE(0x3001, 0xD7FF)          || \
+                                              XML_IS_RANGE(0xF900, 0xFDCF)          || \
+                                              XML_IS_RANGE(0xFDF0, 0xFFFD)          || \
+                                              XML_IS_RANGE(0x10000, 0xEFFFF)           \
+                                             )
+
 #define XML_NAME_WITHOUT_COLON_TRAILER_ASCII() (                                  \
                                                 XML_IS_RANGE('A', 'Z')         || \
                                                 XML_IS_CHAR('_')               || \
@@ -444,7 +467,7 @@ XML_FUNC_DECL(
                                               )
 
 XML_FUNC_DECL(
-              is_XML_NAME_WITHOUT_COLON_TRAILER,
+              _is_XML_NAME_WITHOUT_COLON_TRAILER,
               XML_NAME_WITHOUT_COLON_TRAILER_ASCII(),
               XML_NAME_WITHOUT_COLON_TRAILER_UTF8(),
               rc,
@@ -452,71 +475,88 @@ XML_FUNC_DECL(
               )
 
 XML_FUNC_DECL(
-              is_XML_NAME_WITHOUT_COLON_TRAILER_THEN_NOCOLON,
+              _is_XML_NAME_WITHOUT_COLON_TRAILER_THEN_NOCOLON,
               XML_NAME_WITHOUT_COLON_TRAILER_ASCII(),
               XML_NAME_WITHOUT_COLON_TRAILER_UTF8(),
               rc,
-              if (rc) {
+              {
+                /* Take care: the trailer can be empty. We return one more */
+                /* to always return a true value! the caller will have to  */
+                /* know about that                                         */
                 UV colon[] = { ':' };
                 if (_is_XML_STRING(aTHX_ sv, 0, s, send, 1, colon)) {
                   rc = 0;
+                } else {
+                  rc++;           /* Caller will have to -= 1 */
                 }
               }
               )
 
-#define XML_NAME_WITHOUT_COLON_HEADER_ASCII() (                                  \
-                                               XML_IS_RANGE('A', 'Z')         || \
-                                               XML_IS_CHAR('_')               || \
-                                               XML_IS_RANGE('a', 'z')         || \
-                                               XML_IS_RANGE(0xC0, 0xD6)       || \
-                                               XML_IS_RANGE(0xD8, 0xF6)       || \
-                                               XML_IS_RANGE(0xF8, 0xFF)          \
-                                              )
-
-#define XML_NAME_WITHOUT_COLON_HEADER_UTF8() (                                         \
-                                              XML_NAME_WITHOUT_COLON_HEADER_ASCII() || \
-                                              XML_IS_RANGE(0x100, 0x2FF)            || \
-                                              XML_IS_RANGE(0x370, 0x37D)            || \
-                                              XML_IS_RANGE(0x37F, 0x1FFF)           || \
-                                              XML_IS_RANGE(0x200C, 0x200D)          || \
-                                              XML_IS_RANGE(0x2070, 0x218F)          || \
-                                              XML_IS_RANGE(0x2C00, 0x2FEF)          || \
-                                              XML_IS_RANGE(0x3001, 0xD7FF)          || \
-                                              XML_IS_RANGE(0xF900, 0xFDCF)          || \
-                                              XML_IS_RANGE(0xFDF0, 0xFFFD)          || \
-                                              XML_IS_RANGE(0x10000, 0xEFFFF)           \
-                                             )
-
 XML_FUNC_DECL(
-              is_XML_NAME_WITHOUT_COLON,
-              XML_NAME_WITHOUT_COLON_HEADER_ASCII(),
-              XML_NAME_WITHOUT_COLON_HEADER_UTF8(), 
+              _is_XML_NAME_WITHOUT_COLON_TRAILER_THEN_EQUAL,
+              XML_NAME_WITHOUT_COLON_TRAILER_ASCII(),
+              XML_NAME_WITHOUT_COLON_TRAILER_UTF8(),
               rc,
-              if (rc) {
-                rc += is_XML_NAME_WITHOUT_COLON_TRAILER(aTHX_ sv, 0, s, send);
-              }
-              )
-
-XML_FUNC_DECL(
-              is_XML_NAME_WITHOUT_COLON_THEN_NOCOLON,
-              XML_NAME_WITHOUT_COLON_HEADER_ASCII(),
-              XML_NAME_WITHOUT_COLON_HEADER_UTF8(), 
-              rc,
-              if (rc) {
-                UV colon[] = { ':' };
-                if (_is_XML_STRING(aTHX_ sv, 0, s, send, 1, colon)) {
+              {
+                /* Take care: the trailer can be empty. We return one more */
+                /* to always return a true value! the caller will have to  */
+                /* know about that                                         */
+                UV equal[] = { '=' };
+                if (_is_XML_STRING(aTHX_ sv, 0, s, send, 1, equal)) {
+                  rc++;           /* Caller will have to -= 1 */
+                } else {
                   rc = 0;
                 }
               }
               )
 
 XML_FUNC_DECL(
-              is_XML_COLON_THEN_NAME_WITHOUT_COLON_THEN_NOCOLON,
+              _is_XML_NAME_WITHOUT_COLON,
+              XML_NAME_WITHOUT_COLON_HEADER_ASCII(),
+              XML_NAME_WITHOUT_COLON_HEADER_UTF8(), 
+              rc,
+              if (rc) {
+                rc += _is_XML_NAME_WITHOUT_COLON_TRAILER(aTHX_ sv, 0, s, send);
+              }
+              )
+
+XML_FUNC_DECL(
+              _is_XML_NAME_WITHOUT_COLON_THEN_NOCOLON,
+              XML_NAME_WITHOUT_COLON_HEADER_ASCII(),
+              XML_NAME_WITHOUT_COLON_HEADER_UTF8(), 
+              rc,
+              if (rc) {
+                STRLEN rc2 = _is_XML_NAME_WITHOUT_COLON_TRAILER_THEN_NOCOLON(aTHX_ sv, 0, s, send);
+                if (rc2) {
+                  rc += --rc2;  /* The character after is counted */
+                } else {
+                  rc = 0;
+                }
+              }
+              )
+
+XML_FUNC_DECL(
+              _is_XML_NAME_WITHOUT_COLON_THEN_EQUAL,
+              XML_NAME_WITHOUT_COLON_HEADER_ASCII(),
+              XML_NAME_WITHOUT_COLON_HEADER_UTF8(), 
+              rc,
+              if (rc) {
+                STRLEN rc2 = _is_XML_NAME_WITHOUT_COLON_TRAILER_THEN_EQUAL(aTHX_ sv, 0, s, send);
+                if (rc2) {
+                  rc += --rc2;  /* The character after is counted */
+                } else {
+                  rc = 0;
+                }
+              }
+              )
+
+XML_FUNC_DECL(
+              _is_XML_COLON_THEN_NAME_WITHOUT_COLON_THEN_NOCOLON,
               (! rc) && XML_IS_CHAR(':'),
               (! rc) && XML_IS_CHAR(':'),
               rc,
               if (rc) {
-                STRLEN rc2 = is_XML_NAME_WITHOUT_COLON_THEN_NOCOLON(aTHX_ sv, 0, s, send);
+                STRLEN rc2 = _is_XML_NAME_WITHOUT_COLON_THEN_NOCOLON(aTHX_ sv, 0, s, send);
                 if (rc2) {
                   rc += rc2;
                 } else {
@@ -962,15 +1002,13 @@ XML_FUNC_DECL(
 
 /* _NCNAME = qr/\G${_NAME_WITHOUT_COLON_REGEXP}(?=(?::${_NAME_WITHOUT_COLON_REGEXP}[^:])|[^:]) */
 
-#define XML_NCNAME_LOOKAHEAD() (is_XML_COLON_NAME_WITHOUT_COLON(aTHX_ sv, 0, s+ulen, send)
-
 XML_FUNC_DECL(is_XML_NCNAME,
               XML_NAME_WITHOUT_COLON_HEADER_ASCII(),
               XML_NAME_WITHOUT_COLON_HEADER_UTF8(),
               rc,
               if (rc) {
                 UV colon[] = { ':' };
-                STRLEN rc2 = is_XML_COLON_THEN_NAME_WITHOUT_COLON_THEN_NOCOLON(aTHX_ sv, 0, s, send);
+                STRLEN rc2 = _is_XML_COLON_THEN_NAME_WITHOUT_COLON_THEN_NOCOLON(aTHX_ sv, 0, s, send);
                 if (rc2) {
                   rc += rc2;
                 } else if (_is_XML_STRING(aTHX_ sv, 0, s, send, 1, colon)) {
@@ -1059,6 +1097,99 @@ XML_FUNC_DECL(
               rc,
               XML_NO_USERCODE()
               )
+
+/* _PREFIX is the same as NCNAME except that we keep only the first part */
+
+XML_FUNC_DECL(is_XML_PREFIX,
+              XML_NAME_WITHOUT_COLON_HEADER_ASCII(),
+              XML_NAME_WITHOUT_COLON_HEADER_UTF8(),
+              rc,
+              if (rc) {
+                UV colon[] = { ':' };
+                if (! _is_XML_COLON_THEN_NAME_WITHOUT_COLON_THEN_NOCOLON(aTHX_ sv, 0, s, send) &&
+                    _is_XML_STRING(aTHX_ sv, 0, s, send, 1, colon)) {
+                  rc = 0;
+                }
+              }
+              )
+
+/* _XMLNSCOLON is ok only if it is followed by a name without colon and then a "=" */
+
+XML_FUNC_DECL(is_XML_XMLNSCOLON,
+              (rc == 0) ? XML_IS_CHAR('x') :
+              (
+               (rc == 1) ? XML_IS_CHAR('m') :
+               (
+                (rc == 2) ? XML_IS_CHAR('l') :
+                (
+                 (rc == 3) ? XML_IS_CHAR('n') :
+                 (
+                  (rc == 4) ? XML_IS_CHAR('s') :
+                  (
+                   (rc == 5) ? XML_IS_CHAR(':') : 0)
+                  )
+                 )
+                )
+               ),
+              (rc == 0) ? XML_IS_CHAR('x') :
+              (
+               (rc == 1) ? XML_IS_CHAR('m') :
+               (
+                (rc == 2) ? XML_IS_CHAR('l') :
+                (
+                 (rc == 3) ? XML_IS_CHAR('n') :
+                 (
+                  (rc == 4) ? XML_IS_CHAR('s') :
+                  (
+                   (rc == 5) ? XML_IS_CHAR(':') : 0)
+                  )
+                 )
+                )
+               ),
+              rc,
+              if (rc) {
+                if (! _is_XML_NAME_WITHOUT_COLON_THEN_EQUAL(aTHX_ sv, 0, s, send)) {
+                  rc = 0;
+                }
+              }
+              )
+
+/* _XMLNS is ok only if it is followed by a "=" */
+
+XML_FUNC_DECL(is_XML_XMLNS,
+              (rc == 0) ? XML_IS_CHAR('x') :
+              (
+               (rc == 1) ? XML_IS_CHAR('m') :
+               (
+                (rc == 2) ? XML_IS_CHAR('l') :
+                (
+                 (rc == 3) ? XML_IS_CHAR('n') :
+                 (
+                  (rc == 4) ? XML_IS_CHAR('s') : 0)
+                 )
+                )
+               ),
+              (rc == 0) ? XML_IS_CHAR('x') :
+              (
+               (rc == 1) ? XML_IS_CHAR('m') :
+               (
+                (rc == 2) ? XML_IS_CHAR('l') :
+                (
+                 (rc == 3) ? XML_IS_CHAR('n') :
+                 (
+                  (rc == 4) ? XML_IS_CHAR('s') : 0)
+                 )
+                )
+               ),
+              rc,
+              if (rc) {
+                UV equal[] = { '=' };
+                if (! _is_XML_STRING(aTHX_ sv, 0, s, send, 1, equal)) {
+                  rc = 0;
+                }
+              }
+              )
+
 
 /* Fixed strings */
 XML_STRING_DECL(SPACE)
@@ -1177,6 +1308,9 @@ XML_FUNC_ALIAS(is_XML10_NCNAME,                        is_XML_NCNAME)
 XML_FUNC_ALIAS(is_XML10_S,                             is_XML_S)
 XML_FUNC_ALIAS(is_XML10_PUBIDCHARDQUOTEMANY,           is_XML_PUBIDCHARDQUOTEMANY)
 XML_FUNC_ALIAS(is_XML10_PUBIDCHARSQUOTEMANY,           is_XML_PUBIDCHARSQUOTEMANY)
+XML_FUNC_ALIAS(is_XML10_PREFIX,                        is_XML_PREFIX)
+XML_FUNC_ALIAS(is_XML10_XMLNSCOLON,                    is_XML_XMLNSCOLON)
+XML_FUNC_ALIAS(is_XML10_XMLNS,                         is_XML_XMLNS)
 XML_FUNC_ALIAS(is_XML10_SPACE,                         is_XML_SPACE)
 XML_FUNC_ALIAS(is_XML10_DQUOTE,                        is_XML_DQUOTE)
 XML_FUNC_ALIAS(is_XML10_SQUOTE,                        is_XML_SQUOTE)
@@ -1291,6 +1425,9 @@ XML_FUNC_ALIAS(is_XML11_NCNAME,                        is_XML_NCNAME)
 XML_FUNC_ALIAS(is_XML11_S,                             is_XML_S)
 XML_FUNC_ALIAS(is_XML11_PUBIDCHARDQUOTEMANY,           is_XML_PUBIDCHARDQUOTEMANY)
 XML_FUNC_ALIAS(is_XML11_PUBIDCHARSQUOTEMANY,           is_XML_PUBIDCHARSQUOTEMANY)
+XML_FUNC_ALIAS(is_XML11_PREFIX,                        is_XML_PREFIX)
+XML_FUNC_ALIAS(is_XML11_XMLNSCOLON,                    is_XML_XMLNSCOLON)
+XML_FUNC_ALIAS(is_XML11_XMLNS,                         is_XML_XMLNS)
 XML_FUNC_ALIAS(is_XML11_SPACE,                         is_XML_SPACE)
 XML_FUNC_ALIAS(is_XML11_DQUOTE,                        is_XML_DQUOTE)
 XML_FUNC_ALIAS(is_XML11_SQUOTE,                        is_XML_SQUOTE)
@@ -1758,6 +1895,60 @@ is_XML11_PUBIDCHARSQUOTEMANY(sv, pos)
     STRLEN pos
   CODE:
   RETVAL = is_XML11_PUBIDCHARSQUOTEMANY(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_PREFIX(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_PREFIX(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_PREFIX(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_PREFIX(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_XMLNSCOLON(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_XMLNSCOLON(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_XMLNSCOLON(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_XMLNSCOLON(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML10_XMLNS(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML10_XMLNS(aTHX_ sv, pos, NULL, NULL);
+  OUTPUT:
+    RETVAL
+
+STRLEN
+is_XML11_XMLNS(sv, pos)
+    SV *sv
+    STRLEN pos
+  CODE:
+  RETVAL = is_XML11_XMLNS(aTHX_ sv, pos, NULL, NULL);
   OUTPUT:
     RETVAL
 

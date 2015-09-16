@@ -143,4 +143,29 @@ print "==> is_XML10_VERSIONNUM(\"$string\"): $length\n\n";
 $length = is_XML10_VERSIONNUM($string = "1.0", 0);
 print "==> is_XML10_VERSIONNUM(\"$string\"): $length\n\n";
 
+$length = is_XML10_PREFIX($string = "xmlns:env:", 0);
+print "==> is_XML10_PREFIX(\"$string\"): $length\n\n";
+$length = is_XML10_PREFIX($string = "xmlns:env", 0);
+print "==> is_XML10_PREFIX(\"$string\"): $length\n\n";
+$length = is_XML10_PREFIX($string = "xmlns::env", 0);
+print "==> is_XML10_PREFIX(\"$string\"): $length\n\n";
+$length = is_XML10_PREFIX($string = "xmlns", 0);
+print "==> is_XML10_PREFIX(\"$string\"): $length\n\n";
+
+$length = is_XML10_XMLNSCOLON($string = "xmlns:env:", 0);
+print "==> is_XML10_XMLNSCOLON(\"$string\"): $length\n\n";
+$length = is_XML10_XMLNSCOLON($string = "xmlns:env=", 0);
+print "==> is_XML10_XMLNSCOLON(\"$string\"): $length\n\n";
+$length = is_XML10_XMLNSCOLON($string = "xmlns:env", 0);
+print "==> is_XML10_XMLNSCOLON(\"$string\"): $length\n\n";
+
+$length = is_XML10_XMLNS($string = "xmlns:env:", 0);
+print "==> is_XML10_XMLNS(\"$string\"): $length\n\n";
+$length = is_XML10_XMLNS($string = "xmlns:env=", 0);
+print "==> is_XML10_XMLNS(\"$string\"): $length\n\n";
+$length = is_XML10_XMLNS($string = "xmlns:env", 0);
+print "==> is_XML10_XMLNS(\"$string\"): $length\n\n";
+$length = is_XML10_XMLNS($string = "xmlns=env", 0);
+print "==> is_XML10_XMLNS(\"$string\"): $length\n\n";
+
 1;
