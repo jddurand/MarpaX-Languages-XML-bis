@@ -479,15 +479,14 @@ XML_FUNC_DECL(
               XML_NAME_WITHOUT_COLON_TRAILER_ASCII(),
               XML_NAME_WITHOUT_COLON_TRAILER_UTF8(),
               rc,
-              {
-                /* Take care: the trailer can be empty. We return one more */
-                /* to always return a true value! the caller will have to  */
-                /* know about that                                         */
+              /* Take care: the trailer can be empty. We return one more */
+              /* to always return a true value! the caller will have to  */
+              /* know about that. Caller will have to -= 1 if > 0        */
+              rc++;
+              if (s < send) {
                 UV colon[] = { ':' };
                 if (_is_XML_STRING(aTHX_ sv, 0, s, send, 1, colon)) {
                   rc = 0;
-                } else {
-                  rc++;           /* Caller will have to -= 1 */
                 }
               }
               )
@@ -497,14 +496,13 @@ XML_FUNC_DECL(
               XML_NAME_WITHOUT_COLON_TRAILER_ASCII(),
               XML_NAME_WITHOUT_COLON_TRAILER_UTF8(),
               rc,
-              {
-                /* Take care: the trailer can be empty. We return one more */
-                /* to always return a true value! the caller will have to  */
-                /* know about that                                         */
+              /* Take care: the trailer can be empty. We return one more */
+              /* to always return a true value! the caller will have to  */
+              /* know about that. Caller will have to -= 1 if > 0        */
+              rc++;
+              if (s < send) {
                 UV equal[] = { '=' };
-                if (_is_XML_STRING(aTHX_ sv, 0, s, send, 1, equal)) {
-                  rc++;           /* Caller will have to -= 1 */
-                } else {
+                if (! _is_XML_STRING(aTHX_ sv, 0, s, send, 1, equal)) {
                   rc = 0;
                 }
               }
@@ -780,9 +778,8 @@ XML_FUNC_DECL(
               XML_NO_USERCODE()
               )
 
-/* _PITARGET => qr{\G[:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}][:A-Z_a-z\x{C0}-\x{D6}\x{D8}-\x{F6}\x{F8}-\x{2FF}\x{370}-\x{37D}\x{37F}-\x{1FFF}\x{200C}-\x{200D}\x{2070}-\x{218F}\x{2C00}-\x{2FEF}\x{3001}-\x{D7FF}\x{F900}-\x{FDCF}\x{FDF0}-\x{FFFD}\x{10000}-\x{EFFFF}\-.0-9\x{B7}\x{0300}-\x{036F}\x{203F}-\x{2040}]*+}p,  # NAME but /xml/i - c.f. exclusion hash */
+/* _PITARGET is a NAME but "xml" (case insensitive) */
 
-/* We start the exclusion in the test: /xml/i must not match and, if it matches, this will be at first pos */
 XML_FUNC_DECL(
               is_XML_PITARGET,
               XML_NAME_HEADER_ASCII(),
@@ -791,7 +788,8 @@ XML_FUNC_DECL(
               if (rc) {
                 rc += is_XML_NAME_TRAILER(aTHX_ sv, 0, s, send);
               }
-              if ((rc == PITARGET_EXCLUSION_LENGTH) && _is_XML_STRING_INSENSITIVE(aTHX_ sv, pos, NULL, NULL, PITARGET_EXCLUSION_LENGTH, PITARGET_EXCLUSION_UPPERCASE, PITARGET_EXCLUSION_LOWERCASE)) {
+              if ((rc == PITARGET_EXCLUSION_LENGTH) &&
+                  _is_XML_STRING_INSENSITIVE(aTHX_ sv, pos, NULL, NULL, PITARGET_EXCLUSION_LENGTH, PITARGET_EXCLUSION_UPPERCASE, PITARGET_EXCLUSION_LOWERCASE)) {
                 XML_PRINT_FUNC_EXCLUSION(is_XML_PITARGET);
                 rc = 0;
               }
@@ -1147,7 +1145,7 @@ XML_FUNC_DECL(is_XML_XMLNSCOLON,
                 )
                ),
               rc,
-              if (rc) {
+              if (rc && (s < send)) {
                 if (! _is_XML_NAME_WITHOUT_COLON_THEN_EQUAL(aTHX_ sv, 0, s, send)) {
                   rc = 0;
                 }
@@ -1182,7 +1180,7 @@ XML_FUNC_DECL(is_XML_XMLNS,
                 )
                ),
               rc,
-              if (rc) {
+              if (rc && (s < send)) {
                 UV equal[] = { '=' };
                 if (! _is_XML_STRING(aTHX_ sv, 0, s, send, 1, equal)) {
                   rc = 0;
