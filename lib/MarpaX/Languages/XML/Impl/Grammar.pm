@@ -411,8 +411,8 @@ sub _scanless {
   #
   # Generate the grammar
   #
-  if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-    $self->_logger->debugf('%s/%s/%s: Instanciating grammar', $spec, $self->xml_version, $self->start);
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    $self->_logger->tracef('%s/%s/%s: Instanciating grammar', $spec, $self->xml_version, $self->start);
   }
 
   return Marpa::R2::Scanless::G->new({source => \$data});
@@ -422,8 +422,8 @@ sub _build_lexeme_match_by_symbol_ids {
   my ($self) = @_;
 
   my $symbol_by_name_hash = $self->scanless->symbol_by_name_hash;
-  if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-    $self->_logger->debugf('%s/%s/%s: Symbol By Name: %s', $self->spec, $self->xml_version, $self->start, $symbol_by_name_hash);
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    $self->_logger->tracef('%s/%s/%s: Symbol By Name: %s', $self->spec, $self->xml_version, $self->start, $symbol_by_name_hash);
   }
   #
   # Build the regexp list as an array using symbol ids as indice
@@ -650,7 +650,7 @@ lexeme default = action => [start,length,value,name] forgiving => 1
 start                         ::= $START
 MiscAny                       ::= Misc*
 # Note: end_document is when either we abandoned parsing or reached the end of input of the 'document' grammar
-document                      ::= (start_document) prolog element MiscAny
+document                      ::= (internal_event_for_immediate_pause) (start_document) prolog element MiscAny
 Name                          ::= NAME
 Names                         ::= Name+ separator => SPACE proper => 1
 Nmtoken                       ::= NMTOKENMANY
@@ -755,8 +755,8 @@ SDDecl                        ::= S STANDALONE Eq SQUOTE YES SQUOTE # [VC: Stand
                                 | S STANDALONE Eq SQUOTE  NO SQUOTE  # [VC: Standalone Document Declaration]
                                 | S STANDALONE Eq DQUOTE YES DQUOTE  # [VC: Standalone Document Declaration]
                                 | S STANDALONE Eq DQUOTE  NO DQUOTE  # [VC: Standalone Document Declaration]
-element                       ::= EmptyElemTag (start_element) (end_element)
-                                | STag (start_element) content ETag (end_element) # [WFC: Element Type Match] [VC: Element Valid]
+element                       ::= (internal_event_for_immediate_pause) EmptyElemTag (start_element) (end_element)
+                                | (internal_event_for_immediate_pause) STag (start_element) content ETag (end_element) # [WFC: Element Type Match] [VC: Element Valid]
 STagUnit                      ::= S Attribute
 STagUnitAny                   ::= STagUnit*
 STagName                      ::= Name
@@ -1151,6 +1151,12 @@ XMLNSCOLON ::= _XMLNSCOLON
 XMLNS ::= _XMLNS
 COLON ::= _COLON
 
+#
+# Internal nullable rule to force the recognizer to stop immeidately,
+# before reading any lexeme
+#
+event '!internal_event_for_immediate_pause' = nulled <internal_event_for_immediate_pause>
+internal_event_for_immediate_pause ::= ;
 #
 # SAX nullable rules
 #

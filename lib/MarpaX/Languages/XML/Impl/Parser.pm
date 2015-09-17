@@ -136,9 +136,9 @@ has _start_document_done => (
 #
 has _last_lexeme => (
                      is          => 'rw',
-                     isa         => HashRef[Str],
-                     default     => sub { {} },
-                     handles_via => 'Hash',
+                     isa         => ArrayRef[Str],
+                     default     => sub { [] },
+                     handles_via => 'Array',
                      handles     => {
                                      _get__last_lexeme => 'get',
                                      _set__last_lexeme => 'set',
@@ -336,9 +336,9 @@ sub _parse_exception {
               LineNumber   => $self->LineNumber,
               ColumnNumber => $self->ColumnNumber
              );
-  if ($MarpaX::Languages::XML::Impl::Parser::is_trace || $ENV{XML_DEBUG}) {
+  if ($MarpaX::Languages::XML::Impl::Parser::is_debug || $ENV{XML_DEBUG}) {
     if ($r) {
-      $hash{Progress} = $r->show_progress();
+      $hash{Progress} = $r->show_progress(0, -1);
       $hash{TerminalsExpected} = $r->terminals_expected();
     }
     if ($self->_bufferRef) {
@@ -457,10 +457,10 @@ sub _generic_parse {
                                        suppress_warnings => 1,
                                       ));
       }
-      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Events: %s", $LineNumber, $ColumnNumber, \@event_names);
-      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE   IDs : %s", $LineNumber, $ColumnNumber, \@terminals_expected_to_symbol_ids);
+      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE %s/%s/%s: Events                : %s", $LineNumber, $ColumnNumber, $grammar->spec, $grammar->xml_version, $grammar->start, \@event_names);
+      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE %s/%s/%s: Expected terminals    : %s", $LineNumber, $ColumnNumber, $grammar->spec, $grammar->xml_version, $grammar->start, \@terminals_expected_to_symbol_ids);
       my @terminals_expected = @{$r->terminals_expected()};
-      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE ID Map: %s", $LineNumber, $ColumnNumber, \@terminals_expected);
+      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE %s/%s/%s: Expected terminals IDs: %s", $LineNumber, $ColumnNumber, $grammar->spec, $grammar->xml_version, $grammar->start, \@terminals_expected);
     }
     #
     # First the events
@@ -472,8 +472,8 @@ sub _generic_parse {
       #
       if ($_ eq $end_event_name) {
         $can_stop = 1;
-        if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-          $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Grammar end event %s", $LineNumber, $ColumnNumber, $_);
+        if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+          $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Grammar end event %s", $LineNumber, $ColumnNumber, $_);
         }
       }
       #
@@ -481,14 +481,14 @@ sub _generic_parse {
       #
       my $code = $callback_ref->{$_};
       #
-      # A callback has no other argument but the buffer and the recognizer
+      # A callback has no other argument but the buffer, the recognizer and the grammar
       #
-      if ($code && ! $self->$code($_[1], $r)) {
+      if ($code && ! $self->$code($_[1], $r, $grammar)) {
         #
         # Any false return value mean immediate stop
         #
-        if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-          $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Event callback %s says to stop", $LineNumber, $ColumnNumber, $_);
+        if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+          $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Event callback %s says to stop", $LineNumber, $ColumnNumber, $_);
         }
         return;
       }
@@ -527,8 +527,8 @@ sub _generic_parse {
               last;
             } else {
               $self->{_eof} = 1;
-              if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-                $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Nothing more read", $LineNumber, $ColumnNumber);
+              if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+                $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Nothing more read", $LineNumber, $ColumnNumber);
               }
             }
           }
@@ -605,7 +605,7 @@ sub _generic_parse {
           #
           # Remember last data for this lexeme
           #
-          $self->{_last_lexeme}->{$_} = $data;
+          $self->{_last_lexeme}->[$_] = $data;
         }
         #
         # Position 0 and length 1: the Marpa input buffer is virtual
@@ -626,13 +626,11 @@ sub _generic_parse {
           $next_global_line   = $self->{_next_global_line}   = $LineNumber;
           $next_global_column = $self->{_next_global_column} = $ColumnNumber + $max_length;
         }
-        if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-          $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_MOVE Push %s", $LineNumber, $ColumnNumber, $next_global_line, $next_global_column, [ keys %length ]);
-          if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-            $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_MOVE Push spans on %d characters:", $LineNumber, $ColumnNumber, $next_global_line, $next_global_column, $max_length);
-            foreach (split(/\R/, hexdump(data => $data, suppress_warnings => 1))) {
-              $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_MOVE ... %s", $LineNumber, $ColumnNumber, $next_global_line, $next_global_column, $_);
-            }
+        if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+          $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_MOVE Push %s", $LineNumber, $ColumnNumber, $next_global_line, $next_global_column, [ keys %length ]);
+          $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_MOVE Push spans on %d characters:", $LineNumber, $ColumnNumber, $next_global_line, $next_global_column, $max_length);
+          foreach (split(/\R/, hexdump(data => $data, suppress_warnings => 1))) {
+            $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_MOVE ... %s", $LineNumber, $ColumnNumber, $next_global_line, $next_global_column, $_);
           }
         }
         $LineNumber   = $self->{LineNumber}   = $next_global_line;
@@ -692,23 +690,19 @@ sub _reduceAndRead {
       #
       substr($_[1], 0, $pos, '');
     }
-    $pos = 0;
+    ${$posp} = $pos = $self->_set__pos(0);
+    #
+    # Re-position internal buffer
+    #
+    pos($_[1]) = $pos;
   }
   #
   # Read more data
   #
-  if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-    $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Reading %d characters", $self->LineNumber, $self->ColumnNumber, $self->block_size);
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Reading %d characters", $self->LineNumber, $self->ColumnNumber, $self->block_size);
   }
-  $length = $self->_read($_[1], $r, $grammar, $eol);
-
-  ${$lengthp}    = $self->_set__length($length);
-  ${$posp}       = $self->_set__pos($pos);
-
-  #
-  # And re-position internal buffer
-  #
-  pos($_[1]) = $pos;
+  ${$lengthp} = $length = $self->_set__length($self->_read($_[1], $r, $grammar, $eol));
 
   return $length - $pos;
 }
@@ -836,25 +830,21 @@ sub _parse_prolog {
   # Default grammar event and callbacks
   #
   my $grammar;
-  my %grammar_event = (
-                       'prolog$'         => { type => 'completed', symbol_name => 'prolog'        },
-                       'ENCNAME$'        => { type => 'completed', symbol_name => 'ENCNAME'       },
-                       'XMLDECL_START$'  => { type => 'completed', symbol_name => 'XMLDECL_START' },
-                       'XMLDECL_END$'    => { type => 'completed', symbol_name => 'XMLDECL_END'   },
-                       'VERSIONNUM$'     => { type => 'completed', symbol_name => 'VERSIONNUM'    },
-                       'ELEMENT_START$ ' => { type => 'completed', symbol_name => 'ELEMENT_START' },
-                      );
+  my %grammar_event;
+  foreach (qw/prolog ENCNAME XMLDECL_START XMLDECL_END VERSIONNUM ELEMENT_START/) {
+    $grammar_event{"$_\$"} = { type => 'completed', symbol_name => $_ };
+  }
   my %callbacks = (
                    #
                    # LEXEME EVENTS: THEY ALWAYS START with "_", ARE ALWAYS PREDICTED EVENTS
                    # AND NEED NOT TO BE DECLARED IN %grammar_event
                    #
                    'ENCNAME$' => sub {
-                     my ($self, undef, $r) = @_;    # $_[1] is the internal buffer
+                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
                      #
                      # Encoding is composed only of ASCII codepoints, so uc is ok
                      #
-                     my $xml_encoding = uc($self->_get__last_lexeme('_ENCNAME'));
+                     my $xml_encoding = uc($self->_get__last_lexeme($g->scanless->symbol_by_name_hash->{'_ENCNAME'}));
                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
                        $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE XML says encoding %s", $self->LineNumber, $self->ColumnNumber, $xml_encoding);
                      }
@@ -876,7 +866,7 @@ sub _parse_prolog {
                      return 1;
                    },
                    'XMLDECL_START$' => sub {
-                     my ($self, undef, $r) = @_;    # $_[1] is the internal buffer
+                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
                        $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE XML Declaration is starting", $self->LineNumber, $self->ColumnNumber);
                      }
@@ -884,11 +874,11 @@ sub _parse_prolog {
                      # Remember we are in a Xml or Text declaration
                      #
                      $MarpaX::Languages::XML::Impl::Parser::in_decl = 1;
-                     $self->_decl_start_pos($self->_pos - length($self->_get__last_lexeme('_XMLDECL_START')));
+                     $self->_decl_start_pos($self->_pos - length($self->_get__last_lexeme($g->scanless->symbol_by_name_hash->{'_XMLDECL_START'})));
                      return 1;
                    },
                    'XMLDECL_END$' => sub {
-                     my ($self, undef, $r) = @_;    # $_[1] is the internal buffer
+                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
                        $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE XML Declaration is ending", $self->LineNumber, $self->ColumnNumber);
                      }
@@ -913,8 +903,8 @@ sub _parse_prolog {
                        #
                        $self->_parse_exception($error_message, $r);
                      }
-                     if ($MarpaX::Languages::XML::Impl::Parser::is_trace && ($eol_length != $orig_length)) {
-                       $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE End-of-line handling in declaration removed %d character%s", $self->LineNumber, $self->ColumnNumber, $orig_length - $eol_length, ($orig_length - $eol_length) > 0 ? 's' : '');
+                     if ($MarpaX::Languages::XML::Impl::Parser::is_debug && ($eol_length != $orig_length)) {
+                       $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE End-of-line handling in declaration removed %d character%s", $self->LineNumber, $self->ColumnNumber, $orig_length - $eol_length, ($orig_length - $eol_length) > 0 ? 's' : '');
                      }
                      if ($eol_length != $orig_length) {
                        #
@@ -925,21 +915,25 @@ sub _parse_prolog {
                      return 1;
                    },
                    'VERSIONNUM$' => sub {
-                     my ($self, undef, $r) = @_;    # $_[1] is the internal buffer
+                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-                       $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE XML says version number %s", $self->LineNumber, $self->ColumnNumber, $self->_get__last_lexeme('_VERSIONNUM'));
+                       $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE XML says version number %s", $self->LineNumber, $self->ColumnNumber, $self->_get__last_lexeme($g->scanless->symbol_by_name_hash->{'_VERSIONNUM'}));
                      }
                      return 1;
                    },
                    'ELEMENT_START$' => sub {
-                     my ($self, undef, $r) = @_;    # $_[1] is the internal buffer
+                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-                       $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE XML has a root element", $self->LineNumber, $self->ColumnNumber);
+                       $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE XML root element - moving position back to element start", $self->LineNumber, $self->ColumnNumber);
                      }
                      #
                      # Move position back
                      #
-                     $self->_set__pos($self->_pos - length($self->_get__last_lexeme('_ELEMENT_START')));
+                     my $pos = $self->_set__pos($self->_pos - length($self->_get__last_lexeme($g->scanless->symbol_by_name_hash->{'_ELEMENT_START'})));
+                     #
+                     # Re-position internal buffer
+                     #
+                     pos($_[1]) = $pos;
                      return 0;
                    }
                   );
@@ -950,8 +944,9 @@ sub _parse_prolog {
   foreach (qw/start_document/) {
     my $user_code = $self->get_sax_handler($_);
     my $internal_code = $_;
-    $grammar_event{$_} = { type => 'nulled', symbol_name => $_ };
-    $callbacks{$_} = sub {
+    my $event_name = "!$_";
+    $grammar_event{$event_name} = { type => 'nulled', symbol_name => $_ };
+    $callbacks{$event_name} = sub {
       my ($self, undef, $r) = @_; # $_[1] is the internal buffer
       return $self->$internal_code($user_code);
     };
@@ -1026,32 +1021,73 @@ sub _parse_element {
   # Default grammar event and callbacks
   #
   my $grammar;
-  my %grammar_event = (
-                       'element$'       => { type => 'completed', symbol_name => 'element' },
-                       'AttributeName$' => { type => 'completed', symbol_name => 'AttributeName' },
-                       'AttValue$'      => { type => 'completed', symbol_name => 'AttValue' },
-                      );
+  my %grammar_event;
+  foreach (qw/element AttributeName AttValue ATTVALUEINTERIORDQUOTEUNIT ATTVALUEINTERIORSQUOTEUNIT ENTITYREF_END DIGITMANY ALPHAMANY/) {
+    $grammar_event{"$_\$"} = { type => 'completed', symbol_name => $_ };
+  }
+  #
+  # Depending on the grammar support (xml or xmlns), the attribute is either:
+  #
+  # For XML1.0:
+  # AttributeName      ::= Name
+  # Attribute          ::= AttributeName Eq AttValue  # [VC: Attribute Value Type] [WFC: No External Entity References] [WFC: No < in Attribute Values]
+  #
+  # For XML1.1:
+  # AttributeName      ::= Name
+  # Attribute          ::= NSAttName Eq AttValue
+  # Attribute          ::= QName Eq AttValue
+  # NSAttName	       ::= PrefixedAttName
+  #                     | DefaultAttName
+  # PrefixedAttName    ::= XMLNSCOLON NCName
+  # DefaultAttName     ::= XMLNS
+  # QName              ::= PrefixedName
+  #                      | UnprefixedName
+  # PrefixedName       ::= Prefix COLON LocalPart
+  # UnprefixedName     ::= LocalPart
+  # Prefix             ::= NCName
+  # LocalPart          ::= NCName
+  #
   my %attribute = ();
   my $attname = '';
   my @attvalue = ();
+
+  my $_NAME_ID;
+  my $_ATTVALUEINTERIORDQUOTEUNIT_ID;
+  my $_ATTVALUEINTERIORSQUOTEUNIT_ID;
+  my $_DIGITMANY_ID;
+  my $_ALPHAMANY_ID;
   my %callbacks = (
                    #
                    # LEXEME EVENTS: THEY ALWAYS START with "_", ARE ALWAYS PREDICTED EVENTS
                    # AND NEED NOT TO BE DECLARED IN %grammar_event
                    #
+                   'AttributeName$' => sub {
+                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
+                     $attname = $self->_get__last_lexeme($_NAME_ID);
+                     $self->_attribute_context(1);
+                     return 1;
+                   },
+                   'AttValue$' => sub {
+                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
+                     $self->_attribute_context(0);
+                     my $attvalue = $grammar->attvalue($self->_cdata_context, $self->_entityref, @attvalue);
+                     $self->_set__attribute($attname, { Name => $attname, Value => $attvalue, NamespaceURI => '', Prefix => '', LocalName => '' });
+                     @attvalue = ();
+                     return 1;
+                   },
                    '_ATTVALUEINTERIORDQUOTEUNIT' => sub {
-                     my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
-                     push(@attvalue, $data);
+                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
+                     push(@attvalue, $self->_get__last_lexeme($_ATTVALUEINTERIORDQUOTEUNIT_ID));
                      return 1;
                    },
                    '_ATTVALUEINTERIORSQUOTEUNIT' => sub {
-                     my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
-                     push(@attvalue, $data);
+                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
+                     push(@attvalue, $self->_get__last_lexeme($_ATTVALUEINTERIORSQUOTEUNIT_ID));
                      return 1;
                    },
                    '_ENTITYREF_END' => sub {
-                     my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
-                     my $name = $self->_get__last_lexeme('_NAME');
+                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
+                     my $name = $self->_get__last_lexeme($_NAME_ID);
                      if ($self->_attribute_context) {
                        my $entityref = $self->_entityref->get($name);
                        if (! defined($entityref)) {
@@ -1066,41 +1102,27 @@ sub _parse_element {
                    # _DIGITMANY and _ALPHAMANY appears only in the context of a CharRef
                    #
                    '_DIGITMANY' => sub {
-                     my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
+                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
                      if ($self->_attribute_context) {
                        #
                        # A char reference is nothing else but the chr() of it.
                        # Perl will warn by itself if this is not a good character.
                        #
-                       push(@attvalue, chr(hex($data)));
+                       push(@attvalue, chr(hex($self->_get__last_lexeme($_DIGITMANY_ID))));
                      }
                      return 1;
                    },
                    '_ALPHAMANY' => sub {
-                     my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
+                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
                      if ($self->_attribute_context) {
                        #
                        # A char reference is nothing else but the chr() of it.
                        # Perl will warn by itself if this is not a good character.
                        #
-                       push(@attvalue, chr(hex($data)));
+                       push(@attvalue, chr(hex($self->_get__last_lexeme($_ALPHAMANY_ID))));
                      }
                      return 1;
-                   },
-                   'AttributeName$' => sub {
-                     my ($self, undef, $r) = @_;    # $_[1] is the internal buffer
-                     $attname = $self->_get__last_lexeme('_NAME');
-                     $self->_attribute_context(1);
-                     return 1;
-                   },
-                   'AttValue$' => sub {
-                     my ($self, undef, $r) = @_;    # $_[1] is the internal buffer
-                     $self->_attribute_context(0);
-                     my $attvalue = $grammar->attvalue($self->_cdata_context, $self->_entityref, @attvalue);
-                     $self->_set__attribute($attname, { Name => $attname, Value => $attvalue, NamespaceURI => '', Prefix => '', LocalName => '' });
-                     @attvalue = ();
-                     return 1;
-                   },
+                   }
                   );
   #
   # Other grammar events for eventual SAX handlers.
@@ -1108,8 +1130,9 @@ sub _parse_element {
   foreach (qw/start_element end_element/) {
     my $user_code = $self->get_sax_handler($_);
     my $internal_code = $_;
-    $grammar_event{$_} = { type => 'nulled', symbol_name => $_ };
-    $callbacks{$_} = sub {
+    my $event_name = "!$_";
+    $grammar_event{$event_name} = { type => 'nulled', symbol_name => $_ };
+    $callbacks{$event_name} = sub {
       my ($self, undef, $r) = @_; # $_[1] is the internal buffer
       return $self->$internal_code($user_code);
     };
@@ -1118,6 +1141,14 @@ sub _parse_element {
   # Generate grammar
   #
   $grammar = $self->_generate_grammar(start => 'element', grammar_event => \%grammar_event);
+  #
+  # Get IDs of interest
+  #
+  $_NAME_ID                       = $grammar->scanless->symbol_by_name_hash->{'_NAME'};
+  $_ATTVALUEINTERIORDQUOTEUNIT_ID = $grammar->scanless->symbol_by_name_hash->{'_ATTVALUEINTERIORDQUOTEUNIT'};
+  $_ATTVALUEINTERIORSQUOTEUNIT_ID = $grammar->scanless->symbol_by_name_hash->{'_ATTVALUEINTERIORSQUOTEUNIT'};
+  $_DIGITMANY_ID                  = $grammar->scanless->symbol_by_name_hash->{'_DIGITMANY'};
+  $_ALPHAMANY_ID                  = $grammar->scanless->symbol_by_name_hash->{'_ALPHAMANY'};
   #
   # Go
   #
