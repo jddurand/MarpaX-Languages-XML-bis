@@ -103,6 +103,7 @@ has _attribute => (
                    handles_via => 'Hash',
                    handles => {
                                _set__attribute => 'set',
+                               _exists__attribute => 'exists',
                                _clear__attribute => 'clear',
                                _elements__attribute => 'elements'
                               },
@@ -339,11 +340,23 @@ sub _parse_exception {
              );
   if ($MarpaX::Languages::XML::Impl::Parser::is_debug || $ENV{XML_DEBUG}) {
     if ($r) {
+      $hash{Position} = $self->_pos;
       $hash{Progress} = $r->show_progress(0, -1);
       $hash{TerminalsExpected} = $r->terminals_expected();
     }
     if ($self->_bufferRef && ${$self->_bufferRef}) {
-      $hash{Data} = hexdump(data => substr(${$self->_bufferRef}, $self->_pos, 47),  # 47 = 15+16+16
+      # 47 = 15+16+16
+      if ($self->_pos > 0) {
+        my $previous_pos = ($self->_pos >= 48) ? $self->_pos - 48 : 0;
+        $hash{DataBefore} = hexdump(data              => ${$self->_bufferRef},
+                                    start_position    => $previous_pos,
+                                    end_position      => $self->_pos - $previous_pos - 1,
+                                    suppress_warnings => 1,
+                                   );
+      }
+      $hash{Data} = hexdump(data              => ${$self->_bufferRef},
+                            start_position    => $self->_pos,
+                            end_position      => $self->_pos + 47,
                             suppress_warnings => 1,
                            );
     }

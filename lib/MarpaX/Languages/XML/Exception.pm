@@ -20,8 +20,18 @@ around stringify => sub {
   if ($self->{TerminalsExpected}) {
     $string .= "\nTerminals expected:\n" . join(', ', @{$self->{TerminalsExpected}}) . "\n";
   }
+  if (defined($self->{Position})) {
+    $string .= "\nInternal buffer position: " . $self->{Position} . " (hex: " . sprintf('0x%04x', $self->{Position}) . ")\n";
+  }
   if ($self->{Data}) {
-    $string .= "\nData:\n" . $self->{Data} . "\n";
+    if ($self->{DataBefore}) {
+      $string .= "\nCharacters around the error:\n";
+      $string .= $self->{DataBefore};
+      $string .= "<<< EXCEPTION OCCURED HERE >>>\n";
+    } else {
+      $string .= "\nCharacters just after the error:\n";
+    }
+    $string .= $self->{Data} . "\n";
   }
   return $string;
 };
