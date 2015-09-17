@@ -266,7 +266,8 @@ has _next_global_pos => (
 has xml_version => (
                     is      => 'ro',
                     isa     => XmlVersion|Undef,
-                    default => undef
+                    default => undef,
+                    writer  => '_set_xml_version'
                    );
 
 has xml_support => (
@@ -341,7 +342,7 @@ sub _parse_exception {
       $hash{Progress} = $r->show_progress(0, -1);
       $hash{TerminalsExpected} = $r->terminals_expected();
     }
-    if ($self->_bufferRef) {
+    if ($self->_bufferRef && ${$self->_bufferRef}) {
       $hash{Data} = hexdump(data => substr(${$self->_bufferRef}, $self->_pos, 47),  # 47 = 15+16+16
                             suppress_warnings => 1,
                            );
@@ -827,6 +828,10 @@ sub _parse_prolog {
     $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE BOM and/or guess gives encoding %s and byte offset %d", $self->LineNumber, $self->ColumnNumber, $orig_encoding, $byte_start);
   }
   #
+  # Grammar's xml version
+  #
+  my $xml_version;
+  #
   # Default grammar event and callbacks
   #
   my $grammar;
@@ -834,6 +839,10 @@ sub _parse_prolog {
   foreach (qw/prolog ENCNAME XMLDECL_START XMLDECL_END VERSIONNUM ELEMENT_START/) {
     $grammar_event{"$_\$"} = { type => 'completed', symbol_name => $_ };
   }
+  my $_ENCNAME_ID;
+  my $_XMLDECL_START_ID;
+  my $_VERSIONNUM_ID;
+  my $_ELEMENT_START_ID;
   my %callbacks = (
                    #
                    # LEXEME EVENTS: THEY ALWAYS START with "_", ARE ALWAYS PREDICTED EVENTS
@@ -844,7 +853,7 @@ sub _parse_prolog {
                      #
                      # Encoding is composed only of ASCII codepoints, so uc is ok
                      #
-                     my $xml_encoding = uc($self->_get__last_lexeme($g->scanless->symbol_by_name_hash->{'_ENCNAME'}));
+                     my $xml_encoding = uc($self->_get__last_lexeme($_ENCNAME_ID));
                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
                        $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE XML says encoding %s", $self->LineNumber, $self->ColumnNumber, $xml_encoding);
                      }
@@ -874,7 +883,7 @@ sub _parse_prolog {
                      # Remember we are in a Xml or Text declaration
                      #
                      $MarpaX::Languages::XML::Impl::Parser::in_decl = 1;
-                     $self->_decl_start_pos($self->_pos - length($self->_get__last_lexeme($g->scanless->symbol_by_name_hash->{'_XMLDECL_START'})));
+                     $self->_decl_start_pos($self->_pos - length($self->_get__last_lexeme($_XMLDECL_START_ID)));
                      return 1;
                    },
                    'XMLDECL_END$' => sub {
@@ -916,8 +925,15 @@ sub _parse_prolog {
                    },
                    'VERSIONNUM$' => sub {
                      my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
+                     $xml_version = $self->_get__last_lexeme($_VERSIONNUM_ID);
                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-                       $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE XML says version number %s", $self->LineNumber, $self->ColumnNumber, $self->_get__last_lexeme($g->scanless->symbol_by_name_hash->{'_VERSIONNUM'}));
+                       $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE XML says version number %s", $self->LineNumber, $self->ColumnNumber, $xml_version);
+                     }
+                     if ($g->xml_version ne $xml_version) {
+                       if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+                         $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE XML version %s disagree with current version %s", $self->LineNumber, $self->ColumnNumber, $xml_version, $grammar->xml_version);
+                       }
+                       return 0;
                      }
                      return 1;
                    },
@@ -929,7 +945,7 @@ sub _parse_prolog {
                      #
                      # Move position back
                      #
-                     my $pos = $self->_set__pos($self->_pos - length($self->_get__last_lexeme($g->scanless->symbol_by_name_hash->{'_ELEMENT_START'})));
+                     my $pos = $self->_set__pos($self->_pos - length($self->_get__last_lexeme($_ELEMENT_START_ID)));
                      #
                      # Re-position internal buffer
                      #
@@ -951,15 +967,29 @@ sub _parse_prolog {
       return $self->$internal_code($user_code);
     };
   }
+  my $nb_retry_because_of_xml_version = 0;
+ retry_because_of_xml_version:
   #
   # Generate grammar
   #
   $grammar = $self->_generate_grammar(start => 'document', grammar_event => \%grammar_event);
+  $xml_version = $grammar->xml_version;
+  #
+  # Get IDs of interest
+  #
+  $_ENCNAME_ID       = $grammar->scanless->symbol_by_name_hash->{'_ENCNAME'};
+  $_XMLDECL_START_ID = $grammar->scanless->symbol_by_name_hash->{'_XMLDECL_START'};
+  $_VERSIONNUM_ID    = $grammar->scanless->symbol_by_name_hash->{'_VERSIONNUM'};
+  $_ELEMENT_START_ID = $grammar->scanless->symbol_by_name_hash->{'_ELEMENT_START'};
+  #
+  # and the associated namespace support
+  #
+  my $namespacesupport_options = { xmlns_11 => ($grammar->xml_version eq '1.1') ? 1 : 0 };
+  $self->_namespace(XML::NamespaceSupport->new($namespacesupport_options));
   #
   # Go
   #
   my $nb_retry_because_of_encoding = 0;
-
  retry_because_of_encoding:
   #
   # Initial block size and read
@@ -982,6 +1012,25 @@ sub _parse_prolog {
                         \%callbacks,       # callbacks
                         1                  # eol
                        );
+  if ($xml_version && $grammar->xml_version ne $xml_version) {
+    if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+      $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Redoing parse using xml version %s instead of %s", $self->LineNumber, $self->ColumnNumber, $xml_version, $grammar->xml_version);
+    }
+    #
+    # I/O reset
+    #
+    $self->io->clear;
+    $self->io->pos($byte_start);
+    #
+    # XML version
+    #
+    $self->_set_xml_version($xml_version);
+    if (++$nb_retry_because_of_xml_version == 1) {
+      goto retry_because_of_xml_version;
+    } else {
+      $self->_parse_exception('Two many retries because of xml version difference beween previous grammar and XML');
+    }
+  }
   if ($self->_encoding ne $orig_encoding) {
     if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
       $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Redoing parse using encoding %s instead of %s", $self->LineNumber, $self->ColumnNumber, $orig_encoding, $self->_encoding);
