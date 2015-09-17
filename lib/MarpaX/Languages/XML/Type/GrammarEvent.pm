@@ -15,7 +15,7 @@ declare GrammarEvent,
   as Dict[
           symbol_name      => Str,
           type             => EventType,
-          lexeme           => Optional[Str],
+          lexeme           => Optional[Bool],
          ];
 
 1;

@@ -396,11 +396,13 @@ sub _scanless {
   #
   foreach ($self->keys_grammar_event) {
     #
-    # If the user is using the same event name than an internal one, Marpa::R2 will croak
+    # Only G1-style events are supported
     #
     my $grammar_event = $self->get_grammar_event($_);
     my $symbol_name = $grammar_event->{symbol_name};
     my $type        = $grammar_event->{type};
+    my $lexeme      = $grammar_event->{lexeme};
+
     if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
       $self->_logger->tracef('%s/%s/%s: Adding event %s on symbol %s type %s', $spec, $self->xml_version, $self->start, $_, $symbol_name, $type);
     }

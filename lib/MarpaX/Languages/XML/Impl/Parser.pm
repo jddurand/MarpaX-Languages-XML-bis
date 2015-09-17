@@ -152,8 +152,19 @@ has _length => (
                 is          => 'rw',
                 isa         => PositiveOrZeroInt,
                 default     => 0,
-                writer      => '_set__length'
+                writer      => '_set__length',
+                trigger     => \&_trigger__length
                );
+
+sub _trigger__length {
+  my ($self, $length) = @_;
+
+
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Pos: %d, Length=>%d, Remaining: %d -> %d", $self->LineNumber, $self->ColumnNumber, $self->_pos, $length, $self->_remaining, $length - $self->_pos);
+  }
+  $self->_set__remaining($length - $self->_pos);
+}
 #
 # Encoding
 #
@@ -168,8 +179,20 @@ has _encoding => (
 has _pos => (
              is          => 'rw',
              isa         => PositiveOrZeroInt,
-             writer      => '_set__pos'
+             default     => 0,
+             writer      => '_set__pos',
+             trigger     => \&_trigger__pos
             );
+
+sub _trigger__pos {
+  my ($self, $pos) = @_;
+
+  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+    $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Pos=>%d, Length: %d, Remaining: %d -> %d", $self->LineNumber, $self->ColumnNumber, $pos, $self->_length, $self->_remaining, $self->_length - $pos);
+  }
+  $self->_set__remaining($self->_length - $pos);
+}
+
 #
 # Reference to internal buffer. Used only for logging data and to avoid a call to $self->io->buffer that
 # would log... 'Getting buffer' -;
@@ -412,13 +435,14 @@ sub _generic_parse {
   my %grammar_event    = $grammar->elements_grammar_event;
   my %lexeme_match     = $grammar->elements_lexeme_match;
   my %lexeme_exclusion = $grammar->elements_lexeme_exclusion;
-  my $global_pos   = $self->_global_pos;
-  my $LineNumber   = $self->LineNumber;
-  my $ColumnNumber = $self->ColumnNumber;
-  my $pos          = $self->_pos;
-  my $length       = $self->_length;
-  my $remaining    = $self->_remaining;
+  my $global_pos       = $self->{_global_pos};
+  my $LineNumber       = $self->{LineNumber};
+  my $ColumnNumber     = $self->{ColumnNumber};
+  my $pos              = $self->{_pos};
+  my $length           = $self->{_length};
+  my $remaining        = $self->{_remaining};
   my @lexeme_match_by_symbol_ids = $grammar->elements_lexeme_match_by_symbol_ids;
+  my $previous_can_stop = 0;
   #
   # Infinite loop until user says to stop or error
   #
@@ -457,7 +481,7 @@ sub _generic_parse {
       #
       my $code = $callback_ref->{$_};
       #
-      # A G1 callback has no other argument but the recognizer
+      # A callback has no other argument but the buffer and the recognizer
       #
       if ($code && ! $self->$code($_[1], $r)) {
         #
@@ -494,7 +518,7 @@ sub _generic_parse {
               $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Lexeme %s is reaching end-of-buffer", $LineNumber, $ColumnNumber, $_);
             }
             my $old_remaining = $remaining;
-            $self->_reduceAndRead($_[1], $r, $pos, $length, $remaining, \$pos, \$length, \$remaining, $grammar, $eol);
+            $remaining = $self->_reduceAndRead($_[1], $r, $pos, $length, \$pos, \$length, $grammar, $eol);
             if ($remaining > $old_remaining) {
               #
               # Something was read
@@ -538,7 +562,7 @@ sub _generic_parse {
       #
       if (@terminals_expected_to_symbol_ids) {
         if (! $max_length) {
-          if ($can_stop) {
+          if ($can_stop || $previous_can_stop) {
             if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
               $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE No predicted lexeme found but grammar end flag is on", $LineNumber, $ColumnNumber);
             }
@@ -624,7 +648,7 @@ sub _generic_parse {
         #
         # No prediction: this is ok only if grammar end_of_grammar flag is set
         #
-        if ($can_stop) {
+        if ($can_stop || $previous_can_stop) {
           if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
             $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE No prediction and grammar end flag is on", $LineNumber, $ColumnNumber);
           }
@@ -634,6 +658,10 @@ sub _generic_parse {
         }
       }
     } while ($terminals_expected_again);
+    #
+    # Go to next events
+    #
+    $previous_can_stop = $can_stop;
   }
   #
   # Never reached -;
@@ -642,7 +670,7 @@ sub _generic_parse {
 }
 
 sub _reduceAndRead {
-  my ($self,  undef, $r, $pos, $length, $remaining, $posp, $lengthp, $remainingp, $grammar, $eol) = @_;
+  my ($self,  undef, $r, $pos, $length, $posp, $lengthp, $grammar, $eol) = @_;
   #
   # Crunch previous data unless we are in the decl context
   #
@@ -677,15 +705,12 @@ sub _reduceAndRead {
   ${$lengthp}    = $self->_set__length($length);
   ${$posp}       = $self->_set__pos($pos);
 
-  $remaining = $length - $pos;
-  ${$remainingp} = $self->_set__remaining($length - $pos);
-
   #
   # And re-position internal buffer
   #
   pos($_[1]) = $pos;
 
-  return;
+  return $length - $pos;
 }
 
 sub _eol {
@@ -811,18 +836,25 @@ sub _parse_prolog {
   # Default grammar event and callbacks
   #
   my $grammar;
-  my %grammar_event = ( 'prolog$' => { type => 'completed', symbol_name => 'prolog' } );
+  my %grammar_event = (
+                       'prolog$'         => { type => 'completed', symbol_name => 'prolog'        },
+                       'ENCNAME$'        => { type => 'completed', symbol_name => 'ENCNAME'       },
+                       'XMLDECL_START$'  => { type => 'completed', symbol_name => 'XMLDECL_START' },
+                       'XMLDECL_END$'    => { type => 'completed', symbol_name => 'XMLDECL_END'   },
+                       'VERSIONNUM$'     => { type => 'completed', symbol_name => 'VERSIONNUM'    },
+                       'ELEMENT_START$ ' => { type => 'completed', symbol_name => 'ELEMENT_START' },
+                      );
   my %callbacks = (
                    #
                    # LEXEME EVENTS: THEY ALWAYS START with "_", ARE ALWAYS PREDICTED EVENTS
                    # AND NEED NOT TO BE DECLARED IN %grammar_event
                    #
-                   '_ENCNAME' => sub {
-                     my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
+                   'ENCNAME$' => sub {
+                     my ($self, undef, $r) = @_;    # $_[1] is the internal buffer
                      #
                      # Encoding is composed only of ASCII codepoints, so uc is ok
                      #
-                     my $xml_encoding = uc($data);
+                     my $xml_encoding = uc($self->_get__last_lexeme('_ENCNAME'));
                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
                        $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE XML says encoding %s", $self->LineNumber, $self->ColumnNumber, $xml_encoding);
                      }
@@ -843,8 +875,8 @@ sub _parse_prolog {
                      }
                      return 1;
                    },
-                   '_XMLDECL_START' => sub {
-                     my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
+                   'XMLDECL_START$' => sub {
+                     my ($self, undef, $r) = @_;    # $_[1] is the internal buffer
                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
                        $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE XML Declaration is starting", $self->LineNumber, $self->ColumnNumber);
                      }
@@ -852,11 +884,11 @@ sub _parse_prolog {
                      # Remember we are in a Xml or Text declaration
                      #
                      $MarpaX::Languages::XML::Impl::Parser::in_decl = 1;
-                     $self->_decl_start_pos($self->_pos);
+                     $self->_decl_start_pos($self->_pos - length($self->_get__last_lexeme('_XMLDECL_START')));
                      return 1;
                    },
-                   '_XMLDECL_END' => sub {
-                     my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
+                   'XMLDECL_END$' => sub {
+                     my ($self, undef, $r) = @_;    # $_[1] is the internal buffer
                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
                        $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE XML Declaration is ending", $self->LineNumber, $self->ColumnNumber);
                      }
@@ -864,7 +896,7 @@ sub _parse_prolog {
                      # Remember we not in a Xml or Text declaration
                      #
                      $MarpaX::Languages::XML::Impl::Parser::in_decl = 0;
-                     $self->_decl_end_pos($self->_pos + length($data));
+                     $self->_decl_end_pos($self->_pos);
                      #
                      # And apply end-of-line handling to this portion using a specific decl eol method
                      #
@@ -892,18 +924,22 @@ sub _parse_prolog {
                      }
                      return 1;
                    },
-                   '_VERSIONNUM' => sub {
-                     my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
+                   'VERSIONNUM$' => sub {
+                     my ($self, undef, $r) = @_;    # $_[1] is the internal buffer
                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-                       $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE XML says version number %s", $self->LineNumber, $self->ColumnNumber, $data);
+                       $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE XML says version number %s", $self->LineNumber, $self->ColumnNumber, $self->_get__last_lexeme('_VERSIONNUM'));
                      }
                      return 1;
                    },
-                   '_ELEMENT_START' => sub {
-                     my ($self, undef, $r, $data) = @_;    # $_[1] is the internal buffer
+                   'ELEMENT_START$' => sub {
+                     my ($self, undef, $r) = @_;    # $_[1] is the internal buffer
                      if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
-                       $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE XML has a root element", $self->LineNumber, $self->ColumnNumber, $data);
+                       $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE XML has a root element", $self->LineNumber, $self->ColumnNumber);
                      }
+                     #
+                     # Move position back
+                     #
+                     $self->_set__pos($self->_pos - length($self->_get__last_lexeme('_ELEMENT_START')));
                      return 0;
                    }
                   );
@@ -942,7 +978,6 @@ sub _parse_prolog {
   $self->_set__global_pos($byte_start);
   my $length = $self->_set__length($self->io->length);
   $self->_set__pos(0);
-  $self->_set__remaining($length);
   $self->_set_LineNumber(1);
   $self->_set_ColumnNumber(1);
   $self->_generic_parse(
