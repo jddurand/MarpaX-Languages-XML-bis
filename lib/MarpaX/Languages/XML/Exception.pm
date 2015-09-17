@@ -15,23 +15,42 @@ around stringify => sub {
 
   my $string = $self->$orig(@_);
   if ($self->{Progress}) {
-    $string .= "\nGrammar progress:\n" . $self->{Progress};
+    $string .= "\n"
+      . "Grammar progress:\n"
+      . "-----------------\n"
+      . $self->{Progress};
   }
-  if (defined($self->{Position})) {
-    $string .= "\nInternal buffer position: " . $self->{Position} . " (hex: " . sprintf('0x%04x', $self->{Position}) . ")\n";
+  #
+  # Data::HexDumper is a great module, except there is no option
+  # to ignore 0x00, which is impossible in XML.
+  #
+  my $nbzeroes = ($self->{Data} =~ s/( 00)(?= (?::|00))/   /g);
+  if ($nbzeroes) {
+    $self->{Data} =~ s/\.{$nbzeroes}$//;
   }
   if ($self->{Data}) {
     if ($self->{DataBefore}) {
-      $string .= "\nCharacters around the error:\n";
+      my $nbzeroes = ($self->{DataBefore} =~ s/( 00)(?= (?::|00))/   /g);
+      if ($nbzeroes) {
+        $self->{DataBefore} =~ s/\.{$nbzeroes}$//;
+      }
+      $string .= "\n"
+        . "Characters around the error:\n"
+        . "----------------------------\n";
       $string .= $self->{DataBefore};
-      $string .= "<<< EXCEPTION OCCURED HERE >>>\n";
+      $string .= '  <' . $self->{Message} . ">\n";
     } else {
-      $string .= "\nCharacters just after the error:\n";
+      $string .= "\n"
+        . "Characters just after the error:\n"
+        . "--------------------------------\n";
     }
     $string .= $self->{Data};
   }
   if ($self->{TerminalsExpected}) {
-    $string .= "\nTerminals expected:\n" . join(', ', @{$self->{TerminalsExpected}}) . "\n";
+    $string .= "\n"
+      . "Terminals expected:\n"
+      . "-------------------\n"
+      . join(', ', @{$self->{TerminalsExpected}}) . "\n";
   }
   return $string;
 };
