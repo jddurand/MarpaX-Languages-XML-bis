@@ -1029,11 +1029,10 @@ sub _parse_element {
   # Depending on the grammar support (xml or xmlns), the attribute is either:
   #
   # For XML1.0:
-  # AttributeName      ::= Name
   # Attribute          ::= AttributeName Eq AttValue  # [VC: Attribute Value Type] [WFC: No External Entity References] [WFC: No < in Attribute Values]
+  # AttributeName      ::= Name
   #
   # For XML1.1:
-  # AttributeName      ::= Name
   # Attribute          ::= NSAttName Eq AttValue
   # Attribute          ::= QName Eq AttValue
   # NSAttName	       ::= PrefixedAttName
