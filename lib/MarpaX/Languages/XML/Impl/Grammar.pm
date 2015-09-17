@@ -188,9 +188,9 @@ our %XMLNSBNF_ADD = (
                '1.0' => __PACKAGE__->section_data('xmlns10:add'),
                '1.1' => __PACKAGE__->section_data('xmlns10:add')
               );
-our %XMLNSBNF_REPLACE = (
-               '1.0' => __PACKAGE__->section_data('xmlns10:replace'),
-               '1.1' => __PACKAGE__->section_data('xmlns10:replace')
+our %XMLNSBNF_REPLACE_OR_ADD = (
+               '1.0' => __PACKAGE__->section_data('xmlns10:replace_or_add'),
+               '1.1' => __PACKAGE__->section_data('xmlns10:replace_or_add')
               );
 # Regexps:
 # -------
@@ -364,13 +364,13 @@ sub _build_xmlns_scanless {
   #
   # Apply xmlns specific transformations. This should never croak.
   #
-  my $add     = ${$XMLNSBNF_ADD{$self->xml_version}};
-  my $replace = ${$XMLNSBNF_REPLACE{$self->xml_version}};
+  my $add            = ${$XMLNSBNF_ADD{$self->xml_version}};
+  my $replace_or_add = ${$XMLNSBNF_REPLACE_OR_ADD{$self->xml_version}};
   #
-  # Every rule in the $replace is removed from $data
+  # Every rule in the $replace_or_add is removed from $data
   #
   my @rules_to_remove = ();
-  while ($replace =~ m/^\w+/mgp) {
+  while ($replace_or_add =~ m/^\w+/mgp) {
     push(@rules_to_remove, ${^MATCH});
   }
   foreach (@rules_to_remove) {
@@ -380,7 +380,7 @@ sub _build_xmlns_scanless {
   # Add everything
   #
   $data .= $add;
-  $data .= $replace;
+  $data .= $replace_or_add;
 
   return $self->_scanless($data, 'xmlns');
 }
@@ -1167,18 +1167,6 @@ comment        ::= ;
 #
 # Events are added on-the-fly
 #
-__[ xmlns10 ]__
-#
-# This will be evaled to return a transform entry point
-#
-sub {
-    my ($self, $data) = @_;
-
-    my $add     = ${$XMLNSBNF_ADD{$self->xml_version}};
-    my $replace = ${$XMLNSBNF_REPLACE{$self->xml_version}};
-
-    return $data;
-}
 __[ xmlns10:add ]__
 NSAttName	   ::= PrefixedAttName
                      | DefaultAttName
@@ -1192,15 +1180,15 @@ UnprefixedName     ::= LocalPart
 Prefix             ::= NCName
 LocalPart          ::= NCName
 
-__[ xmlns10:replace ]__
+__[ xmlns10:replace_or_add ]__
 STag               ::= ELEMENT_START QName STagUnitAny S ELEMENT_END           # [NSC: Prefix Declared]
 STag               ::= ELEMENT_START QName STagUnitAny   ELEMENT_END           # [NSC: Prefix Declared]
 ETag               ::= ETAG_START QName S ETAG_END                             # [NSC: Prefix Declared]
 ETag               ::= ETAG_START QName   ETAG_END                             # [NSC: Prefix Declared]
 EmptyElemTag       ::= ELEMENT_START QName EmptyElemTagUnitAny S EMPTYELEM_END # [NSC: Prefix Declared]
 EmptyElemTag       ::= ELEMENT_START QName EmptyElemTagUnitAny   EMPTYELEM_END # [NSC: Prefix Declared]
-Attribute          ::= NSAttName Eq AttValue
-Attribute          ::= QName Eq AttValue                                            # [NSC: Prefix Declared][NSC: No Prefix Undeclaring][NSC: Attributes Unique]
+Attribute          ::= NSAttName (xmlns_attribute) Eq AttValue
+Attribute          ::= QName (normal_attribute) Eq AttValue                                            # [NSC: Prefix Declared][NSC: No Prefix Undeclaring][NSC: Attributes Unique]
 doctypedeclUnit    ::= markupdecl | PEReference | S
 doctypedeclUnitAny ::= doctypedeclUnit*
 doctypedecl        ::= DOCTYPE_START S QName              S LBRACKET doctypedeclUnitAny RBRACKET S DOCTYPE_END # [VC: Root Element Type] [WFC: External Subset]
@@ -1228,3 +1216,6 @@ AttlistDecl        ::= ATTLIST_START S QName AttDefAny S ATTLIST_END
 AttlistDecl        ::= ATTLIST_START S QName AttDefAny   ATTLIST_END
 AttDef             ::= S QName     S AttType S DefaultDecl
 AttDef             ::= S NSAttName S AttType S DefaultDecl
+
+xmlns_attribute    ::= ;
+normal_attribute   ::= ;

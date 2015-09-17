@@ -1082,8 +1082,8 @@ sub _parse_element {
   # AttributeName      ::= Name
   #
   # For XML1.1:
-  # Attribute          ::= NSAttName Eq AttValue
-  # Attribute          ::= QName Eq AttValue
+  # Attribute          ::= NSAttName (xmlns_attribute) Eq AttValue
+  # Attribute          ::= QName (normal_attribute) Eq AttValue
   # NSAttName	       ::= PrefixedAttName
   #                     | DefaultAttName
   # PrefixedAttName    ::= XMLNSCOLON NCName
@@ -1095,6 +1095,15 @@ sub _parse_element {
   # Prefix             ::= NCName
   # LocalPart          ::= NCName
   #
+  # We use the nullables xmlns_attribute and normal_attribute to know the attribute context, because
+  # XMLNS has two subtype of attributes: those for xmlns itself, and the others.
+  #
+  if ((! $self->xml_support) || ($self->xml_support eq 'xmlns')) {
+    foreach (qw/xmlns_attribute normal_attribute/) {
+      $grammar_event{"$_\$"} = { type => 'completed', symbol_name => $_ };
+    }
+  }
+
   my %attribute = ();
   my $attname = '';
   my @attvalue = ();
@@ -1173,7 +1182,7 @@ sub _parse_element {
                    }
                   );
   #
-  # Other grammar events for eventual SAX handlers.
+  # Other grammar events for eventual SAX handlers
   #
   foreach (qw/start_element end_element/) {
     my $user_code = $self->get_sax_handler($_);
