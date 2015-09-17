@@ -844,10 +844,6 @@ sub _parse_prolog {
   my $_VERSIONNUM_ID;
   my $_ELEMENT_START_ID;
   my %callbacks = (
-                   #
-                   # LEXEME EVENTS: THEY ALWAYS START with "_", ARE ALWAYS PREDICTED EVENTS
-                   # AND NEED NOT TO BE DECLARED IN %grammar_event
-                   #
                    'ENCNAME$' => sub {
                      my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
                      #
@@ -1100,6 +1096,9 @@ sub _parse_element {
   #
   if ((! $self->xml_support) || ($self->xml_support eq 'xmlns')) {
     foreach (qw/xmlns_attribute normal_attribute/) {
+      $grammar_event{"!$_"} = { type => 'nulled', symbol_name => $_ };
+    }
+    foreach (qw/Prefix LocalPart PrefixedName UnprefixedName PrefixedAttName DefaultAttName/) {
       $grammar_event{"$_\$"} = { type => 'completed', symbol_name => $_ };
     }
   }
@@ -1107,17 +1106,60 @@ sub _parse_element {
   my %attribute = ();
   my $attname = '';
   my @attvalue = ();
+  my $prefix = '';
+  my $localpart = '';
+  my $qname = '';
+  my $nsattname = '';
 
   my $_NAME_ID;
   my $_ATTVALUEINTERIORDQUOTEUNIT_ID;
   my $_ATTVALUEINTERIORSQUOTEUNIT_ID;
   my $_DIGITMANY_ID;
   my $_ALPHAMANY_ID;
+  my $_NCNAME_ID;
   my %callbacks = (
-                   #
-                   # LEXEME EVENTS: THEY ALWAYS START with "_", ARE ALWAYS PREDICTED EVENTS
-                   # AND NEED NOT TO BE DECLARED IN %grammar_event
-                   #
+                   'Prefix$' => sub {
+                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
+                     $prefix = $self->_get__last_lexeme($_NCNAME_ID);
+                     return 1;
+                   },
+                   'LocalPart$' => sub {
+                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
+                     $localpart = $self->_get__last_lexeme($_NCNAME_ID);
+                     return 1;
+                   },
+                   'PrefixedName$' => sub {
+                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
+                     $qname = join(':', $prefix, $localpart);
+                     return 1;
+                   },
+                   'UnprefixedName$' => sub {
+                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
+                     $qname = $localpart;
+                     return 1;
+                   },
+                   'PrefixedAttName$' => sub {
+                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
+                     $nsattname = $self->_get__last_lexeme($_NCNAME_ID);
+                     return 1;
+                   },
+                   'DefaultAttName$' => sub {
+                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
+                     $nsattname = '';
+                     return 1;
+                   },
+                   '!xmlns_attribute' => sub {
+                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
+                     $attname = $nsattname;
+                     $self->_attribute_context(1);
+                     return 1;
+                   },
+                   '!normal_attribute' => sub {
+                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
+                     $attname = $qname;
+                     $self->_attribute_context(1);
+                     return 1;
+                   },
                    'AttributeName$' => sub {
                      my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
                      $attname = $self->_get__last_lexeme($_NAME_ID);
@@ -1206,6 +1248,9 @@ sub _parse_element {
   $_ATTVALUEINTERIORSQUOTEUNIT_ID = $grammar->scanless->symbol_by_name_hash->{'_ATTVALUEINTERIORSQUOTEUNIT'};
   $_DIGITMANY_ID                  = $grammar->scanless->symbol_by_name_hash->{'_DIGITMANY'};
   $_ALPHAMANY_ID                  = $grammar->scanless->symbol_by_name_hash->{'_ALPHAMANY'};
+  if ($grammar->xml_support eq 'xmlns') {
+    $_NCNAME_ID                       = $grammar->scanless->symbol_by_name_hash->{'_NCNAME'};
+  }
   #
   # Go
   #
