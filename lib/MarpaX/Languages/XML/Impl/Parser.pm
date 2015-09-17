@@ -1078,27 +1078,25 @@ sub _parse_element {
   # AttributeName      ::= Name
   #
   # For XML1.1:
-  # Attribute          ::= NSAttName (xmlns_attribute) Eq AttValue
-  # Attribute          ::= QName (normal_attribute) Eq AttValue
-  # NSAttName	       ::= PrefixedAttName
-  #                     | DefaultAttName
+  # Attribute          ::= NSAttName Eq AttValue
+  # Attribute          ::= QName Eq AttValue
+  # NSAttName	       ::= PrefixedAttName (prefixed_attname)
+  #                     | DefaultAttName (default_attname)
   # PrefixedAttName    ::= XMLNSCOLON NCName
   # DefaultAttName     ::= XMLNS
-  # QName              ::= PrefixedName
-  #                      | UnprefixedName
+  # QName              ::= PrefixedName (prefixed_name)
+  #                      | UnprefixedName (unprefixed_name)
   # PrefixedName       ::= Prefix COLON LocalPart
   # UnprefixedName     ::= LocalPart
   # Prefix             ::= NCName
   # LocalPart          ::= NCName
   #
-  # We use the nullables xmlns_attribute and normal_attribute to know the attribute context, because
-  # XMLNS has two subtype of attributes: those for xmlns itself, and the others.
-  #
   if ((! $self->xml_support) || ($self->xml_support eq 'xmlns')) {
-    foreach (qw/xmlns_attribute normal_attribute/) {
+    foreach (qw/prefixed_attname default_attname
+                prefixed_name unprefixed_name/) {
       $grammar_event{"!$_"} = { type => 'nulled', symbol_name => $_ };
     }
-    foreach (qw/Prefix LocalPart PrefixedName UnprefixedName PrefixedAttName DefaultAttName/) {
+    foreach (qw/Prefix LocalPart/) {
       $grammar_event{"$_\$"} = { type => 'completed', symbol_name => $_ };
     }
   }
@@ -1128,35 +1126,25 @@ sub _parse_element {
                      $localpart = $self->_get__last_lexeme($_NCNAME_ID);
                      return 1;
                    },
-                   'PrefixedName$' => sub {
+                   '!prefixed_name' => sub {
                      my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
-                     $qname = join(':', $prefix, $localpart);
+                     $attname = join(':', $prefix, $localpart);
                      return 1;
                    },
-                   'UnprefixedName$' => sub {
+                   '!unprefixed_name' => sub {
                      my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
-                     $qname = $localpart;
+                     $attname = $localpart;
                      return 1;
                    },
-                   'PrefixedAttName$' => sub {
+                   '!prefixed_attname' => sub {
                      my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
-                     $nsattname = $self->_get__last_lexeme($_NCNAME_ID);
-                     return 1;
-                   },
-                   'DefaultAttName$' => sub {
-                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
-                     $nsattname = '';
-                     return 1;
-                   },
-                   '!xmlns_attribute' => sub {
-                     my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
-                     $attname = $nsattname;
+                     $attname = $self->_get__last_lexeme($_NCNAME_ID);
                      $self->_attribute_context(1);
                      return 1;
                    },
-                   '!normal_attribute' => sub {
+                   '!default_attname' => sub {
                      my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
-                     $attname = $qname;
+                     $attname = '';
                      $self->_attribute_context(1);
                      return 1;
                    },

@@ -1168,13 +1168,13 @@ comment        ::= ;
 # Events are added on-the-fly
 #
 __[ xmlns10:add ]__
-NSAttName	   ::= PrefixedAttName
-                     | DefaultAttName
+NSAttName	   ::= PrefixedAttName (prefixed_attname)
+                     | DefaultAttName (default_attname)
 PrefixedAttName    ::= XMLNSCOLON NCName # [NSC: Reserved Prefixes and Namespace Names]
 DefaultAttName     ::= XMLNS
 NCName             ::= NCNAME            # Name - (Char* ':' Char*) /* An XML Name, minus the ":" */
-QName              ::= PrefixedName
-                     | UnprefixedName
+QName              ::= PrefixedName (prefixed_name)
+                     | UnprefixedName (unprefixed_name)
 PrefixedName       ::= Prefix COLON LocalPart
 UnprefixedName     ::= LocalPart
 Prefix             ::= NCName
@@ -1219,3 +1219,7 @@ AttDef             ::= S NSAttName S AttType S DefaultDecl
 
 xmlns_attribute    ::= ;
 normal_attribute   ::= ;
+prefixed_attname   ::= ;
+default_attname    ::= ;
+prefixed_name      ::= ;
+unprefixed_name    ::= ;
