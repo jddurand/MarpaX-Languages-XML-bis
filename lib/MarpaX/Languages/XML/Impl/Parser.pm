@@ -341,7 +341,7 @@ sub _parse_exception {
   if ($MarpaX::Languages::XML::Impl::Parser::is_debug || $ENV{XML_DEBUG}) {
     if ($r) {
       $hash{Position} = $self->_pos;
-      $hash{Progress} = $r->show_progress(0, -1);
+      $hash{Progress} = $r->show_progress();
       $hash{TerminalsExpected} = $r->terminals_expected();
     }
     if ($self->_bufferRef && ${$self->_bufferRef}) {

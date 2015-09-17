@@ -17,9 +17,6 @@ around stringify => sub {
   if ($self->{Progress}) {
     $string .= "\nGrammar progress:\n" . $self->{Progress};
   }
-  if ($self->{TerminalsExpected}) {
-    $string .= "\nTerminals expected:\n" . join(', ', @{$self->{TerminalsExpected}}) . "\n";
-  }
   if (defined($self->{Position})) {
     $string .= "\nInternal buffer position: " . $self->{Position} . " (hex: " . sprintf('0x%04x', $self->{Position}) . ")\n";
   }
@@ -31,7 +28,10 @@ around stringify => sub {
     } else {
       $string .= "\nCharacters just after the error:\n";
     }
-    $string .= $self->{Data} . "\n";
+    $string .= $self->{Data};
+  }
+  if ($self->{TerminalsExpected}) {
+    $string .= "\nTerminals expected:\n" . join(', ', @{$self->{TerminalsExpected}}) . "\n";
   }
   return $string;
 };
