@@ -4,6 +4,8 @@ use Data::Section -setup;
 use Marpa::R2;
 use MarpaX::Languages::XML::Exception;
 # use MarpaX::Languages::XML::XS;
+use MarpaX::Languages::XML::Impl::EntityRef;
+use MarpaX::Languages::XML::Impl::PEReference;
 use MarpaX::Languages::XML::Type::GrammarEvent -all;
 use MarpaX::Languages::XML::Type::XmlVersion -all;
 use MarpaX::Languages::XML::Type::XmlSupport -all;
@@ -32,20 +34,34 @@ has spec => (
              writer => 'set_spec'
             );
 
-has _attvalue => (
-                  is     => 'ro',
-                  isa    => HashRef[CodeRef],
-                  default => sub {
-                    {
-                      '1.0' => \&_attvalue_xml10,
-                      '1.1' => \&_attvalue_xml11
-                      }
-                  },
-                  handles_via => 'Hash',
-                  handles => {
-                              _get__attvalue  => 'get'
-                             }
-                 );
+#
+# Character and entity references
+#
+has _entityref => (
+                 is => 'rw',
+                 isa => ConsumerOf['MarpaX::Languages::XML::Role::EntityRef'],
+                 default => sub { return MarpaX::Languages::XML::Impl::EntityRef->new() }
+                );
+has _pereference => (
+                 is => 'rw',
+                 isa => ConsumerOf['MarpaX::Languages::XML::Role::PEReference'],
+                 default => sub { return MarpaX::Languages::XML::Impl::PEReference->new() }
+                );
+
+has _attvalue_impl => (
+                       is     => 'ro',
+                       isa    => HashRef[CodeRef],
+                       default => sub {
+                         {
+                           '1.0' => \&_attvalue_impl_xml10,
+                           '1.1' => \&_attvalue_impl_xml11
+                           }
+                       },
+                       handles_via => 'Hash',
+                       handles => {
+                                   _get__attvalue_impl  => 'get'
+                                  }
+                      );
 
 has _eol => (
              is     => 'ro',
@@ -562,15 +578,15 @@ sub eol {
 #
 # Normalization: XML1.0 and XML1.1 share the same algorithm
 # ---------------------------------------------------------
-sub _attvalue_common {
-  my $self = shift;
-  my $cdata = shift;
-  my $entityref = shift;
+# This routine is used Parse.pm's _generic_parse() callbacks
+# so it is optimized as much as possible
+#
+sub _attvalue_impl_common {
+  # my ($self, $cdata, @elements) = @_;
   #
   # @_ is an array describing attvalue:
   # if not a ref, this is char
-  # if a ref, this is a reference to an array like: [ type, content ]
-  # where type is either 'charref', 'entityref'
+  # if a ref, this is an entuty reference
   #
   # 1. All line breaks must have been normalized on input to #xA as described in 2.11 End-of-Line Handling, so the rest of this algorithm operates on text normalized in this way.
   #
@@ -580,7 +596,7 @@ sub _attvalue_common {
   #
   # 3. For each character, entity reference, or character reference in the unnormalized attribute value, beginning with the first and continuing to the last, do the following:
   #
-  foreach (@_) {
+  foreach (@_[2..$#_]) {
     #
     # For a character reference, append the referenced character to the normalized value.
     # In our case this is done by the parser when pushing.
@@ -590,7 +606,16 @@ sub _attvalue_common {
       # For an entity reference, recursively apply step 3 of this algorithm to the replacement text of the entity.
       # EntityRef case.
       #
-      $attvalue .= $self->attvalue($cdata, $entityref, $entityref->get($_));
+      my $c = $_[0]->attvalue($_[1], $_[0]->{_entityref}->{$_});
+      #
+      # It is illegal to have '<' as a replacement character except if it comes from &lt;
+      # which is considered as a string in the XML spec
+      # C.f. section 2.4 Character Data and Markup
+      #
+        croak "Entity $_ resolves to '<' but Well-formedness constraint says: No < in Attribute Values";
+      if (($c eq '<') && ($_ ne 'lt')) {
+      }
+      $attvalue .= $_[0]->attvalue($_[1], $_[0]->{_entityref}->{$_});
     } elsif (($_ eq "\x{20}") || ($_ eq "\x{D}") || ($_ eq "\x{A}") || ($_ eq "\x{9}")) {
       #
       # For a white space character (#x20, #xD, #xA, #x9), append a space character (#x20) to the normalized value.
@@ -606,27 +631,25 @@ sub _attvalue_common {
   #
   # If the attribute type is not CDATA, then the XML processor must further process the normalized attribute value by discarding any leading and trailing space (#x20) characters, and by replacing sequences of space (#x20) characters by a single space (#x20) character.
   #
-  if (! $cdata) {
-    $attvalue =~ s/\A\x{20}*//;
-    $attvalue =~ s/\x{20}*\z//;
+  if (! $_[1]) {
+    $attvalue =~ s/\A\x{20}+//;
+    $attvalue =~ s/\x{20}+\z//;
     $attvalue =~ s/\x{20}+/\x{20}/g;
   }
 
   return $attvalue;
 }
 
-sub _attvalue_xml10 {
-  my $self = shift;
-  return $self->_attvalue_common(@_);
+sub _attvalue_impl_xml10 {
+  goto &_attvalue_impl_common;
 }
-sub _attvalue_xml11 {
-  my $self = shift;
-  return $self->_attvalue_common(@_);
+sub _attvalue_impl_xml11 {
+  goto &_attvalue_impl_common;
 }
-sub attvalue {
-  my $self = shift;
-  my $coderef = $self->_get__attvalue($self->xml_version);
-  return $self->$coderef(@_);
+sub attvalue_impl {
+  my ($self) = @_;
+
+  return $self->_get__attvalue_impl($self->xml_version);
 }
 
 =head1 SEE ALSO

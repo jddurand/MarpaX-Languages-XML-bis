@@ -3,9 +3,7 @@ use Data::Hexdumper qw/hexdump/;
 use Marpa::R2;
 use MarpaX::Languages::XML::Exception;
 use MarpaX::Languages::XML::Impl::Encoding;
-use MarpaX::Languages::XML::Impl::EntityRef;
 use MarpaX::Languages::XML::Impl::Grammar;
-use MarpaX::Languages::XML::Impl::PEReference;
 use MarpaX::Languages::XML::Type::XmlVersion -all;
 use MarpaX::Languages::XML::Type::XmlSupport -all;
 use Moo;
@@ -65,20 +63,6 @@ has _parse_rc => (
                   isa => Int,
                   default => 0
                  );
-#
-# Character and entity references
-#
-has _entityref => (
-                 is => 'rw',
-                 isa => ConsumerOf['MarpaX::Languages::XML::Role::EntityRef'],
-                 default => sub { return MarpaX::Languages::XML::Impl::EntityRef->new() }
-                );
-has _pereference => (
-                 is => 'rw',
-                 isa => ConsumerOf['MarpaX::Languages::XML::Role::PEReference'],
-                 default => sub { return MarpaX::Languages::XML::Impl::PEReference->new() }
-                );
-
 #
 # Contexts
 #
@@ -1152,6 +1136,7 @@ sub _parse_element {
   my $localpart = '';
   my $qname = '';
   my $nsattname = '';
+  my $attvalue_impl;
 
   my $_NAME_ID;
   my $_ATTVALUEINTERIORDQUOTEUNIT_ID;
@@ -1205,7 +1190,7 @@ sub _parse_element {
                    'AttValue$' => sub {
                      # my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
                      $_[0]->{_attribute_context} = 0;
-                     my $attvalue = $grammar->attvalue($_[0]->{_cdata_context}, $_[0]->{_entityref}, @attvalue);
+                     my $attvalue = $grammar->$attvalue_impl($_[0]->{_cdata_context}, @attvalue);
                      $_[0]->{_attributes}->{$attname} = { Name => $attname, Value => $attvalue, NamespaceURI => '', Prefix => '', LocalName => '' };
                      @attvalue = ();
                      return;
@@ -1230,6 +1215,10 @@ sub _parse_element {
   # Generate grammar
   #
   $grammar = $self->_generate_grammar(start => 'element', grammar_event => \%grammar_event);
+  #
+  # Get implementations of interest
+  #
+  $attvalue_impl = $grammar->attvalue_impl;
   #
   # Get IDs of interest
   #
@@ -1263,7 +1252,7 @@ sub _parse_element {
 
     my $name = $_[0]->{_last_lexeme}->[$_NAME_ID];
     if ($_[0]->{_attribute_context}) {
-      my $entityref = $_[0]->{_entityref}->{$name};
+      my $entityref = $grammar->{_entityref}->{$name};
       if (! defined($entityref)) {
         $_[0]->_parse_exception("Entity reference $name does not exist", $_[2]);
       } else {

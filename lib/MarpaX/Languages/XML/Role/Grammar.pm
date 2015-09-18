@@ -14,7 +14,7 @@ requires 'elements_lexeme_match';
 requires 'elements_lexeme_exclusion';
 requires 'eol';
 requires 'eol_decl';
-requires 'attvalue';
+requires 'attvalue_impl';
 requires 'elements_lexeme_match_by_symbol_ids';
 requires 'spec';
 
