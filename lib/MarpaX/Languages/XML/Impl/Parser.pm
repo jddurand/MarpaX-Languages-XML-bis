@@ -1108,7 +1108,7 @@ sub _parse_element {
   #
   my $grammar;
   my %grammar_event;
-  foreach (qw/element AttributeName AttValue Prefix LocalPart/) {
+  foreach (qw/element AttributeName AttValue/) {
     $grammar_event{"$_\$"} = { type => 'completed', symbol_name => $_ };
   }
   #
