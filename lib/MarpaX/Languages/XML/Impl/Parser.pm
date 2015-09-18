@@ -349,13 +349,13 @@ sub _parse_exception {
         my $previous_pos = ($self->_pos >= 48) ? $self->_pos - 48 : 0;
         $hash{DataBefore} = hexdump(data              => ${$self->_bufferRef},
                                     start_position    => $previous_pos,
-                                    end_position      => $self->_pos - $previous_pos - 1,
+                                    end_position      => $self->_pos - 1,
                                     suppress_warnings => 1,
                                    );
       }
       $hash{Data} = hexdump(data              => ${$self->_bufferRef},
                             start_position    => $self->_pos,
-                            end_position      => $self->_pos + 47,
+                            end_position      => (($self->_pos + 47) <= $self->_length) ? $self->_pos + 47 : $self->_length,
                             suppress_warnings => 1,
                            );
     }
