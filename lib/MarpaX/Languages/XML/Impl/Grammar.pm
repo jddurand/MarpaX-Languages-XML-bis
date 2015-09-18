@@ -242,7 +242,7 @@ our %LEXEME_MATCH_COMMON =
    _XMLDECL_END                   => qr{\G\?>}p,
    _VERSION                       => qr{\Gversion}p,
    _EQUAL                         => qr{\G=}p,
-   _VERSIONNUM                    => qr{\G1\.0}p,
+   _VERSIONNUM                    => qr{\G1\.[01]}p,            # We want to catch all possible versions so that we can retry the parser
    _DOCTYPE_START                 => qr{\G<!DOCTYPE}p,
    _DOCTYPE_END                   => qr{\G>}p,
    _LBRACKET                      => qr{\G\[}p,
