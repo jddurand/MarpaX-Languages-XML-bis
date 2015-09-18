@@ -20,15 +20,15 @@ around stringify => sub {
       . "-----------------\n"
       . $self->{Progress};
   }
-  #
-  # Data::HexDumper is a great module, except there is no option
-  # to ignore 0x00, which is impossible in XML.
-  #
-  my $nbzeroes = ($self->{Data} =~ s/( 00)(?= (?::|00))/   /g);
-  if ($nbzeroes) {
-    $self->{Data} =~ s/\.{$nbzeroes}$//;
-  }
   if ($self->{Data}) {
+    #
+    # Data::HexDumper is a great module, except there is no option
+    # to ignore 0x00, which is impossible in XML.
+    #
+    my $nbzeroes = ($self->{Data} =~ s/( 00)(?= (?::|00))/   /g);
+    if ($nbzeroes) {
+      $self->{Data} =~ s/\.{$nbzeroes}$//;
+    }
     if ($self->{DataBefore}) {
       my $nbzeroes = ($self->{DataBefore} =~ s/( 00)(?= (?::|00))/   /g);
       if ($nbzeroes) {
