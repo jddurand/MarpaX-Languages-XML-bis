@@ -29,6 +29,7 @@ my $logstderr = 0;
 my $block_size = 1024 * 1024;
 my $xml_version = undef;
 my $xml_support = undef;
+my $unicode_newline = undef;
 my @sax = ();
 
 my $loglevel_type = Enum[qw/DEBUG INFO WARN ERROR FATAL TRACE/];
@@ -54,7 +55,8 @@ if (! GetOptions ('help!' => \$help,
                   'xml_version=s' => sub { $xml_version = XmlVersion->assert_return($_[1]); },
                   'xml_support=s' => sub { $xml_support = XmlSupport->assert_return($_[1]); },
                   'sax=s' => sub { push(@sax, map {$sax_type->assert_return($_)} split(/,/, $_[1])) },
-                  'logstderr!' => \$logstderr)) {
+                  'logstderr!' => \$logstderr,
+                  'unicode_newline!' => \$unicode_newline)) {
   exit(EXIT_FAILURE);
 }
 
@@ -75,6 +77,7 @@ foreach (@ARGV) {
                                   sax_handler => \%sax_handler,
                                   xml_version => $xml_version,
                                   xml_support => $xml_support,
+                                  unicode_newline => $unicode_newline
                                  );
   } catch {
     $log->errorf('%s', "$_");

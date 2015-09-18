@@ -244,6 +244,12 @@ has _next_global_pos => (
                          writer      => '_set__next_global_pos'
                         );
 
+has _newline_regexp => (
+                        is          => 'rw',
+                        isa         => RegexpRef,
+                        default     => sub { return qr/\R/; }
+          );
+
 #
 # External attributes
 # -------------------
@@ -273,12 +279,6 @@ has block_size => (
                    default     => 1024 * 1024
           );
 
-has strict_ns => (
-                   is          => 'ro',
-                   isa         => Bool,
-                   default     => 0
-                  );
-
 has sax_handler => (
                     is  => 'ro',
                     isa => HashRef[CodeRef],
@@ -290,6 +290,19 @@ has sax_handler => (
                                 exists_sax_handler => 'exists',
                                }
                     );
+
+has unicode_newline => (
+                        is          => 'ro',
+                        isa         => Bool|Undef,
+                        default     => 1,
+                        trigger     => \&_trigger_unicode_newline
+          );
+
+sub _trigger_unicode_newline {
+  my ($self, $unicode_newline) = @_;
+
+  $self->_newline_regexp($unicode_newline ? qr/\R/ : qr/\n/);  # undef is a false value
+}
 
 #
 # Logger attribute that need to be external
@@ -547,7 +560,7 @@ sub _generic_parse {
           #
           if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
             $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Match %s with length=%d", $LineNumber, $ColumnNumber, $grammar->scanless->symbol_name($_), length($matched_data));
-            foreach (split(/\R/, hexdump(data => $matched_data, suppress_warnings => 1))) {
+            foreach (split(/\n/, hexdump(data => $matched_data, suppress_warnings => 1))) {
               $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE ... %s", $LineNumber, $ColumnNumber, $_);
             }
           }
@@ -611,7 +624,7 @@ sub _generic_parse {
         my $linebreaks;
         my $next_global_column;
         my $next_global_line;
-        if ($linebreaks = () = $data =~ /\R/g) {
+        if ($linebreaks = () = $data =~ /$MarpaX::Languages::XML::Impl::Parser::newline_regexp/g) {
           $next_global_line   = $self->{_next_global_line}   = $LineNumber + $linebreaks;
           $next_global_column = $self->{_next_global_column} = 1 + ($max_length - $+[0]);
         } else {
@@ -1302,11 +1315,12 @@ sub parse {
   my ($self) = @_;
 
   #
-  # Localized variables
+  # Localized variables not needed to be fetched more than once
   #
   local $MarpaX::Languages::XML::Impl::Parser::is_trace = $self->_logger->is_trace;
   local $MarpaX::Languages::XML::Impl::Parser::is_debug = $self->_logger->is_debug;
   local $MarpaX::Languages::XML::Impl::Parser::in_decl  = 0;
+  local $MarpaX::Languages::XML::Impl::Parser::newline_regexp  = $self->_newline_regexp;
   #
   # We want to handle buffer direcly with no COW: buffer is a variable send in all parameters
   # and accessed using $_[]

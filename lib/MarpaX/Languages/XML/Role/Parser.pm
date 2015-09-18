@@ -8,6 +8,12 @@ use Moo::Role;
 # AUTHORITY
 
 requires 'parse';
+requires 'xml_version';
+requires 'xml_support';
+requires 'io';
+requires 'block_size';
+requires 'sax_handler';
+requires 'unicode_newline';
 
 requires 'start_document';
 requires 'end_document';
