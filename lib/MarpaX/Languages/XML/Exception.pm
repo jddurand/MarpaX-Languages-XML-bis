@@ -38,7 +38,7 @@ around stringify => sub {
         . "Characters around the error:\n"
         . "----------------------------\n";
       $string .= $self->{DataBefore};
-      $string .= '  <' . $self->{Message} . ">\n";
+      $string .= "  <error>\n";
     } else {
       $string .= "\n"
         . "Characters just after the error:\n"
