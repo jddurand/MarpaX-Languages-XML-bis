@@ -12,10 +12,10 @@ requires 'xmlns_scanless';
 requires 'elements_grammar_event';
 requires 'elements_lexeme_match';
 requires 'elements_lexeme_exclusion';
-requires 'eol';
-requires 'eol_decl';
-requires 'attvalue_impl';
 requires 'elements_lexeme_match_by_symbol_ids';
 requires 'spec';
 
+requires 'eol_impl';
+requires 'eol_decl_impl';
+requires 'attvalue_impl';
 1;

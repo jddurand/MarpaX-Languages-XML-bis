@@ -63,35 +63,35 @@ has _attvalue_impl => (
                                   }
                       );
 
-has _eol => (
-             is     => 'ro',
-             isa    => HashRef[CodeRef],
-             default => sub {
-               {
-                 '1.0' => \&_eol_xml10,
-                 '1.1' => \&_eol_xml11
-                 }
-             },
-             handles_via => 'Hash',
-             handles => {
-                         _get__eol  => 'get'
-                        }
-            );
-
-has _eol_decl => (
+has _eol_impl => (
                   is     => 'ro',
                   isa    => HashRef[CodeRef],
                   default => sub {
                     {
-                      '1.0' => \&_eol_decl_xml10,
-                      '1.1' => \&_eol_decl_xml11
-                    }
+                      '1.0' => \&_eol_impl_xml10,
+                      '1.1' => \&_eol_impl_xml11
+                      }
                   },
                   handles_via => 'Hash',
                   handles => {
-                              _get__eol_decl  => 'get'
+                              _get__eol_impl  => 'get'
                              }
-            );
+                 );
+
+has _eol_decl_impl => (
+                       is     => 'ro',
+                       isa    => HashRef[CodeRef],
+                       default => sub {
+                         {
+                           '1.0' => \&_eol_decl_impl_xml10,
+                           '1.1' => \&_eol_decl_impl_xml11
+                           }
+                       },
+                       handles_via => 'Hash',
+                       handles => {
+                                   _get__eol_decl_impl  => 'get'
+                                  }
+                      );
 
 has scanless => (
                  is     => 'ro',
@@ -467,54 +467,56 @@ sub _build_xml_scanless {
 }
 
 sub _build_scanless {
-  my $self = shift;
+  my ($self, @args) = @_;
 
   my $xml_support = $self->xml_support;
   my $method = $xml_support . '_scanless';
 
-  return $self->$method(@_);
+  return $self->$method(@args);
 }
 
 #
 # End-of-line handling in a declaration
 # --------------------------------------
-sub _eol_decl_xml10 {
+sub _eol_decl_impl_xml10 {
   #
   # XML 1.0 has no decl dependency
   #
-  my $self = shift;
-  return $self->_eol_xml10(@_);
+  goto &_eol_impl_xml10;
 }
 
-sub _eol_decl_xml11 {
-  my ($self, undef, $eof, $error_message_ref) = @_; # Buffer is in $_[1]
+sub _eol_decl_impl_xml11 {
+  my ($self, undef, $eof) = @_; # Buffer is in $_[1]
 
   if ($_[1] =~ /[\x{85}\x{2028}]/) {
-    ${$error_message_ref} = "Invalid character \\x{" . sprintf('%X', ord(substr($_[1], $+[0], $+[0] - $-[0]))) . "}";
-    return -1;
+    #
+    # I have to say that, although the XML spec says these characters
+    # must be rejected, this can never happen with respect to the
+    # grammar (?) - c.f. XML1.1 XmlDecl or TextDecl rules.
+    #
+    croak "Invalid character \\x{" . sprintf('%X', ord(substr($_[1], $+[0], $+[0] - $-[0]))) . "}";
   }
 
   #
   # The rest is shared between decl and non decl modes
   #
-  return $self->_eol_xml11($_[1], $eof, $error_message_ref);
+  goto &_eol_impl_xml11;
 }
 
 #
 # Note: it is expected that the caller never call eol on an empty buffer.
 # Then it is guaranteed that eol never returns a value <= 0.
 #
-sub eol_decl {
-  my $self = shift;
-  my $coderef = $self->_get__eol_decl($self->xml_version);
-  return $self->$coderef(@_);
+sub eol_decl_impl {
+  my ($self) = @_;
+  return $self->_get__eol_decl_impl($self->xml_version);
 }
 
 #
 # End-of-line handling outside of a declaration
 # ---------------------------------------------
-sub _eol_xml10 {
-  my ($self, undef, $eof, $error_message_ref) = @_;
+sub _eol_impl_xml10 {
+  my ($self, undef, $eof) = @_;
   # Buffer is in $_[1]
 
   #
@@ -534,8 +536,8 @@ sub _eol_xml10 {
   return length($_[1]);
 }
 
-sub _eol_xml11 {
-  my ($self, undef, $eof, $error_message_ref) = @_; # Buffer is in $_[1]
+sub _eol_impl_xml11 {
+  my ($self, undef, $eof) = @_; # Buffer is in $_[1]
 
   #
   # If last character is a \x{D} this is undecidable unless eof flag
@@ -561,18 +563,9 @@ sub _eol_xml11 {
 # Note: it is expected that the caller never call eol on an empty buffer.
 # Then it is guaranteed that eol never returns a value <= 0.
 #
-sub eol {
-  #
-  # Here is how I would do params validation
-  # CORE::state $check = compile(ConsumerOf['MarpaX::Languages::XML::Role::Grammar'],
-  #                                       Str,
-  #                                       Bool,
-  #                                       Str,
-  #                                       ScalarRef);
-  # $check->(@_);
-  my $self = shift;
-  my $coderef = $self->_get__eol($self->xml_version);
-  return $self->$coderef(@_);
+sub eol_impl {
+  my ($self) = @_;
+  return $self->_get__eol_impl($self->xml_version);
 }
 
 #

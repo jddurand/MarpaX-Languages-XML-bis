@@ -335,27 +335,25 @@ sub _parse_exception {
               LineNumber   => $self->LineNumber,
               ColumnNumber => $self->ColumnNumber
              );
-  if ($MarpaX::Languages::XML::Impl::Parser::is_debug || $ENV{XML_DEBUG}) {
-    if ($r) {
-      $hash{Progress} = $r->show_progress();
-      $hash{TerminalsExpected} = $r->terminals_expected();
+  if ($r) {
+    $hash{Progress} = $r->show_progress();
+    $hash{TerminalsExpected} = $r->terminals_expected();
+  }
+  if ($self->_bufferRef && ${$self->_bufferRef}) {
+    # 47 = 15+16+16
+    if ($self->_pos > 0) {
+      my $previous_pos = ($self->_pos >= 48) ? $self->_pos - 48 : 0;
+      $hash{DataBefore} = hexdump(data              => ${$self->_bufferRef},
+                                  start_position    => $previous_pos,
+                                  end_position      => $self->_pos - 1,
+                                  suppress_warnings => 1,
+                                 );
     }
-    if ($self->_bufferRef && ${$self->_bufferRef}) {
-      # 47 = 15+16+16
-      if ($self->_pos > 0) {
-        my $previous_pos = ($self->_pos >= 48) ? $self->_pos - 48 : 0;
-        $hash{DataBefore} = hexdump(data              => ${$self->_bufferRef},
-                                    start_position    => $previous_pos,
-                                    end_position      => $self->_pos - 1,
-                                    suppress_warnings => 1,
-                                   );
-      }
-      $hash{Data} = hexdump(data              => ${$self->_bufferRef},
-                            start_position    => $self->_pos,
-                            end_position      => (($self->_pos + 47) <= $self->_length) ? $self->_pos + 47 : $self->_length,
-                            suppress_warnings => 1,
-                           );
-    }
+    $hash{Data} = hexdump(data              => ${$self->_bufferRef},
+                          start_position    => $self->_pos,
+                          end_position      => (($self->_pos + 47) <= $self->_length) ? $self->_pos + 47 : $self->_length,
+                          suppress_warnings => 1,
+                         );
   }
 
   MarpaX::Languages::XML::Exception::Parse->throw(%hash);
@@ -455,6 +453,7 @@ sub _generic_parse {
   my $previous_can_stop = 0;
   my $_XMLNSCOLON_ID   = $grammar->scanless->symbol_by_name_hash->{'_XMLNSCOLON'};
   my $_XMLNS_ID        = $grammar->scanless->symbol_by_name_hash->{'_XMLNS'};
+  my $eol_impl         = $grammar->eol_impl;
   #
   # Infinite loop until user says to stop or error
   #
@@ -531,7 +530,7 @@ sub _generic_parse {
               $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Lexeme %s (%s) is reaching end-of-buffer", $LineNumber, $ColumnNumber, $_, $grammar->scanless->symbol_name($_));
             }
             my $old_remaining = $remaining;
-            $remaining = $self->_reduceAndRead($_[1], $r, $pos, $length, \$pos, \$length, $grammar, $eol);
+            $remaining = $self->_reduceAndRead($_[1], $r, $pos, $length, \$pos, \$length, $grammar, $eol, $eol_impl);
             if ($remaining > $old_remaining) {
               #
               # Something was read
@@ -709,7 +708,7 @@ sub _generic_parse {
 }
 
 sub _reduceAndRead {
-  my ($self,  undef, $r, $pos, $length, $posp, $lengthp, $grammar, $eol) = @_;
+  my ($self,  undef, $r, $pos, $length, $posp, $lengthp, $grammar, $eol, $eol_impl) = @_;
   #
   # Crunch previous data unless we are in the decl context
   #
@@ -743,30 +742,13 @@ sub _reduceAndRead {
   if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
     $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Reading %d characters", $self->LineNumber, $self->ColumnNumber, $self->block_size);
   }
-  ${$lengthp} = $length = $self->_set__length($self->_read($_[1], $r, $grammar, $eol));
+  ${$lengthp} = $length = $self->_set__length($self->_read($_[1], $r, $grammar, $eol, $eol_impl));
 
   return $length - $pos;
 }
 
-sub _eol {
-  my ($self, undef, $r, $grammar, $orig_length, $decl) = @_;
-
-  my $error_message;
-  my $eol_length = $grammar->eol($_[1], $self->{_eof}, $decl, \$error_message);
-  if ($eol_length < 0) {
-    #
-    # This is an error
-    #
-    $self->_parse_exception($error_message, $r);
-  }
-  if ($MarpaX::Languages::XML::Impl::Parser::is_trace && ($eol_length != $orig_length)) {
-    $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE End-of-line handling removed %d character%s", $self->LineNumber, $self->ColumnNumber, $orig_length - $eol_length, ($orig_length - $eol_length) > 0 ? 's' : '');
-  }
-  return $eol_length;
-}
-
 sub _read {
-  my ($self, undef, $r, $grammar, $eol) = @_;
+  my ($self, undef, $r, $grammar, $eol, $eol_impl) = @_;
 
   my $length;
   do {
@@ -781,21 +763,23 @@ sub _read {
     } else {
       if ($eol) {
         #
-        # This can return 0
+        # This can croak
         #
-        my $error_message;
-        my $eol_length = $grammar->eol($_[1], $self->{_eof}, \$error_message);
-        if ($eol_length < 0) {
-          #
-          # This is an error
-          #
-          $self->_parse_exception($error_message, $r);
-        } elsif ($eol_length > 0) {
-          if ($MarpaX::Languages::XML::Impl::Parser::is_trace && ($eol_length != $io_length)) {
-            $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE End-of-line handling removed %d character%s", $self->LineNumber, $self->ColumnNumber, $io_length - $eol_length, ($io_length - $eol_length) > 0 ? 's' : '');
+        try {
+          my $eol_length = $grammar->$eol_impl($_[1], $self->{_eof});
+          if ($eol_length > 0) {
+            if ($MarpaX::Languages::XML::Impl::Parser::is_trace && ($eol_length != $io_length)) {
+              $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE End-of-line handling removed %d character%s", $self->LineNumber, $self->ColumnNumber, $io_length - $eol_length, ($io_length - $eol_length) > 0 ? 's' : '');
+            }
+            $length = $eol_length;
           }
-          $length = $eol_length;
-        }
+        } catch {
+          $self->_parse_exception($_, $r);
+          #
+          # Never reached
+          #
+          return;
+        };
       } else {
         $length = $io_length;
       }
@@ -904,13 +888,14 @@ sub _parse_prolog {
   $grammar = $self->_generate_grammar(start => 'document', grammar_event => \%grammar_event);
   $xml_version = $grammar->xml_version;
   #
-  # Get IDs of interest
+  # Get IDs and implementations of interest
   #
   $_ENCNAME_ID       = $grammar->scanless->symbol_by_name_hash->{'_ENCNAME'};
   $_XMLDECL_START_ID = $grammar->scanless->symbol_by_name_hash->{'_XMLDECL_START'};
   $_XMLDECL_END_ID   = $grammar->scanless->symbol_by_name_hash->{'_XMLDECL_END'};
   $_VERSIONNUM_ID    = $grammar->scanless->symbol_by_name_hash->{'_VERSIONNUM'};
   $_ELEMENT_START_ID = $grammar->scanless->symbol_by_name_hash->{'_ELEMENT_START'};
+  my $eol_decl_impl  = $grammar->eol_decl_impl;
   #
   # and the associated namespace support
   #
@@ -986,26 +971,24 @@ sub _parse_prolog {
     #
     my $decl = substr($_[1], $_[0]->{_decl_start_pos}, $_[0]->{_decl_end_pos} - $_[0]->{_decl_start_pos});
     my $orig_length = length($decl);
-    my $error_message;
-    my $eol_length = $_[3]->eol_decl($decl, $_[0]->{_eof}, \$error_message);
     #
-    # Per def a declaration does not end with "\x{D}", so eol_decl should never return 0
+    # This can croak
     #
-    if ($eol_length <= 0) {
+    try {
+      my $eol_length = $_[3]->$eol_decl_impl($decl, $_[0]->{_eof});
+      if (($eol_length > 0) && ($eol_length != $orig_length)) {
+        #
+        # Replace in $_[1]
+        #
+        substr($_[1], $_[0]->{_decl_start_pos}, $_[0]->{_decl_end_pos} - $_[0]->{_decl_start_pos}, $decl);
+      }
+    } catch {
+      $_[0]->_parse_exception($_, $_[2]);
       #
-      # This is an error
+      # Never reached
       #
-      $_[0]->_parse_exception($error_message, $_[2]);
-    }
-    if ($MarpaX::Languages::XML::Impl::Parser::is_debug && ($eol_length != $orig_length)) {
-      $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE \[_XMLDECL_END\] End-of-line handling in declaration removed %d character%s", $_[0]->{LineNumber}, $_[0]->{ColumnNumber}, $orig_length - $eol_length, ($orig_length - $eol_length) > 0 ? 's' : '');
-    }
-    if ($eol_length != $orig_length) {
-      #
-      # Replace in $_[1]
-      #
-      substr($_[1], $_[0]->{_decl_start_pos}, $_[0]->{_decl_end_pos} - $_[0]->{_decl_start_pos}, $decl);
-    }
+      return;
+    };
     return;
   };
   $lexeme_callbacks_optimized[$_VERSIONNUM_ID] = sub {
@@ -1203,7 +1186,19 @@ sub _parse_element {
                    'AttValue$' => sub {
                      # my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
                      $_[0]->{_attribute_context} = 0;
-                     my $attvalue = $grammar->$attvalue_impl($_[0]->{_cdata_context}, @attvalue);
+                     #
+                     # This can croak
+                     #
+                     my $attvalue;
+                     try {
+                       my $attvalue = $grammar->$attvalue_impl($_[0]->{_cdata_context}, @attvalue);
+                     } catch {
+                       $_[0]->_parse_exception("Well-formedness constraint: No < in Attribute Values", $_[2]);
+                       #
+                       # never reached
+                       #
+                       return;
+                     };
                      $_[0]->{_attributes}->{$attname} = { Name => $attname, Value => $attvalue, NamespaceURI => '', Prefix => '', LocalName => '' };
                      @attvalue = ();
                      return;
@@ -1267,7 +1262,7 @@ sub _parse_element {
     if ($_[0]->{_attribute_context}) {
       my $entityref = $grammar->{_entityref}->{$name};
       if (! defined($entityref)) {
-        $_[0]->_parse_exception("Entity reference $name does not exist", $_[2]);
+        $_[0]->_parse_exception("Entity reference $name is not defined", $_[2]);
       } else {
         push(@attvalue, $entityref);
       }
