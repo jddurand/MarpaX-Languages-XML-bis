@@ -6,6 +6,7 @@ use MarpaX::Languages::XML::Exception;
 # use MarpaX::Languages::XML::XS;
 use MarpaX::Languages::XML::Impl::EntityRef;
 use MarpaX::Languages::XML::Impl::PEReference;
+use MarpaX::Languages::XML::Role::Grammar;
 use MarpaX::Languages::XML::Type::GrammarEvent -all;
 use MarpaX::Languages::XML::Type::XmlVersion -all;
 use MarpaX::Languages::XML::Type::XmlSupport -all;
@@ -605,8 +606,8 @@ sub _attvalue_impl_common {
       # which is considered as a string in the XML spec
       # C.f. section 2.4 Character Data and Markup
       #
-        croak "Entity $_ resolves to '<' but Well-formedness constraint says: No < in Attribute Values";
       if (($c eq '<') && ($_ ne 'lt')) {
+        croak "Entity $_ resolves to '<' but Well-formedness constraint says: No < in Attribute Values";
       }
       $attvalue .= $_[0]->attvalue($_[1], $_[0]->{_entityref}->{$_});
     } elsif (($_ eq "\x{20}") || ($_ eq "\x{D}") || ($_ eq "\x{A}") || ($_ eq "\x{9}")) {

@@ -6,6 +6,8 @@ use MarpaX::Languages::XML::Impl::Encoding;
 use MarpaX::Languages::XML::Impl::Grammar;
 use MarpaX::Languages::XML::Type::XmlVersion -all;
 use MarpaX::Languages::XML::Type::XmlSupport -all;
+use MarpaX::RFC::RFC3986;
+use MarpaX::RFC::RFC3987;
 use Moo;
 use MooX::late;
 use MooX::HandlesVia;
@@ -14,7 +16,6 @@ use Scalar::Util qw/reftype/;
 use Try::Tiny;
 use Types::Standard -all;
 use Types::Common::Numeric -all;
-use URI;
 use XML::NamespaceSupport;
 
 # ABSTRACT: MarpaX::Languages::XML::Role::parser implementation
@@ -601,7 +602,7 @@ sub _generic_parse {
           }
           $data = 'xmlns';
           $max_length = length($data);
-          %length = ($_XMLNSCOLON_ID => $max_length);
+          %length = ($_XMLNS_ID => $max_length);
         } else {
           #
           # Everything else has the same (default) priority of 0: keep the longests only
@@ -899,8 +900,16 @@ sub _parse_prolog {
   #
   # and the associated namespace support
   #
-  my $namespacesupport_options = { xmlns_11 => ($grammar->xml_version eq '1.1') ? 1 : 0 };
-  $self->_namespace(XML::NamespaceSupport->new($namespacesupport_options));
+  my %namespacesupport_options = ();
+  if ($grammar->xml_support eq 'xmlns') {
+    $namespacesupport_options{xmlns} = 1;
+    #
+    # Not really need but a safeguard, let's say.
+    # We detect ourself if we are undeclaring in the 1.0 version
+    #
+    $namespacesupport_options{xmlns_11} = ($grammar->xml_version eq '1.1') ? 1 : 0;
+  }
+  $self->_namespace(XML::NamespaceSupport->new(\%namespacesupport_options));
   #
   # then the eventual lexeme "man-in-the-middle" callbacks.
   # Lexeme callbacks are part of the _generic_parse(), so they must be optimized as much as possible
@@ -1069,6 +1078,17 @@ sub _parse_prolog {
   }
 }
 
+sub _safe_string {
+  my ($self, $string) = @_;
+  #
+  # Replace any character that would not be a known ASCII printable one with its hexadecimal value a-la-XML
+  #
+  # http://stackoverflow.com/questions/9730054/how-can-i-dump-a-string-in-perl-to-see-if-there-are-any-character-differences
+  #
+  $string =~ s/([^\x20-\x7E])/sprintf("&#x%x;", ord($1))/ge;
+  return $string;
+}
+
 sub _generate_grammar {
   my ($self, %grammar_option) = @_;
 
@@ -1101,11 +1121,11 @@ sub _parse_element {
   # Attribute          ::= AttributeName Eq AttValue  # [VC: Attribute Value Type] [WFC: No External Entity References] [WFC: No < in Attribute Values]
   # AttributeName      ::= Name
   #
-  # For XML1.1:
+  # For XMLNS1.0:
   # Attribute          ::= NSAttName Eq AttValue
   # Attribute          ::= QName Eq AttValue
   # NSAttName	       ::= PrefixedAttName (prefixed_attname)
-  #                     | DefaultAttName (default_attname)
+  #                      | DefaultAttName (default_attname)
   # PrefixedAttName    ::= XMLNSCOLON NCName
   # DefaultAttName     ::= XMLNS
   # QName              ::= PrefixedName (prefixed_name)
@@ -1131,7 +1151,9 @@ sub _parse_element {
   my $prefix = '';
   my $localpart = '';
   my $qname = '';
-  my $nsattname = '';
+  my $namespace_prefix = '';
+  my $is_nsattname = 0;
+  my $is_qname = 0;
   my $attvalue_impl;
 
   my $_NAME_ID;
@@ -1157,50 +1179,188 @@ sub _parse_element {
                    },
                    '!prefixed_name' => sub {
                      # my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
-                     $attname = join(':', $prefix, $localpart);
+                     $_[0]->{_attribute_context} = 1;
+                     #
+                     # Per both $prefix and $localpart are set
+                     #
+                     $is_qname = 1;
                      return;
                    },
                    '!unprefixed_name' => sub {
                      # my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
-                     $attname = $localpart;
+                     $_[0]->{_attribute_context} = 1;
+                     #
+                     # Per def $prefix is set and there is no $localpart
+                     #
+                     $localpart = '';
+                     $is_qname = 1;
                      return;
                    },
                    '!prefixed_attname' => sub {
                      # my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
-                     $attname = $_[0]->{_last_lexeme}->[$_NCNAME_ID];
                      $_[0]->{_attribute_context} = 1;
+                     $namespace_prefix = $_[0]->{_last_lexeme}->[$_NCNAME_ID];
+                     $is_nsattname = 1;
                      return;
                    },
                    '!default_attname' => sub {
                      # my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
-                     $attname = '';
                      $_[0]->{_attribute_context} = 1;
+                     $namespace_prefix = '';
+                     $is_nsattname = 1;
                      return;
                    },
                    'AttributeName$' => sub {
                      # my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
-                     $attname = $_[0]->{_last_lexeme}->[$_NAME_ID];
                      $_[0]->{_attribute_context} = 1;
+                     $attname = $_[0]->{_last_lexeme}->[$_NAME_ID];
                      return;
                    },
                    'AttValue$' => sub {
                      # my ($self, undef, $r, $g) = @_;    # $_[1] is the internal buffer
-                     $_[0]->{_attribute_context} = 0;
                      #
                      # This can croak
                      #
                      my $attvalue;
                      try {
-                       my $attvalue = $grammar->$attvalue_impl($_[0]->{_cdata_context}, @attvalue);
+                       $attvalue = $grammar->$attvalue_impl($_[0]->{_cdata_context}, @attvalue);
                      } catch {
-                       $_[0]->_parse_exception("Well-formedness constraint: No < in Attribute Values", $_[2]);
+                       $_[0]->_parse_exception("$_", $_[2]);
                        #
                        # never reached
                        #
                        return;
                      };
-                     $_[0]->{_attributes}->{$attname} = { Name => $attname, Value => $attvalue, NamespaceURI => '', Prefix => '', LocalName => '' };
+                     if ($is_nsattname) {
+                       #
+                       # The prefix xml is by definition bound to the namespace name http://www.w3.org/XML/1998/namespace.
+                       # It MAY, but need not, be declared, and MUST NOT be bound to any other namespace name.
+                       # Other prefixes MUST NOT be bound to this namespace name, and it MUST NOT be declared as the default namespace.
+                       # This reference value is the package global $XML::NamespaceSupport::NS_XML
+                       #
+                       # The prefix xmlns is used only to declare namespace bindings and is by definition bound to the namespace name http://www.w3.org/2000/xmlns/.
+                       # It MUST NOT be declared.
+                       # Other prefixes MUST NOT be bound to this namespace name, and it MUST NOT be declared as the default namespace.
+                       # Element names MUST NOT have the prefix xmlns.
+                       # This reference value is the package global $XML::NamespaceSupport::NS_XMLNS
+                       #
+                       # All other prefixes beginning with the three-letter sequence x, m, l, in any case combination, are reserved. This means that:
+                       # * users SHOULD NOT use them except as defined by later specifications
+                       # * processors MUST NOT treat them as fatal errors
+                       #
+                       # The attribute's normalized value MUST be either a URI (XMLNS 1.0)/IRI (XMLNS 1.1) reference — the namespace name identifying the namespace — or an empty string.
+                       #
+                       if (length($namespace_prefix) > 0) {
+                         #
+                         # If the attribute name matches PrefixedAttName, then the NCName gives the namespace prefix,
+                         # used to associate element and attribute names with the namespace name in the attribute value
+                         # in the scope of the element to which the declaration is attached.
+                         #
+                         if (($namespace_prefix eq 'xml') && ($attvalue ne $XML::NamespaceSupport::NS_XML)) {
+                           $_[0]->_parse_exception(sprintf("The prefix xml must not be bound to any other namespace but %s", $_[0]->_safe_string($XML::NamespaceSupport::NS_XML)), $_[2]);
+                         } elsif ($namespace_prefix eq 'xmlns') {
+                           $_[0]->_parse_exception('The prefix xmlns must not be declared', $_[2]);
+                         } elsif (($attvalue eq $XML::NamespaceSupport::NS_XML) ||
+                                  ($attvalue eq $XML::NamespaceSupport::NS_XMLNS)) {
+                           $_[0]->_parse_exception(sprintf("Prefix %s cannot be bound to namespace %s", $_[0]->_safe_string($namespace_prefix), $_[0]->_safe_string($XML::NamespaceSupport::NS_XML)), $_[2]);
+                         }
+                         if ($namespace_prefix =~ /^xml/i) {
+                           $_[0]->_logger->warnf("$LOG_LINECOLUMN_FORMAT_HERE \[AttValue\$] Prefix beginning with %s is reserved", $_[0]->{LineNumber}, $_[0]->{ColumnNumber}, $_[0]->_safe_string($namespace_prefix));
+                         }
+
+                         if (length($attvalue) <= 0) {
+                           if ($_[3]->xml_version eq '1.0') {
+                             #
+                             # In XMLNS1.0 the attribute value must not be empty
+                             #
+                             $_[0]->_parse_exception('Attribute value must not be empty');
+                           } else {
+                             #
+                             # In XMLNS1.1 the mean that this prefix is removed
+                             #
+                             if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+                               $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE \[AttValue\$] Undeclaring prefix of %s", $_[0]->{LineNumber}, $_[0]->{ColumnNumber}, $_[0]->_safe_string($namespace_prefix));
+                             }
+                             $self->{_namespace}->undeclare_prefix($namespace_prefix);
+                           }
+                         } else {
+                           if ($_[3]->xml_version eq '1.0') {
+                             #
+                             # In XMLNS1.0 the attribute value must be a valid URI
+                             #
+                             try { MarpaX::RFC::RFC3986->new($attvalue); } catch { $_[0]->_parse_exception("$_"); };
+                           } else {
+                             #
+                             # In XMLNS1.1 it must be a valid IRI
+                             #
+                             try { MarpaX::RFC::RFC3987->new($attvalue); } catch { $_[0]->_parse_exception("$_"); };
+                           }
+                           #
+                           # Declare a prefix
+                           #
+                           if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+                             $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE \[AttValue\$] Declaring mapping of %s to %s", $_[0]->{LineNumber}, $_[0]->{ColumnNumber}, $_[0]->_safe_string($namespace_prefix), $_[0]->_safe_string($attvalue));
+                           }
+                           #
+                           # Here $attvalue is the empty string
+                           # In both XMLNS 1.0 and 1.1, the attribute value in a default namespace declaration may be empty.
+                           # This has the same effect, within the scope of the declaration, of there being no default namespace.
+                           #
+                           $self->{_namespace}->declare_prefix($namespace_prefix, $attvalue);
+                         }
+                       } else {
+                         #
+                         # If the attribute name matches DefaultAttName, then the namespace name in the attribute value
+                         # is that of the default namespace in the scope of the element to which the declaration is attached.
+                         # With XML::NamespaceSupport this mean using an empty prefix
+                         #
+                         if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+                           $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE \[AttValue\$] Declaring default namespace to %s", $_[0]->{LineNumber}, $_[0]->{ColumnNumber}, $_[0]->_safe_string($attvalue));
+                         }
+                         if (($attvalue eq $XML::NamespaceSupport::NS_XML) ||
+                             ($attvalue eq $XML::NamespaceSupport::NS_XMLNS)) {
+                           $_[0]->_parse_exception(sprintf("%s must not declared as the default namespace", $_[0]->_safe_string($attvalue)), $_[2]);
+                         }
+                         #
+                         # Default namespace is ok
+                         #
+                         $self->{_namespace}->declare_prefix($namespace_prefix, $attvalue);
+                       }
+                     } elsif ($is_qname) {
+                       my $namespace_URI;
+                       if (length($localpart) > 0) {
+                         #
+                         # The Prefix provides the namespace prefix part of the qualified name, and MUST be associated with a namespace URI reference in a namespace declaration.
+                         #
+                         $namespace_URI = $self->{_namespace}->get_uri($prefix);
+                         if (! defined($namespace_URI)) {
+                           $_[0]->_parse_exception(sprintf("Prefix %s is not associated with a namespace URI reference", $_[0]->_safe_string($prefix)), $_[2]);
+                         }
+                         #
+                         # If there is a $localpart, there is also a $prefix
+                         #
+                         $attname = join(':', $prefix, $localpart);
+                       } else {
+                         #
+                         # Get this information from XML::NamespaceSupport
+                         #
+                         $attname = $localpart;
+                         ($namespace_URI, $prefix, $localpart) = $self->{_namespace}->process_attribute_name($localpart);
+                       }
+                       $_[0]->{_attributes}->{$attname} = { Name => $attname, Value => $attvalue, NamespaceURI => $namespace_URI, Prefix => $prefix, LocalName => $localpart };
+                     } else {
+                       #
+                       # Then per def this an XML1.0 or XML1.1 $attname. No XMLNS support.
+                       #
+                       $_[0]->{_attributes}->{$attname} = { Name => $attname, Value => $attvalue, NamespaceURI => '', Prefix => '', LocalName => '' };
+                     }
+                     $_[0]->{_attribute_context} = 0;
                      @attvalue = ();
+                     #
+                     # Reset booleans
+                     #
+                     $is_qname = 0;
+                     $is_nsattname = 0;
                      return;
                    }
                   );
