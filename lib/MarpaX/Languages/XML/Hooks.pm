@@ -19,9 +19,11 @@ package Marpa::R2::Scanless::G;
   sub symbol_by_name_hash {
     # my ( $slg ) = @_;
 
-    my $g1_subgrammar = $_[0]->[Marpa::R2::Internal::Scanless::G::THICK_G1_GRAMMAR];
-    my $g1_tracer  = $g1_subgrammar->tracer();
-    return $g1_tracer->symbol_by_name_hash;
+    # my $g1_subgrammar = $_[0]->[Marpa::R2::Internal::Scanless::G::THICK_G1_GRAMMAR];
+    # my $g1_tracer  = $g1_subgrammar->tracer();
+    # return $g1_tracer->symbol_by_name_hash;
+
+    return $_[0]->[Marpa::R2::Internal::Scanless::G::THICK_G1_GRAMMAR]->tracer()->symbol_by_name_hash;
   }
 }
 
@@ -30,21 +32,8 @@ package Marpa::R2::Scanless::R;
   no warnings 'redefine';
 
   sub lexeme_alternative_by_symbol_id {
-    my ( $slr, $symbol_id, @value ) = @_;
-    my $thin_slr = $slr->[Marpa::R2::Internal::Scanless::R::C];
-    #
-    # I know what I am doing
-    #
-    #Marpa::R2::exception(
-    #    "slr->alternative(): symbol id is undefined\n",
-    #    "    The symbol id cannot be undefined\n"
-    #) if not defined $symbol_id;
-
-    my $slg        = $slr->[Marpa::R2::Internal::Scanless::R::GRAMMAR];
-    my $g1_grammar = $slg->[Marpa::R2::Internal::Scanless::G::THICK_G1_GRAMMAR];
-
-    my $result = $thin_slr->g1_alternative( $symbol_id, @value );
-    return 1 if $result == $Marpa::R2::Error::NONE;
+    my $result = $_[0]->[Marpa::R2::Internal::Scanless::R::C]->g1_alternative( $_[1], @_[2..$#_] );
+    return 1 if ($result == $Marpa::R2::Error::NONE);
 
     # The last two are perhaps unnecessary or arguable,
     # but they preserve compatibility with Marpa::XS
@@ -54,7 +43,7 @@ package Marpa::R2::Scanless::R;
             || $result == $Marpa::R2::Error::INACCESSIBLE_TOKEN;
 
     Marpa::R2::exception( qq{Problem reading symbol id "$symbol_id": },
-        ( scalar $g1_grammar->error() ) );
+        ( scalar $_[0]->[Marpa::R2::Internal::Scanless::R::GRAMMAR]->[Marpa::R2::Internal::Scanless::G::THICK_G1_GRAMMAR]->error() ) );
   }
 
   sub terminals_expected_to_symbol_ids {
@@ -71,6 +60,33 @@ package Marpa::R2::Recognizer;
     # my ($recce) = @_;
     return $_[0]->[Marpa::R2::Internal::Recognizer::C]->terminals_expected();
   }
+}
+
+#
+# Events is used so many times
+#
+package Marpa::R2::Scanless::R;
+{
+  no warnings 'redefine';
+
+  sub Marpa::R2::Scanless::R::events {
+    return $_[0]->[Marpa::R2::Internal::Scanless::R::EVENTS];
+  }
+
+  sub Marpa::R2::Scanless::R::lexeme_complete {
+    # my ( $slr, $start, $length ) = @_;
+    my $thin_slr = $_[0]->[Marpa::R2::Internal::Scanless::R::C];
+    $_[0]->[Marpa::R2::Internal::Scanless::R::EVENTS] = [];
+    my $return_value = $thin_slr->g1_lexeme_complete( $_[1], $_[2] );
+
+    Marpa::R2::Internal::Scanless::convert_libmarpa_events($_[0]);
+    #
+    # Never happens for me: I rely entirely on predicted lexemes
+    #
+    # die q{} . $thin_slr->g1()->error() if $return_value == 0;
+    return $return_value;
+  }
+
 }
 
 1;

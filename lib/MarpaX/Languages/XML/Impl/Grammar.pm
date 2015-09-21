@@ -38,16 +38,16 @@ has spec => (
 #
 # Character and entity references
 #
-has _entityref => (
-                 is => 'rw',
-                 isa => ConsumerOf['MarpaX::Languages::XML::Role::EntityRef'],
-                 default => sub { return MarpaX::Languages::XML::Impl::EntityRef->new() }
-                );
-has _pereference => (
-                 is => 'rw',
-                 isa => ConsumerOf['MarpaX::Languages::XML::Role::PEReference'],
-                 default => sub { return MarpaX::Languages::XML::Impl::PEReference->new() }
-                );
+has entityref => (
+                  is => 'rw',
+                  isa => ConsumerOf['MarpaX::Languages::XML::Role::EntityRef'],
+                  default => sub { return MarpaX::Languages::XML::Impl::EntityRef->new() }
+                 );
+has pereference => (
+                    is => 'rw',
+                    isa => ConsumerOf['MarpaX::Languages::XML::Role::PEReference'],
+                    default => sub { return MarpaX::Languages::XML::Impl::PEReference->new() }
+                   );
 
 has _attvalue_impl => (
                        is     => 'ro',
@@ -600,16 +600,14 @@ sub _attvalue_impl_common {
       # For an entity reference, recursively apply step 3 of this algorithm to the replacement text of the entity.
       # EntityRef case.
       #
-      my $c = $_[0]->attvalue($_[1], $_[0]->{_entityref}->{$_});
+      my $c = $_[0]->attvalue($_[1], $_[0]->entityref->get($_));
       #
       # It is illegal to have '<' as a replacement character except if it comes from &lt;
       # which is considered as a string in the XML spec
       # C.f. section 2.4 Character Data and Markup
       #
-      if (($c eq '<') && ($_ ne 'lt')) {
-        croak "Entity $_ resolves to '<' but Well-formedness constraint says: No < in Attribute Values";
-      }
-      $attvalue .= $_[0]->attvalue($_[1], $_[0]->{_entityref}->{$_});
+      croak "Entity $_ resolves to '<' but Well-formedness constraint says: No < in Attribute Values" if (($c eq '<') && ($_ ne 'lt'));
+      $attvalue .= $_[0]->attvalue($_[1], $_[0]->entityref->($_));
     } elsif (($_ eq "\x{20}") || ($_ eq "\x{D}") || ($_ eq "\x{A}") || ($_ eq "\x{9}")) {
       #
       # For a white space character (#x20, #xD, #xA, #x9), append a space character (#x20) to the normalized value.
@@ -625,11 +623,11 @@ sub _attvalue_impl_common {
   #
   # If the attribute type is not CDATA, then the XML processor must further process the normalized attribute value by discarding any leading and trailing space (#x20) characters, and by replacing sequences of space (#x20) characters by a single space (#x20) character.
   #
-  if (! $_[1]) {
+  do {
     $attvalue =~ s/\A\x{20}+//;
     $attvalue =~ s/\x{20}+\z//;
     $attvalue =~ s/\x{20}+/\x{20}/g;
-  }
+  } if (! $_[1]);
 
   return $attvalue;
 }
