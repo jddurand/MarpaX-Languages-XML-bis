@@ -645,7 +645,8 @@ sub _generic_parse {
           $r->lexeme_alternative_by_symbol_id($_);
         }
         #
-        # Make it complete from grammar point of view
+        # Make it complete from grammar point of view. Never fails because
+        # I rely entirely on predicted lexemes.
         #
         $r->lexeme_complete(0, 1);
         #
