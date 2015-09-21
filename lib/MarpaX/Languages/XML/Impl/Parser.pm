@@ -88,7 +88,7 @@ has _cdata_context => (
 #
 has _attributes => (
                    is => 'rw',
-                   isa => HashRef[Dict[Name => Str, Value => Str, NamespaceURI => Str, Prefix => Str, LocalName => Str]],
+                   isa => HashRef[Dict[Name => Str, Value => Str, NamespaceURI => Str|Undef, Prefix => Str|Undef, LocalName => Str|Undef]],
                    default => sub { {} },
                    handles_via => 'Hash',
                    handles => {
@@ -791,7 +791,7 @@ sub end_document {
 }
 
 sub start_element {
-  # my ($self, $user_code) = @_;         # Callback from _generic_parse() : optimized as much as possible
+  # my ($self, $user_code, %attributes) = @_;         # Callback from _generic_parse() : optimized as much as possible
 
   my $usercode = $_[1];
   $_[0]->$usercode({
@@ -1126,9 +1126,9 @@ sub _parse_element {
     }
   }
 
-  my %attribute = ();
   my $attname = '';
   my @attvalue = ();
+  my @attributes = ();
   my $prefix = '';
   my $localpart = '';
   my $qname = '';
@@ -1320,29 +1320,28 @@ sub _parse_element {
                        my $namespace_URI;
                        if (length($localpart) > 0) {
                          #
-                         # The Prefix provides the namespace prefix part of the qualified name, and MUST be associated with a namespace URI reference in a namespace declaration.
+                         # The Prefix provides the namespace prefix part of the qualified name, and MUST be associated with
+                         # a namespace URI reference in a namespace declaration.
                          #
-                         $namespace_URI = $self->{_namespace}->get_uri($prefix);
                          $_[0]->_parse_exception(sprintf("Prefix %s is not associated with a namespace URI reference",
                                                          $_[0]->_safe_string($prefix)),
-                                                 $_[2]) if (! defined($namespace_URI));
+                                                 $_[2]) if (! defined($self->{_namespace}->get_uri($prefix)));
                          #
-                         # If there is a $localpart, there is also a $prefix
+                         # The scope of a namespace declaration declaring a prefix extends from the beginning of the start-tag
+                         # in which it appears to the end of the corresponding end-tag, excluding the scope of any inner declarations
+                         # with the same NSAttName part. In the case of an empty tag, the scope is the tag itself.
                          #
-                         $attname = join(':', $prefix, $localpart);
+                         # This mean we have to wait for the start-tag completion to apply namespace to all attributes
+                         #
+                         push(@attributes, { Name => "$prefix:$localpart", Value => $attvalue, NamespaceURI => undef, Prefix => $prefix, LocalName => $localpart });
                        } else {
-                         #
-                         # Get this information from XML::NamespaceSupport
-                         #
-                         $attname = $localpart;
-                         ($namespace_URI, $prefix, $localpart) = $self->{_namespace}->process_attribute_name($localpart);
+                         push(@attributes, { Name => $localpart,           Value => $attvalue, NamespaceURI => undef, Prefix => '',      LocalName => undef });
                        }
-                       $_[0]->{_attributes}->{$attname} = { Name => $attname, Value => $attvalue, NamespaceURI => $namespace_URI, Prefix => $prefix, LocalName => $localpart };
                      } else {
                        #
                        # Then per def this an XML1.0 or XML1.1 $attname. No XMLNS support.
                        #
-                       $_[0]->{_attributes}->{$attname} = { Name => $attname, Value => $attvalue, NamespaceURI => '', Prefix => '', LocalName => '' };
+                       push(@attributes, { Name => $attname, Value => $attvalue, NamespaceURI => undef, Prefix => undef, LocalName => $attname });
                      }
                      $_[0]->{_attribute_context} = 0;
                      #
@@ -1362,10 +1361,20 @@ sub _parse_element {
       my $internal_code = $_;
       my $event_name = "!$_";
       $grammar_event{$event_name} = { type => 'nulled', symbol_name => $_ };
-      $callbacks{$event_name} = sub {
-        # my ($self, undef, $r) = @_; # $_[1] is the internal buffer
-        return $_[0]->$internal_code($user_code);
-      };
+      if ($_ eq 'start_element') {
+        #
+        # Add @attributes in the parameters
+        #
+        $callbacks{$event_name} = sub {
+          # my ($self, undef, $r) = @_; # $_[1] is the internal buffer
+          return $_[0]->$internal_code($user_code, @attributes);
+        };
+      } else {
+        $callbacks{$event_name} = sub {
+          # my ($self, undef, $r) = @_; # $_[1] is the internal buffer
+          return $_[0]->$internal_code($user_code, @attributes);
+        };
+      }
     }
   }
   #
