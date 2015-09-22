@@ -331,6 +331,10 @@ sub _parse_exception {
               LineNumber   => $self->LineNumber,
               ColumnNumber => $self->ColumnNumber
              );
+  #
+  # In any case, remove EOLs in message
+  #
+  $hash{Message} =~ s/\s*\z//;
   if ($r) {
     $hash{Progress} = $r->show_progress();
     $hash{TerminalsExpected} = $r->terminals_expected();
@@ -984,7 +988,10 @@ sub _parse_prolog {
       # $_[0] is not available in catch {}
       #
       $ok = 0;
-      $message = "$_";
+      #
+      # I suppose $_ will corectly stringify
+      #
+      $message = $_;
       return;
     };
     $_[0]->_parse_exception($message, $_[2]) if (! $ok);
@@ -1229,7 +1236,10 @@ sub _parse_element {
                        # $_[0] is not available in catch {}
                        #
                        $ok = 0;
-                       $message = "$_";
+                       #
+                       # I suppose $_ will corectly stringify
+                       #
+                       $message = $_;
                        return;
                      };
                      $_[0]->_parse_exception($message, $_[2]) if (! $ok);
@@ -1348,7 +1358,7 @@ sub _parse_element {
     my $entityref = $_[3]->entityref->get($name);
     if ($attribute_context) {
       if (! defined($entityref)) {
-        $_[0]->_parse_exception("Entity reference $name is not defined", $_[2]);
+        $_[0]->_parse_exception('Entity reference $name is not defined', $_[2]);
       } else {
         push(@attvalue, $entityref);
       }
