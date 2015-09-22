@@ -18,8 +18,11 @@ requires 'spec';
 
 requires 'eol_impl';
 requires 'eol_decl_impl';
+requires 'start_document_impl';
 requires 'attvalue_impl';
 requires 'nsattname_impl';
+requires 'qname_impl';
+requires 'end_document_impl';
 
 requires 'namespace_validate';
 

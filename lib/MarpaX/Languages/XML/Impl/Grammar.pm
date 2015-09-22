@@ -73,6 +73,36 @@ has namespace_validate => (
                            default => 0
                           );
 
+has _start_document_impl => (
+                             is     => 'ro',
+                             isa    => HashRef[CodeRef],
+                             default => sub {
+                               {
+                                 '1.0' => \&_start_document_impl_xml10,
+                                 '1.1' => \&_start_document_impl_xml11
+                               }
+                             },
+                             handles_via => 'Hash',
+                             handles => {
+                                         _get__start_document_impl  => 'get'
+                                        }
+                            );
+
+has _end_document_impl => (
+                           is     => 'ro',
+                           isa    => HashRef[CodeRef],
+                           default => sub {
+                             {
+                               '1.0' => \&_end_document_impl_xml10,
+                               '1.1' => \&_end_document_impl_xml11
+                             }
+                           },
+                           handles_via => 'Hash',
+                           handles => {
+                                       _get__end_document_impl  => 'get'
+                                      }
+                            );
+
 has _nsattname_impl => (
                         is     => 'ro',
                         isa    => HashRef[CodeRef],
@@ -87,6 +117,21 @@ has _nsattname_impl => (
                                     _get__nsattname_impl  => 'get'
                                    }
                        );
+
+has _qname_impl => (
+                    is     => 'ro',
+                    isa    => HashRef[CodeRef],
+                    default => sub {
+                      {
+                        '1.0' => \&_qname_impl_xml10,
+                        '1.1' => \&_qname_impl_xml11
+                      }
+                    },
+                    handles_via => 'Hash',
+                    handles => {
+                                _get__qname_impl  => 'get'
+                               }
+                   );
 
 has _eol_impl => (
                   is     => 'ro',
@@ -498,6 +543,57 @@ sub _build_scanless {
   my $method = $xml_support . '_scanless';
 
   return $self->$method(@args);
+}
+
+#
+# Document start handling
+#
+sub _start_document_impl_common {
+  return;
+}
+sub _start_document_impl_xml10 {
+  goto &_start_document_impl_common;
+}
+sub _start_document_impl_xml11 {
+  goto &_start_document_impl_common;
+}
+sub start_document_impl {
+  my ($self) = @_;
+  return $self->_get__start_document_impl($self->xml_version);
+}
+
+#
+# Document end handling
+#
+sub _end_document_impl_common {
+  return;
+}
+sub _end_document_impl_xml10 {
+  goto &_end_document_impl_common;
+}
+sub _end_document_impl_xml11 {
+  goto &_end_document_impl_common;
+}
+sub end_document_impl {
+  my ($self) = @_;
+  return $self->_get__end_document_impl($self->xml_version);
+}
+
+#
+# Qualified name handling
+#
+sub _qname_impl_common {
+  return;
+}
+sub _qname_impl_xml10 {
+  goto &_qname_impl_common;
+}
+sub _qname_impl_xml11 {
+  goto &_qname_impl_common;
+}
+sub qname_impl {
+  my ($self) = @_;
+  return $self->_get__qname_impl($self->xml_version);
 }
 
 #

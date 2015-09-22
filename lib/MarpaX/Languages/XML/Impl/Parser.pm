@@ -740,7 +740,7 @@ sub _read {
             $length = $eol_length;
           }
         } catch {
-          $self->_parse_exception($_, $r);
+          $self->_parse_exception("$_", $r);
           #
           # Never reached
           #
@@ -830,6 +830,11 @@ sub _parse_prolog {
   my $_ELEMENT_START_ID;
   my %callbacks = ();
   #
+  # Initialized after grammar creation, though must be visible right now:
+  #
+  my $start_document_impl;
+  my $end_document_impl;
+  #
   # Other grammar events for eventual SAX handlers. At this stage only start_document
   # is supported.
   #
@@ -855,6 +860,11 @@ sub _parse_prolog {
   #
   $grammar = $self->_generate_grammar(start => 'document', grammar_event => \%grammar_event);
   $xml_version = $grammar->xml_version;
+  #
+  # Get implementations of interest
+  #
+  $start_document_impl = $grammar->start_document_impl;
+  $end_document_impl   = $grammar->end_document_impl;
   #
   # Get IDs and implementations of interest
   #
@@ -954,6 +964,8 @@ sub _parse_prolog {
     #
     # This can croak
     #
+    my $ok = 1;
+    my $message;
     try {
       my $eol_length = $_[3]->$eol_decl_impl($decl, $_[0]->{_eof});
       #
@@ -961,12 +973,14 @@ sub _parse_prolog {
       #
       substr($_[1], $_[0]->{_decl_start_pos}, $_[0]->{_decl_end_pos} - $_[0]->{_decl_start_pos}, $decl) if (($eol_length > 0) && ($eol_length != $orig_length));
     } catch {
-      $_[0]->_parse_exception($_, $_[2]);
       #
-      # Never reached
+      # $_[0] is not available in catch {}
       #
+      $ok = 0;
+      $message = "$_";
       return;
     };
+    $_[0]->_parse_exception($message, $_[2]) if (! $ok);
     return;
   };
   $lexeme_callbacks_optimized[$_VERSIONNUM_ID] = sub {
@@ -1195,54 +1209,61 @@ sub _parse_element {
                      # This can croak
                      #
                      my $attvalue;
+                     my $ok = 1;
+                     my $message;
                      try {
                        $attvalue = $grammar->$attvalue_impl($cdata_context, @attvalue);
                        @attvalue = ();
                        if ($is_nsattname) {
                          $grammar->$nsattname_impl($namespace_prefix, $attvalue);
-                         #
-                         # All prefixes beginning with the three-letter sequence x, m, l, in any case combination, are reserved. This means that:
-                         # * users SHOULD NOT use them except as defined by later specifications
-                         # * processors MUST NOT treat them as fatal errors
-                         #
-                         if ($namespace_prefix =~ /^xml./i) {
-                           #
-                           # I would have like to put in Grammar.pm, but this is not really a WFC constraint. Just a recommandation.
-                           #
-                           $_[0]->_logger->warnf("$LOG_LINECOLUMN_FORMAT_HERE \[AttValue\$] Any prefix starting with 'xml', in any case combination, are reserved: %s",
-                                                 $_[0]->{LineNumber},
-                                                 $_[0]->{ColumnNumber},
-                                                 $_[0]->_safe_string($namespace_prefix)) if ($MarpaX::Languages::XML::Impl::Parser::is_warn);
-                         }
-                         if (length($namespace_prefix)) {
-                           $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE \[AttValue\$] Declaring %snamespace%s%s to %s",
-                                                  $_[0]->{LineNumber},
-                                                  $_[0]->{ColumnNumber},
-                                                  length($namespace_prefix) ? '': 'default ',
-                                                  length($namespace_prefix) ? ' ': ' ',
-                                                  $_[0]->_safe_string($namespace_prefix),
-                                                  $_[0]->_safe_string($attvalue)) if ($MarpaX::Languages::XML::Impl::Parser::is_debug);
-                         } else {
-                           $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE \[AttValue\$] Declaring default namespace to %s",
-                                                  $_[0]->{LineNumber},
-                                                  $_[0]->{ColumnNumber},
-                                                  $_[0]->_safe_string($attvalue)) if ($MarpaX::Languages::XML::Impl::Parser::is_debug);
-                         }
-                         $self->{_namespace}->declare_prefix($namespace_prefix, $attvalue);
-                       } else {
-                         #
-                         # namespace scoping backtrack to the start of the element, so we have to delay
-                         # validation of QName and AttName
-                         #
-                         push(@attributes, { prefix => $prefix, localpart => $localpart, attname => $attname, attvalue => $attvalue });
                        }
                      } catch {
-                       $_[0]->_parse_exception("$_", $_[2]);
                        #
-                       # never reached
+                       # $_[0] is not available in catch {}
                        #
+                       $ok = 0;
+                       $message = "$_";
                        return;
                      };
+                     $_[0]->_parse_exception($message, $_[2]) if (! $ok);
+
+                     if ($is_nsattname) {
+                       #
+                       # All prefixes beginning with the three-letter sequence x, m, l, in any case combination, are reserved. This means that:
+                       # * users SHOULD NOT use them except as defined by later specifications
+                       # * processors MUST NOT treat them as fatal errors
+                       #
+                       if ($namespace_prefix =~ /^xml./i) {
+                         #
+                         # I would have like to put in Grammar.pm, but this is not really a WFC constraint. Just a recommandation.
+                         #
+                         $_[0]->_logger->warnf("$LOG_LINECOLUMN_FORMAT_HERE \[AttValue\$] Any prefix starting with 'xml', in any case combination, are reserved: %s",
+                                               $_[0]->{LineNumber},
+                                               $_[0]->{ColumnNumber},
+                                               $_[0]->_safe_string($namespace_prefix)) if ($MarpaX::Languages::XML::Impl::Parser::is_warn);
+                       }
+                       if (length($namespace_prefix)) {
+                         $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE \[AttValue\$] Declaring %snamespace%s%s to %s",
+                                                $_[0]->{LineNumber},
+                                                $_[0]->{ColumnNumber},
+                                                length($namespace_prefix) ? '': 'default ',
+                                                length($namespace_prefix) ? ' ': ' ',
+                                                $_[0]->_safe_string($namespace_prefix),
+                                                $_[0]->_safe_string($attvalue)) if ($MarpaX::Languages::XML::Impl::Parser::is_debug);
+                       } else {
+                         $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE \[AttValue\$] Declaring default namespace to %s",
+                                                $_[0]->{LineNumber},
+                                                $_[0]->{ColumnNumber},
+                                                $_[0]->_safe_string($attvalue)) if ($MarpaX::Languages::XML::Impl::Parser::is_debug);
+                       }
+                       $self->{_namespace}->declare_prefix($namespace_prefix, $attvalue);
+                     } else {
+                       #
+                       # namespace scoping backtrack to the start of the element, so we have to delay
+                       # validation of QName and AttName
+                       #
+                       push(@attributes, { prefix => $prefix, localpart => $localpart, attname => $attname, attvalue => $attvalue });
+                     }
                      #
                      # Reset booleans
                      #
