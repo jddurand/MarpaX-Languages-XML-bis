@@ -10,12 +10,15 @@ use MarpaX::Languages::XML::Role::Grammar;
 use MarpaX::Languages::XML::Type::GrammarEvent -all;
 use MarpaX::Languages::XML::Type::XmlVersion -all;
 use MarpaX::Languages::XML::Type::XmlSupport -all;
+use MarpaX::RFC::RFC3986;
+use MarpaX::RFC::RFC3987;
 use Moo;
 use MooX::late;
 use MooX::Role::Logger;
 use MooX::HandlesVia;
 use Scalar::Util qw/blessed reftype/;
 use Types::Standard -all;
+use XML::NamespaceSupport;
 
 # ABSTRACT: MarpaX::Languages::XML::Role::Grammar implementation
 
@@ -63,6 +66,27 @@ has _attvalue_impl => (
                                    _get__attvalue_impl  => 'get'
                                   }
                       );
+
+has namespace_validate => (
+                           is     => 'ro',
+                           isa    => Bool,
+                           default => 0
+                          );
+
+has _nsattname_impl => (
+                        is     => 'ro',
+                        isa    => HashRef[CodeRef],
+                        default => sub {
+                          {
+                            '1.0' => \&_nsattname_impl_xml10,
+                            '1.1' => \&_nsattname_impl_xml11
+                          }
+                        },
+                        handles_via => 'Hash',
+                        handles => {
+                                    _get__nsattname_impl  => 'get'
+                                   }
+                       );
 
 has _eol_impl => (
                   is     => 'ro',
@@ -476,6 +500,78 @@ sub _build_scanless {
   return $self->$method(@args);
 }
 
+#
+# Namespace handling in an element
+#
+sub _nsattname_impl_common {
+  my ($self, $prefix, $attvalue) = @_;
+
+  if (length($prefix)) {
+    #
+    # The prefix xml is by definition bound to the namespace name http://www.w3.org/XML/1998/namespace.
+    # It MAY, but need not, be declared, and MUST NOT be bound to any other namespace name.
+    # Other prefixes MUST NOT be bound to this namespace name, and it MUST NOT be declared as the default namespace.
+    # This reference value is the package global $XML::NamespaceSupport::NS_XML
+    #
+    # The prefix xmlns is used only to declare namespace bindings and is by definition bound to the namespace name http://www.w3.org/2000/xmlns/.
+    # It MUST NOT be declared.
+    # Other prefixes MUST NOT be bound to this namespace name, and it MUST NOT be declared as the default namespace.
+    # Element names MUST NOT have the prefix xmlns.
+    # This reference value is the package global $XML::NamespaceSupport::NS_XMLNS
+    #
+    if ($prefix eq 'xml') {
+      croak "Prefix xml must be bound to $XML::NamespaceSupport::NS_XML" if ($attvalue ne $XML::NamespaceSupport::NS_XML);
+    } elsif ($prefix eq 'xmlns') {
+      croak 'Prefix xmlns must not be declared';
+    } else {
+      croak "No other prefix but xml can be bound to $attvalue" if (($attvalue eq $XML::NamespaceSupport::NS_XML) || ($attvalue eq $XML::NamespaceSupport::NS_XMLNS));
+    }
+  } else {
+    croak "$attvalue must not be declared as the default namespace" if (($prefix eq 'xml') or ($prefix eq 'xmlns'));
+  }
+}
+
+sub _nsattname_impl_xml10 {
+  my ($self, $prefix, $attvalue) = @_;
+
+  $self->_nsattname_impl_common($prefix, $attvalue);
+  #
+  # In XMLNS1.0 && prefixed attribute name, the attribute value must not be empty
+  #
+  croak 'Attribute value must not be empty in a namespace declaration for a prefix' if (length($prefix) && ! length($attvalue));
+  #
+  # Also the attribute value must be a valid URI.
+  # But the spec says it is not REQUIRED to check that namespace names are URI references.
+  # This will croak if it is not a valid URI.
+  #
+  MarpaX::RFC::RFC3986->new($attvalue) if ($self->namespace_validate);
+
+  return;
+}
+
+sub _nsattname_impl_xml11 {
+  my ($self, $prefix, $attvalue) = @_;
+
+  $self->_nsattname_impl_common($prefix, $attvalue);
+  #
+  # In XMLNS1.1 an empty attribute value for a prefix mean it is removed.
+  # Though xml not xmlns must not be undeclared.
+  #
+  croak "$prefix must not be undeclared" if ((! length($attvalue)) && ($prefix eq 'xml' || $prefix eq 'xmlns'));
+  #
+  # Also the attribute value must be a valid IRI.
+  # But the spec says it is not REQUIRED to check that namespace names are IRI references.
+  # This will croak if it is not a valid IRI.
+  #
+  MarpaX::RFC::RFC3987->new($attvalue) if ($self->namespace_validate);
+
+  return;
+}
+
+sub nsattname_impl {
+  my ($self) = @_;
+  return $self->_get__nsattname_impl($self->xml_version);
+}
 #
 # End-of-line handling in a declaration
 # --------------------------------------

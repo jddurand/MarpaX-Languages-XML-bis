@@ -1,5 +1,6 @@
 package MarpaX::Languages::XML::Role::Grammar;
 use Moo::Role;
+use MooX::late;
 
 # ABSTRACT: Grammar role for MarpaX::Languages::XML
 
@@ -18,4 +19,8 @@ requires 'spec';
 requires 'eol_impl';
 requires 'eol_decl_impl';
 requires 'attvalue_impl';
+requires 'nsattname_impl';
+
+requires 'namespace_validate';
+
 1;
