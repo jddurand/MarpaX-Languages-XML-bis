@@ -343,12 +343,14 @@ sub _parse_exception {
                                   start_position    => $previous_pos,
                                   end_position      => $self->_pos - 1,
                                   suppress_warnings => 1,
+                                  space_as_space    => 1
                                  );
     }
     $hash{Data} = hexdump(data              => ${$self->_bufferRef},
                           start_position    => $self->_pos,
                           end_position      => (($self->_pos + 47) <= $self->_length) ? $self->_pos + 47 : $self->_length,
                           suppress_warnings => 1,
+                          space_as_space    => 1
                          );
   }
 
@@ -456,6 +458,7 @@ sub _generic_parse {
         $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Data: %s", $LineNumber, $ColumnNumber,
                                hexdump(data              => substr($_[1], $pos, 15),
                                        suppress_warnings => 1,
+                                       space_as_space    => 1
                                       ));
       }
       $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE %s/%s/%s: Events                : %s", $LineNumber, $ColumnNumber, $grammar->spec, $grammar->xml_version, $grammar->start, \@event_names);
