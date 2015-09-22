@@ -732,6 +732,8 @@ sub _read {
         #
         # This can croak
         #
+        my $ok = 1;
+        my $message;
         try {
           my $eol_length = $grammar->$eol_impl($_[1], $self->{_eof});
           if ($eol_length > 0) {
@@ -743,12 +745,14 @@ sub _read {
             $length = $eol_length;
           }
         } catch {
-          $self->_parse_exception("$_", $r);
+          $ok = 0;
+          $message = "$_";
           #
           # Never reached
           #
           return;
         };
+        $self->_parse_exception($message, $r) if (! $ok);
       } else {
         $length = $io_length;
       }
