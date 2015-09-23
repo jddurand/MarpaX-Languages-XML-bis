@@ -454,18 +454,29 @@ sub _generic_parse {
   while (1) {
     my @event_names = map { $_->[0] } @{$r->events()};
     my @terminals_expected_to_symbol_ids = $r->terminals_expected_to_symbol_ids();
-    if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Pos: %d, Length: %d, Remaining: %d", $LineNumber, $ColumnNumber, $pos, $length, $remaining);
+    if ($MarpaX::Languages::XML::Impl::Parser::is_debug) {
+      #
+      # If trace if on, then debug is on
+      #
+      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Pos: %d, Length: %d, Remaining: %d", $LineNumber, $ColumnNumber, $pos, $length, $remaining) if ($MarpaX::Languages::XML::Impl::Parser::is_trace);
       if ($self->_remaining > 0) {
-        $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Data: %s", $LineNumber, $ColumnNumber,
-                               hexdump(data              => substr($_[1], $pos, 16),
-                                       suppress_warnings => 1,
-                                       space_as_space    => 1
-                                      ));
+        my $data = hexdump(data => substr($_[1], $pos, 16),
+                           suppress_warnings => 1,
+                           space_as_space    => 1
+                          );
+        my $nbzeroes = ($data =~ s/( 00)(?= (?::|00))/   /g);
+        if ($nbzeroes) {
+          $data =~ s/\.{$nbzeroes}$//;
+        }
+        $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE [.....] %s", $LineNumber, $ColumnNumber, $data);
+      } else {
+        $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE [.....] %s", $LineNumber, $ColumnNumber, 'none');
       }
-      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE %s/%s/%s: Events                : %s", $LineNumber, $ColumnNumber, $grammar->spec, $grammar->xml_version, $grammar->start, \@event_names);
-      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE %s/%s/%s: Expected terminals    : %s", $LineNumber, $ColumnNumber, $grammar->spec, $grammar->xml_version, $grammar->start, $r->terminals_expected());
-      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE %s/%s/%s: Expected terminals IDs: %s", $LineNumber, $ColumnNumber, $grammar->spec, $grammar->xml_version, $grammar->start, \@terminals_expected_to_symbol_ids);
+      if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
+        $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE %s/%s/%s: Events                : %s", $LineNumber, $ColumnNumber, $grammar->spec, $grammar->xml_version, $grammar->start, \@event_names);
+        $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE %s/%s/%s: Expected terminals    : %s", $LineNumber, $ColumnNumber, $grammar->spec, $grammar->xml_version, $grammar->start, $r->terminals_expected());
+        $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE %s/%s/%s: Expected terminals IDs: %s", $LineNumber, $ColumnNumber, $grammar->spec, $grammar->xml_version, $grammar->start, \@terminals_expected_to_symbol_ids);
+      }
     }
     #
     # First the events
