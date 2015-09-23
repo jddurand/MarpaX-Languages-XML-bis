@@ -455,9 +455,9 @@ sub _generic_parse {
     my @event_names = map { $_->[0] } @{$r->events()};
     my @terminals_expected_to_symbol_ids = $r->terminals_expected_to_symbol_ids();
     if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-      $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Pos: %d, Length: %d, Remaining: %d", $LineNumber, $ColumnNumber, $pos, $length, $remaining);
+      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Pos: %d, Length: %d, Remaining: %d", $LineNumber, $ColumnNumber, $pos, $length, $remaining);
       if ($self->_remaining > 0) {
-        $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Data: %s", $LineNumber, $ColumnNumber,
+        $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Data: %s", $LineNumber, $ColumnNumber,
                                hexdump(data              => substr($_[1], $pos, 15),
                                        suppress_warnings => 1,
                                        space_as_space    => 1
@@ -536,7 +536,7 @@ sub _generic_parse {
           #
           # Lexeme ok
           #
-          $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE Match %s with length=%d",
+          $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE [Match] %s: length=%d",
                                  $LineNumber,
                                  $ColumnNumber,
                                  $grammar->scanless->symbol_name($_),
@@ -565,16 +565,12 @@ sub _generic_parse {
         # higher priority
         #
         if (exists($length{$_XMLNSCOLON_ID})) {
-          if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-            $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Lexeme _XMLNSCOLON detected and has priority", $LineNumber, $ColumnNumber);
-          }
+          $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Lexeme _XMLNSCOLON detected and has priority", $LineNumber, $ColumnNumber) if ($MarpaX::Languages::XML::Impl::Parser::is_trace);
           $data = 'xmlns:';
           $max_length = length($data);
           %length = ($_XMLNSCOLON_ID => $max_length);
         } elsif (exists($length{$_XMLNS_ID})) {
-          if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-            $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Lexeme _XMLNS detected and has priority", $LineNumber, $ColumnNumber);
-          }
+          $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Lexeme _XMLNS detected and has priority", $LineNumber, $ColumnNumber) if ($MarpaX::Languages::XML::Impl::Parser::is_trace);
           $data = 'xmlns';
           $max_length = length($data);
           %length = ($_XMLNS_ID => $max_length);
@@ -611,6 +607,11 @@ sub _generic_parse {
                                $max_length,
                                [ map { $grammar->scanless->symbol_name($_) } keys %length ]) if ($MarpaX::Languages::XML::Impl::Parser::is_trace);
         foreach (keys %length) {
+          $self->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE [Found] %s: length=%d",
+                                 $LineNumber,
+                                 $ColumnNumber,
+                                 $grammar->scanless->symbol_name($_),
+                                 $max_length) if ($MarpaX::Languages::XML::Impl::Parser::is_debug);
           #
           # Handle ourself lexeme event, if any
           # This is NOT a Marpa event, but our stuff.
@@ -655,9 +656,7 @@ sub _generic_parse {
         # No prediction: this is ok only if grammar end_of_grammar flag is set
         #
         if ($can_stop || $previous_can_stop) {
-          if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-            $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE No prediction and grammar end flag is on", $LineNumber, $ColumnNumber);
-          }
+          $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE No prediction and grammar end flag is on", $LineNumber, $ColumnNumber) if ($MarpaX::Languages::XML::Impl::Parser::is_trace);
           return;
         } else {
           $self->_parse_exception('No prediction and grammar end flag is not set', $r);
@@ -685,14 +684,10 @@ sub _reduceAndRead {
     # Faster like this -;
     #
     if ($pos >= $length) {
-      if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-        $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Rolling-out buffer", $self->LineNumber, $self->ColumnNumber);
-      }
+      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Rolling-out buffer", $self->LineNumber, $self->ColumnNumber) if ($MarpaX::Languages::XML::Impl::Parser::is_trace);
       $_[1] = '';
     } else {
-      if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-        $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Rolling-out %d characters", $self->LineNumber, $self->ColumnNumber, $pos);
-      }
+      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Rolling-out %d characters", $self->LineNumber, $self->ColumnNumber, $pos) if ($MarpaX::Languages::XML::Impl::Parser::is_trace);
       #
       # substr is efficient at front-end of a string
       #
@@ -724,9 +719,7 @@ sub _read {
     my $io_length;
     $self->io->read;
     if (($io_length = $self->io->length) <= 0) {
-      if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-        $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE EOF", $self->LineNumber, $self->ColumnNumber);
-      }
+      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE EOF", $self->LineNumber, $self->ColumnNumber) if ($MarpaX::Languages::XML::Impl::Parser::is_trace);
       $self->{_eof} = 1;
       return 0;
     } else {
@@ -906,7 +899,7 @@ sub _parse_prolog {
     #
     # Say stop
     #
-    $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE \[_ELEMENT_START\] XML root element detected",
+    $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE [ cbk ] _ELEMENT_START: XML root element detected",
                            $_[0]->{LineNumber},
                            $_[0]->{ColumnNumber}) if ($MarpaX::Languages::XML::Impl::Parser::is_debug);
     return 1;
@@ -917,7 +910,7 @@ sub _parse_prolog {
     # Encoding is composed only of ASCII codepoints, so uc is ok
     #
     my $xml_encoding = uc($_[4]);
-    $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE \[_ENCNAME\] XML says encoding %s (uppercased to %s)",
+    $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE [ cbk ] _ENCNAME: XML says encoding %s (uppercased to %s)",
                            $_[0]->{LineNumber},
                            $_[0]->{ColumnNumber},
                            $_[4],
@@ -944,7 +937,7 @@ sub _parse_prolog {
   $lexeme_callbacks_optimized[$_XMLDECL_START_ID] = sub {
     # my ($self, undef, $r, $g, $data) = @_;    # $_[1] is the internal buffer
 
-    $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE \[_XMLDECL_START\] XML Declaration is starting",
+    $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE [ cbk ] _XMLDECL_START: XML Declaration is starting",
                            $_[0]->{LineNumber},
                            $_[0]->{ColumnNumber}) if ($MarpaX::Languages::XML::Impl::Parser::is_debug);
     #
@@ -957,7 +950,7 @@ sub _parse_prolog {
   $lexeme_callbacks_optimized[$_XMLDECL_END_ID] = sub {
     # my ($self, undef, $r, $g, $data) = @_;    # $_[1] is the internal buffer
 
-    $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE \[_XMLDECL_END\] XML Declaration is ending",
+    $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE [ cbk ] _XMLDECL_END: XML Declaration is ending",
                            $_[0]->{LineNumber},
                            $_[0]->{ColumnNumber}) if ($MarpaX::Languages::XML::Impl::Parser::is_debug);
     #
@@ -998,7 +991,7 @@ sub _parse_prolog {
   $lexeme_callbacks_optimized[$_VERSIONNUM_ID] = sub {
     # my ($self, undef, $r, $g, $data) = @_;    # $_[1] is the internal buffer
 
-    $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE \[_VERSIONNUM\] XML says version number %s",
+    $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE [ cbk ] _VERSIONNUM: XML says version number %s",
                            $_[0]->{LineNumber},
                            $_[0]->{ColumnNumber},
                            $_[4]) if ($MarpaX::Languages::XML::Impl::Parser::is_debug);
@@ -1252,13 +1245,13 @@ sub _parse_element {
                          #
                          # I would have like to put in Grammar.pm, but this is not really a WFC constraint. Just a recommandation.
                          #
-                         $_[0]->_logger->warnf("$LOG_LINECOLUMN_FORMAT_HERE \[AttValue\$] Any prefix starting with 'xml', in any case combination, are reserved: %s",
+                         $_[0]->_logger->warnf("$LOG_LINECOLUMN_FORMAT_HERE [ cbk ] AttValue\$: Any prefix starting with 'xml', in any case combination, are reserved: %s",
                                                $_[0]->{LineNumber},
                                                $_[0]->{ColumnNumber},
                                                $_[0]->_safe_string($namespace_prefix)) if ($MarpaX::Languages::XML::Impl::Parser::is_warn);
                        }
                        if (length($namespace_prefix)) {
-                         $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE \[AttValue\$] Declaring %snamespace%s%s to %s",
+                         $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE [ cbk ] AttValue\$: Declaring %snamespace%s%s to %s",
                                                 $_[0]->{LineNumber},
                                                 $_[0]->{ColumnNumber},
                                                 length($namespace_prefix) ? '': 'default ',
@@ -1266,7 +1259,7 @@ sub _parse_element {
                                                 $_[0]->_safe_string($namespace_prefix),
                                                 $_[0]->_safe_string($attvalue)) if ($MarpaX::Languages::XML::Impl::Parser::is_debug);
                        } else {
-                         $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE \[AttValue\$] Declaring default namespace to %s",
+                         $_[0]->_logger->debugf("$LOG_LINECOLUMN_FORMAT_HERE [ cbk ] AttValue\$: Declaring default namespace to %s",
                                                 $_[0]->{LineNumber},
                                                 $_[0]->{ColumnNumber},
                                                 $_[0]->_safe_string($attvalue)) if ($MarpaX::Languages::XML::Impl::Parser::is_debug);
