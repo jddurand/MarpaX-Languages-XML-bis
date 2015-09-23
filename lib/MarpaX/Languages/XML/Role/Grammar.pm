@@ -10,9 +10,7 @@ use MooX::late;
 
 requires 'xml_scanless';
 requires 'xmlns_scanless';
-requires 'elements_grammar_event';
-requires 'elements_lexeme_match';
-requires 'elements_lexeme_exclusion';
+requires 'elements_lexeme_exclusion_by_symbol_ids';
 requires 'elements_lexeme_match_by_symbol_ids';
 requires 'spec';
 

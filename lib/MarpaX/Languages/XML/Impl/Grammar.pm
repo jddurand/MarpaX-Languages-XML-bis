@@ -191,9 +191,6 @@ has lexeme_match => (
                       builder => '_build_lexeme_match',
                       handles_via => 'Hash',
                       handles => {
-                                  elements_lexeme_match  => 'elements',
-                                  keys_lexeme_match      => 'keys',
-                                  set_lexeme_match       => 'set',
                                   get_lexeme_match       => 'get',
                                   exists_lexeme_match    => 'exists'
                                  }
@@ -206,11 +203,20 @@ has lexeme_match_by_symbol_ids => (
                       builder => '_build_lexeme_match_by_symbol_ids',
                       handles_via => 'Array',
                       handles => {
-                                  elements_lexeme_match_by_symbol_ids  => 'elements',
-                                  set_lexeme_match_by_symbol_ids       => 'set',
-                                  get_lexeme_match_by_symbol_ids       => 'get'
+                                  elements_lexeme_match_by_symbol_ids  => 'elements'
                                  }
                       );
+
+has lexeme_exclusion_by_symbol_ids => (
+                                       is  => 'ro',
+                                       isa => ArrayRef[RegexpRef|Undef],
+                                       lazy  => 1,
+                                       builder => '_build_lexeme_exclusion_by_symbol_ids',
+                                       handles_via => 'Array',
+                                       handles => {
+                                                   elements_lexeme_exclusion_by_symbol_ids  => 'elements'
+                                                  }
+                                      );
 
 has lexeme_exclusion => (
                          is  => 'ro',
@@ -219,9 +225,6 @@ has lexeme_exclusion => (
                          builder => '_build_lexeme_exclusion',
                          handles_via => 'Hash',
                          handles => {
-                                     elements_lexeme_exclusion => 'elements',
-                                     keys_lexeme_exclusion     => 'keys',
-                                     set_lexeme_exclusion      => 'set',
                                      get_lexeme_exclusion      => 'get',
                                      exists_lexeme_exclusion   => 'exists'
                                     }
@@ -232,11 +235,8 @@ has grammar_event => (
                       default => sub { {} },
                       handles_via => 'Hash',
                       handles => {
-                                  elements_grammar_event => 'elements',
                                   keys_grammar_event     => 'keys',
-                                  set_grammar_event      => 'set',
-                                  get_grammar_event      => 'get',
-                                  exists_grammar_event   => 'exists'
+                                  get_grammar_event      => 'get'
                                  }
                       );
 
@@ -508,9 +508,6 @@ sub _build_lexeme_match_by_symbol_ids {
   my ($self) = @_;
 
   my $symbol_by_name_hash = $self->scanless->symbol_by_name_hash;
-  if ($MarpaX::Languages::XML::Impl::Parser::is_trace) {
-    $self->_logger->tracef('%s/%s/%s: Symbol By Name: %s', $self->spec, $self->xml_version, $self->start, $symbol_by_name_hash);
-  }
   #
   # Build the regexp list as an array using symbol ids as indice
   #
@@ -518,6 +515,22 @@ sub _build_lexeme_match_by_symbol_ids {
   foreach (keys %{$symbol_by_name_hash}) {
     if ($self->exists_lexeme_match($_)) {
       $array[$symbol_by_name_hash->{$_}] = $self->get_lexeme_match($_);
+    }
+  }
+  return \@array;
+}
+
+sub _build_lexeme_exclusion_by_symbol_ids {
+  my ($self) = @_;
+
+  my $symbol_by_name_hash = $self->scanless->symbol_by_name_hash;
+  #
+  # Build the string list as an array using symbol ids as indice
+  #
+  my @array = ();
+  foreach (keys %{$symbol_by_name_hash}) {
+    if ($self->exists_lexeme_exclusion($_)) {
+      $array[$symbol_by_name_hash->{$_}] = $self->get_lexeme_exclusion($_);
     }
   }
   return \@array;

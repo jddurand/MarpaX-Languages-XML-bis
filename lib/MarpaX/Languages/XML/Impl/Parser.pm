@@ -436,16 +436,14 @@ sub _generic_parse {
   #
   # Variables that need initialization
   #
-  my %grammar_event    = $grammar->elements_grammar_event;
-  my %lexeme_match     = $grammar->elements_lexeme_match;
-  my %lexeme_exclusion = $grammar->elements_lexeme_exclusion;
   my $global_pos       = $self->{_global_pos};
   my $LineNumber       = $self->{LineNumber};
   my $ColumnNumber     = $self->{ColumnNumber};
   my $pos              = $self->{_pos};
   my $length           = $self->{_length};
   my $remaining        = $self->{_remaining};
-  my @lexeme_match_by_symbol_ids = $grammar->elements_lexeme_match_by_symbol_ids;
+  my @lexeme_match_by_symbol_ids     = $grammar->elements_lexeme_match_by_symbol_ids;
+  my @lexeme_exclusion_by_symbol_ids = $grammar->elements_lexeme_exclusion_by_symbol_ids;
   my $previous_can_stop = 0;
   my $_XMLNSCOLON_ID   = $grammar->scanless->symbol_by_name_hash->{'_XMLNSCOLON'};
   my $_XMLNS_ID        = $grammar->scanless->symbol_by_name_hash->{'_XMLNS'};
@@ -533,7 +531,7 @@ sub _generic_parse {
           #
           # Match excluded ?
           #
-          my $lexeme_exclusion = $lexeme_exclusion{$_};
+          my $lexeme_exclusion = $lexeme_exclusion_by_symbol_ids[$_];
           next if ($lexeme_exclusion && ($matched_data =~ $lexeme_exclusion));
           #
           # Lexeme ok
