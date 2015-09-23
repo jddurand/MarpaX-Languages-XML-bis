@@ -458,7 +458,7 @@ sub _generic_parse {
       $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Pos: %d, Length: %d, Remaining: %d", $LineNumber, $ColumnNumber, $pos, $length, $remaining);
       if ($self->_remaining > 0) {
         $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE Data: %s", $LineNumber, $ColumnNumber,
-                               hexdump(data              => substr($_[1], $pos, 15),
+                               hexdump(data              => substr($_[1], $pos, 16),
                                        suppress_warnings => 1,
                                        space_as_space    => 1
                                       ));
