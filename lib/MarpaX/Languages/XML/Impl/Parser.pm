@@ -464,9 +464,8 @@ sub _generic_parse {
                                       ));
       }
       $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE %s/%s/%s: Events                : %s", $LineNumber, $ColumnNumber, $grammar->spec, $grammar->xml_version, $grammar->start, \@event_names);
-      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE %s/%s/%s: Expected terminals    : %s", $LineNumber, $ColumnNumber, $grammar->spec, $grammar->xml_version, $grammar->start, \@terminals_expected_to_symbol_ids);
-      my @terminals_expected = @{$r->terminals_expected()};
-      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE %s/%s/%s: Expected terminals IDs: %s", $LineNumber, $ColumnNumber, $grammar->spec, $grammar->xml_version, $grammar->start, \@terminals_expected);
+      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE %s/%s/%s: Expected terminals    : %s", $LineNumber, $ColumnNumber, $grammar->spec, $grammar->xml_version, $grammar->start, $r->terminals_expected());
+      $self->_logger->tracef("$LOG_LINECOLUMN_FORMAT_HERE %s/%s/%s: Expected terminals IDs: %s", $LineNumber, $ColumnNumber, $grammar->spec, $grammar->xml_version, $grammar->start, \@terminals_expected_to_symbol_ids);
     }
     #
     # First the events
